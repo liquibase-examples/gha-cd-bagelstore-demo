@@ -117,60 +117,11 @@ def remove_from_cart(product_id):
     return redirect(url_for('main.cart'))
 
 
-@bp.route('/checkout', methods=['GET', 'POST'])
+@bp.route('/checkout', methods=['GET'])
 def checkout():
-    """Checkout and create order"""
+    """Checkout page - display order summary"""
     if 'user' not in session:
         return redirect(url_for('main.login'))
-
-    if request.method == 'POST':
-        cart = session.get('cart', [])
-
-        if not cart:
-            return redirect(url_for('main.index'))
-
-        # Calculate total
-        total = 0.0
-        for item in cart:
-            product_row = execute_one(
-                'SELECT price FROM products WHERE id = %s',
-                (item['product_id'],)
-            )
-            if product_row:
-                total += float(product_row[0]) * item['quantity']
-
-        # Create order
-        with get_db_connection() as conn:
-            with get_db_cursor(conn) as cursor:
-                # Insert order
-                cursor.execute(
-                    'INSERT INTO orders (order_date, total_amount, status) VALUES (NOW(), %s, %s) RETURNING id',
-                    (total, 'pending')
-                )
-                order_id = cursor.fetchone()[0]
-
-                # Insert order items
-                for item in cart:
-                    product_row = execute_one(
-                        'SELECT price FROM products WHERE id = %s',
-                        (item['product_id'],)
-                    )
-                    if product_row:
-                        cursor.execute(
-                            'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (%s, %s, %s, %s)',
-                            (order_id, item['product_id'], item['quantity'], float(product_row[0]))
-                        )
-
-                        # Update inventory
-                        cursor.execute(
-                            'UPDATE inventory SET quantity = quantity - %s, last_updated = NOW() WHERE product_id = %s',
-                            (item['quantity'], item['product_id'])
-                        )
-
-        # Clear cart
-        session['cart'] = []
-
-        return redirect(url_for('main.order_confirmation', order_id=order_id))
 
     # GET - show checkout page
     cart_items = session.get('cart', [])
@@ -192,6 +143,61 @@ def checkout():
             total += product.price * item['quantity']
 
     return render_template('checkout.html', items=products, total=total)
+
+
+@bp.route('/checkout/place-order', methods=['POST'])
+def place_order():
+    """Process checkout and create order"""
+    if 'user' not in session:
+        return redirect(url_for('main.login'))
+
+    cart = session.get('cart', [])
+
+    if not cart:
+        return redirect(url_for('main.index'))
+
+    # Calculate total
+    total = 0.0
+    for item in cart:
+        product_row = execute_one(
+            'SELECT price FROM products WHERE id = %s',
+            (item['product_id'],)
+        )
+        if product_row:
+            total += float(product_row[0]) * item['quantity']
+
+    # Create order
+    with get_db_connection() as conn:
+        with get_db_cursor(conn) as cursor:
+            # Insert order
+            cursor.execute(
+                'INSERT INTO orders (order_date, total_amount, status) VALUES (NOW(), %s, %s) RETURNING id',
+                (total, 'pending')
+            )
+            order_id = cursor.fetchone()[0]
+
+            # Insert order items
+            for item in cart:
+                product_row = execute_one(
+                    'SELECT price FROM products WHERE id = %s',
+                    (item['product_id'],)
+                )
+                if product_row:
+                    cursor.execute(
+                        'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (%s, %s, %s, %s)',
+                        (order_id, item['product_id'], item['quantity'], float(product_row[0]))
+                    )
+
+                    # Update inventory
+                    cursor.execute(
+                        'UPDATE inventory SET quantity = quantity - %s, last_updated = NOW() WHERE product_id = %s',
+                        (item['quantity'], item['product_id'])
+                    )
+
+    # Clear cart
+    session['cart'] = []
+
+    return redirect(url_for('main.order_confirmation', order_id=order_id))
 
 
 @bp.route('/order/<int:order_id>')
@@ -237,3 +243,15 @@ def health():
         return jsonify({'status': 'healthy', 'database': 'connected'}), 200
     except Exception as e:
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+
+
+@bp.route('/version')
+def version():
+    """Version info endpoint for deployment verification"""
+    version_info = {
+        'application': 'bagel-store',
+        'version': os.getenv('APP_VERSION', '1.0.0'),
+        'environment': os.getenv('FLASK_ENV', 'production'),
+        'demo_id': os.getenv('DEMO_ID', 'local')
+    }
+    return jsonify(version_info), 200

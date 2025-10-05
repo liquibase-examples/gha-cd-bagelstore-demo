@@ -35,11 +35,33 @@ This is a demonstration repository showcasing coordinated application and databa
 │   ├── pr-validation-flow.yaml
 │   ├── main-deployment-flow.yaml
 │   └── liquibase.checks-settings.conf
-└── .github/workflows/
-    ├── pr-validation.yml
-    ├── main-ci.yml
-    └── app-ci.yml
+├── .github/workflows/
+│   ├── pr-validation.yml
+│   ├── main-ci.yml
+│   └── app-ci.yml
+├── scripts/
+│   └── check-dependencies.sh     # Automated dependency checker
+├── .claude/commands/
+│   └── setup.md                  # AI-assisted setup command
+└── SETUP.md                      # Complete setup guide
 ```
+
+## First-Time Setup
+
+**For new developers setting up the project:**
+
+1. **Quick setup check:**
+   ```bash
+   ./scripts/check-dependencies.sh
+   ```
+
+2. **AI-assisted setup (Claude Code users):**
+   - Type `setup` at the Claude Code prompt for guided setup
+
+3. **Complete setup guide:**
+   - See [SETUP.md](SETUP.md) for detailed platform-specific instructions
+   - Covers Windows (WSL), macOS, and Linux
+   - Includes installation of all required tools with version requirements
 
 ## Local Development & Testing
 
@@ -486,10 +508,11 @@ Quick reference for test development and understanding flows:
 - `/cart` - View shopping cart
 - `/cart/add/<product_id>` - Add item to cart (POST)
 - `/cart/remove/<product_id>` - Remove item (POST)
-- `/checkout` - Checkout page (requires authentication)
-- `/checkout/place-order` - Create order (POST)
+- `/checkout` - Checkout page (GET, requires authentication)
+- `/checkout/place-order` - Create order (POST, requires authentication)
 - `/order/<int:order_id>` - Order confirmation (note: `/order/` not `/order-confirmation/`)
-- `/health` - Health check endpoint
+- `/health` - Health check endpoint (database connectivity test)
+- `/version` - Version info endpoint (returns app version, environment, demo_id)
 
 See [app/TESTING.md](app/TESTING.md) for test examples using these routes.
 

@@ -22,7 +22,7 @@
         <h3>Total: ${{ "%.2f"|format(total) }}</h3>
     </div>
 
-    <form method="POST">
+    <form method="POST" action="{{ url_for('main.place_order') }}">
         <button type="submit" class="btn-order">Place Order</button>
     </form>
 
