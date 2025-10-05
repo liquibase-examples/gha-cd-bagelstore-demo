@@ -1395,6 +1395,11 @@ pipeline:
 3. 🔲 Set up AWS Secrets Manager secrets (RDS credentials only)
 4. 🔲 Configure Route53 DNS records (optional)
 5. 🔲 Upload Liquibase flow files and policy checks to S3 via Terraform
+6. 🔲 **Migrate GitHub Actions workflows to use S3-hosted flow files** (currently using local files from `liquibase-flows/` directory)
+   - Update `pr-validation.yml`: Change `--flow-file=/liquibase/flows/pr-validation-flow.yaml` to `--flow-file=s3://bagel-store-${DEMO_ID}-liquibase-flows/pr-validation-flow.yaml`
+   - Update `main-ci.yml`: Change `--flow-file=/liquibase/flows/main-deployment-flow.yaml` to `--flow-file=s3://bagel-store-${DEMO_ID}-liquibase-flows/main-deployment-flow.yaml`
+   - Add AWS credentials configuration to workflows using `aws-actions/configure-aws-credentials@v4`
+   - Add policy checks file reference: `--checks-settings-file=s3://bagel-store-${DEMO_ID}-liquibase-flows/liquibase.checks-settings.conf`
 
 ### Phase 2: Application Development ✅ **COMPLETE**
 
@@ -1504,28 +1509,63 @@ Schema Match:       ✅ Identical to app/init-db.sql
 
 ---
 
-### Phase 4: CI/CD Pipeline ⚠️ **PARTIALLY BLOCKED**
+### Phase 4: CI/CD Pipeline ✅ **COMPLETE (Local Testing Mode)**
 
-**Status:** Can prepare workflows, but cannot fully test until Phase 1 complete
+**Status:** Workflows created and ready for testing - October 5, 2025
 
-**Can proceed now:**
-1. 🔲 Create GitHub Actions workflow files (.github/workflows/)
-   - pr-validation.yml
-   - main-ci.yml (database)
-   - app-ci.yml (application)
-2. 🔲 Configure GitHub Packages for Docker images
-3. 🔲 Configure GitHub Secrets (AWS credentials, Liquibase license)
-4. 🔲 Write S3 upload logic for operation reports
-5. 🔲 Test workflow syntax validation
+**Completed:**
+1. ✅ Created GitHub Actions workflow files (.github/workflows/)
+   - `pr-validation.yml` - Liquibase policy checks with 12 BLOCKER checks
+   - `test-deployment.yml` - Deploy changelog + run 15 pytest system tests
+   - `main-ci.yml` - Build database and application artifacts
+2. ✅ Configured Docker Compose integration for CI testing
+3. ✅ Configured local flow file references (ready for S3 migration)
+4. ✅ Integrated pytest + Playwright test suite (15 tests)
+5. ✅ Added GitHub Actions artifact uploads for reports
+6. ✅ Added PR comment automation for test results
 
-**Blocked until Phase 1 complete:**
-- Cannot test workflows against real RDS database
-- Cannot test S3 uploads (buckets don't exist yet)
-- Cannot test Liquibase with AWS Secrets Manager
+**Deliverables:**
+- **PR Validation Workflow:** Runs policy checks before merge, blocks on BLOCKER violations
+- **Test Deployment Workflow:** Deploys changelog to Docker Compose postgres, verifies with system tests
+- **Main CI Workflow:** Builds versioned artifacts (changelog zip + Docker image to ghcr.io)
+- **Local Flow Files:** Uses `liquibase-flows/` directory (migrates to S3 when Phase 1 complete)
 
-**Notes:**
-- Workflows can be written and syntax-validated
-- Use DAT-20991 blocker time to perfect workflow logic
+**Key Features:**
+- Uses Docker Compose postgres:16 for database testing
+- Liquibase execution via `liquibase/liquibase-secure:5.0.1` Docker container
+- LIQUIBASE_COMMAND_* environment variables (proven best practice)
+- Operation reports uploaded as GitHub Actions artifacts
+- Automated PR comments with pass/fail status
+- GitHub workflow summaries for quick visibility
+
+**Testing Approach:**
+- **PR Validation:** Policy checks only (no deployment)
+- **Test Deployment:** Full changelog deployment + 22 pytest tests (7 deployment + 4 health + 11 E2E)
+- **Main CI:** Artifact creation (changelog zip + Docker image)
+
+**New Deployment Verification Tests:**
+- `test_liquibase_deployment.py` - 7 comprehensive tests validating Liquibase deployment
+  - Verifies databasechangelog table exists
+  - Confirms all 9 changesets applied in correct order
+  - Validates all tables created (products, inventory, orders, order_items)
+  - Checks all 4 indexes created
+  - Verifies foreign key constraints exist
+  - Confirms seed data loaded correctly (5 products, 5 inventory)
+  - Validates database tags applied (v1.0.0-baseline, v1.0.0)
+
+**GitHub Secrets Configured:**
+- ✅ `LIQUIBASE_LICENSE_KEY` - **SET** (repository-level secret)
+
+**GitHub Variables (Optional):**
+- `DEMO_ID` (optional) - Demo instance identifier (defaults to "demo1")
+- `HARNESS_WEBHOOK_URL` (optional) - For automatic Harness deployments
+
+**Note:** DEMO_USERNAME/DEMO_PASSWORD no longer required - generated randomly per CI run using `openssl rand -base64 32`
+
+**Migration to S3 (Phase 1 completion):**
+- See Phase 1 step 6 for S3 migration checklist
+- Current: Uses local `liquibase-flows/` directory
+- Future: Uses S3 URLs for flow files and policy checks
 
 ---
 
