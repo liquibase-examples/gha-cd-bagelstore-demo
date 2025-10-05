@@ -2,12 +2,18 @@
 Pytest configuration and fixtures for Bagel Store tests.
 """
 
+import os
 import pytest
 import time
 import psycopg2
+from pathlib import Path
+from dotenv import load_dotenv
 from playwright.sync_api import Page, expect
 import requests
 
+# Load environment variables from .env file
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Application configuration
 APP_URL = "http://localhost:5001"
@@ -18,6 +24,16 @@ DB_CONFIG = {
     "user": "postgres",
     "password": "postgres"
 }
+
+# Demo credentials from environment variables
+DEMO_USERNAME = os.getenv('DEMO_USERNAME', 'demo')
+DEMO_PASSWORD = os.getenv('DEMO_PASSWORD')
+
+if not DEMO_PASSWORD:
+    raise ValueError(
+        "DEMO_PASSWORD environment variable not set! "
+        "Please copy .env.example to .env and set your credentials."
+    )
 
 
 @pytest.fixture(scope="session")
@@ -79,15 +95,15 @@ def clean_cart(page: Page):
 def authenticated_page(page: Page):
     """Provide an authenticated page session."""
     page.goto(f"{APP_URL}/login")
-    page.fill('#username', 'demo')
-    page.fill('#password', 'B@gelSt0re2025!Demo')
+    page.fill('#username', DEMO_USERNAME)
+    page.fill('#password', DEMO_PASSWORD)
     page.click('button[type="submit"]')
 
     # Wait for redirect to homepage
     page.wait_for_url(APP_URL + "/", timeout=10000)
 
     # Verify login succeeded by checking for welcome message
-    expect(page.locator('text=Welcome, demo!')).to_be_visible(timeout=10000)
+    expect(page.locator(f'text=Welcome, {DEMO_USERNAME}!')).to_be_visible(timeout=10000)
 
     return page
 

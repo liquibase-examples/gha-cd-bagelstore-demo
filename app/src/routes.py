@@ -2,14 +2,24 @@
 Flask routes for the Bagel Store application.
 """
 
+import os
 from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify
 from database import execute_query, execute_one, get_db_connection, get_db_cursor
 from models import Product, Order, OrderItem
 
 bp = Blueprint('main', __name__)
 
-# Hardcoded user for authentication
-DEMO_USER = {'username': 'demo', 'password': 'B@gelSt0re2025!Demo'}
+# Demo user credentials from environment variables
+# Set these in your .env file for local development
+DEMO_USERNAME = os.getenv('DEMO_USERNAME')
+DEMO_PASSWORD = os.getenv('DEMO_PASSWORD')
+
+if not DEMO_USERNAME or not DEMO_PASSWORD:
+    raise ValueError(
+        "Demo credentials not configured! "
+        "Please set DEMO_USERNAME and DEMO_PASSWORD environment variables. "
+        "For local development, copy .env.example to .env and set your credentials."
+    )
 
 
 @bp.route('/')
@@ -34,13 +44,13 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        if username == DEMO_USER['username'] and password == DEMO_USER['password']:
+        if username == DEMO_USERNAME and password == DEMO_PASSWORD:
             session['user'] = username
             return redirect(url_for('main.index'))
         else:
             return render_template('login.html', error='Invalid credentials')
 
-    return render_template('login.html')
+    return render_template('login.html', demo_username=DEMO_USERNAME)
 
 
 @bp.route('/logout')

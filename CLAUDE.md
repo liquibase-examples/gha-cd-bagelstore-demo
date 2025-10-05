@@ -161,6 +161,50 @@ docker run --rm \
   --flow-file=s3://bagel-store-demo1-liquibase-flows/pr-validation-flow.yaml
 ```
 
+### After Template Changes
+
+Templates are **baked into Docker images** at build time:
+
+```bash
+# Must rebuild without cache
+docker compose build --no-cache
+docker compose up -d
+
+# Verify changes applied
+curl http://localhost:5001/login | grep "Demo Credentials"
+uv run pytest -m health
+```
+
+### Testing Credentials Flow
+
+```bash
+# 1. Test environment variable loading
+cd app
+source .env
+echo $DEMO_PASSWORD  # Verify it's set
+
+# 2. Test application loads them
+docker compose up -d
+docker compose logs app | grep -i "error\|password"
+
+# 3. Test full login flow
+uv run pytest tests/test_e2e_shopping.py::test_login_success -v
+```
+
+## Security-Sensitive Files
+
+**Never commit these:**
+- `app/.env` - Local credentials (in .gitignore)
+- `terraform/*.tfvars` - Infrastructure secrets (in .gitignore)
+- Any file with actual passwords, API keys, or tokens
+
+**Always commit these:**
+- `app/.env.example` - Template with placeholders
+- `terraform/terraform.tfvars.example` - Infrastructure template
+- Documentation referencing environment variables
+
+**When in doubt:** Use `git check-ignore -v <file>` to verify gitignore status
+
 ## Critical Implementation Requirements
 
 ### Liquibase GitHub Actions Configuration
@@ -420,13 +464,17 @@ When changing demo credentials, route URLs, or template content:
 
 **Example - Demo credentials:**
 ```python
-# Source of truth: app/src/routes.py:12
-DEMO_USER = {'username': 'demo', 'password': 'B@gelSt0re2025!Demo'}
+# Source of truth: app/src/routes.py - Loaded from environment variables
+DEMO_USERNAME = os.getenv('DEMO_USERNAME')
+DEMO_PASSWORD = os.getenv('DEMO_PASSWORD')
 ```
 ```html
-<!-- Must match: app/src/templates/login.html:30 -->
-<p>Password: <code>B@gelSt0re2025!Demo</code></p>
+<!-- Must match: app/src/templates/login.html - Username shown, password from .env -->
+<p>Username: <code>{{ demo_username }}</code></p>
+<p><em>Password: Set in your local .env file</em></p>
 ```
+
+**Note:** Demo credentials are NO LONGER hardcoded. They must be set in `.env` file (not committed to Git).
 
 ### Route URL Reference
 

@@ -96,18 +96,33 @@ docker compose up
 ## Authentication
 
 ### Demo Credentials
-- **Username:** `demo`
-- **Password:** `B@gelSt0re2025!Demo`
+
+Demo credentials are **no longer hardcoded** in the repository for security. They must be configured locally:
+
+**Setup:**
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cd app
+   cp .env.example .env
+   ```
+
+2. Edit `.env` and set your credentials:
+   ```
+   DEMO_USERNAME=demo
+   DEMO_PASSWORD=your-secure-password-here
+   ```
 
 **Security Notes:**
-- Password is 20 characters with mixed case, numbers, and special characters
-- Secure enough for public hosting
-- Hardcoded in `app/src/routes.py` (DEMO_USER constant)
-- Displayed on login page for demo purposes
+- Credentials loaded from environment variables (`DEMO_USERNAME`, `DEMO_PASSWORD`)
+- `.env` file is in `.gitignore` (never committed)
+- Each developer/environment sets their own password
+- Tests also use environment variables (same `.env` file)
 
-**Files to Update:**
-- `app/src/routes.py` - Line 12: `DEMO_USER` dictionary
-- `app/src/templates/login.html` - Line 30: Demo credentials display
+**Files Using Credentials:**
+- `app/src/routes.py` - Loads from `os.getenv()`
+- `app/src/templates/login.html` - Shows username only
+- `app/tests/conftest.py` - Loads from environment
+- `app/tests/test_e2e_shopping.py` - Uses environment variables
 
 ## Database
 

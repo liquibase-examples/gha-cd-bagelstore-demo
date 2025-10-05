@@ -2,11 +2,14 @@
 End-to-end shopping flow tests using Playwright.
 """
 
+import os
 import pytest
 from playwright.sync_api import Page, expect
 
 
 APP_URL = "http://localhost:5001"
+DEMO_USERNAME = os.getenv('DEMO_USERNAME', 'demo')
+DEMO_PASSWORD = os.getenv('DEMO_PASSWORD')
 
 
 @pytest.mark.e2e
@@ -108,8 +111,8 @@ def test_login_success(page: Page):
     page.goto(f"{APP_URL}/login")
 
     # Fill login form
-    page.fill('#username', 'demo')
-    page.fill('#password', 'B@gelSt0re2025!Demo')
+    page.fill('#username', DEMO_USERNAME)
+    page.fill('#password', DEMO_PASSWORD)
 
     # Submit
     page.click('button[type="submit"]')
@@ -118,7 +121,7 @@ def test_login_success(page: Page):
     page.wait_for_url(APP_URL + "/", timeout=10000)
 
     # Verify welcome message is shown
-    welcome = page.locator('text=Welcome, demo!')
+    welcome = page.locator(f'text=Welcome, {DEMO_USERNAME}!')
     expect(welcome).to_be_visible(timeout=10000)
 
 
@@ -153,7 +156,7 @@ def test_logout(page: Page, authenticated_page: Page):
     page = authenticated_page
 
     # Verify we're logged in
-    expect(page.locator('text=Welcome, demo!')).to_be_visible()
+    expect(page.locator(f'text=Welcome, {DEMO_USERNAME}!')).to_be_visible()
 
     # Click logout
     logout_link = page.locator('a:has-text("Logout")')
@@ -163,7 +166,7 @@ def test_logout(page: Page, authenticated_page: Page):
     page.wait_for_url(APP_URL + "/")
 
     # Welcome message should not be visible
-    welcome = page.locator('text=Welcome, demo!')
+    welcome = page.locator(f'text=Welcome, {DEMO_USERNAME}!')
     expect(welcome).not_to_be_visible()
 
 
@@ -211,8 +214,8 @@ def test_complete_checkout_flow(page: Page, clean_cart, clean_test_orders, db_co
     page.wait_for_url(f"{APP_URL}/login", timeout=5000)
 
     # 5. Login
-    page.fill('#username', 'demo')
-    page.fill('#password', 'B@gelSt0re2025!Demo')
+    page.fill('#username', DEMO_USERNAME)
+    page.fill('#password', DEMO_PASSWORD)
     page.click('button[type="submit"]')
     page.wait_for_url(APP_URL + "/", timeout=10000)
 
