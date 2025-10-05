@@ -7,7 +7,7 @@ terraform/*.tfvars
 terraform/.terraform.tfstate.lock.info
 
 # Liquibase
-*.lock
+liquibase*.lock
 *.snapshot
 liquibase.properties
 reports/
@@ -41,7 +41,6 @@ MANIFEST
 venv/
 ENV/
 env/
-uv.lock
 
 # IDE
 .vscode/
