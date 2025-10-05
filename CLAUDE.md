@@ -50,18 +50,24 @@ This is a demonstration repository showcasing coordinated application and databa
 
 **For new developers setting up the project:**
 
-1. **Quick setup check:**
+1. **Quick dependency check:**
    ```bash
    ./scripts/check-dependencies.sh
    ```
 
-2. **AI-assisted setup (Claude Code users):**
+2. **AWS diagnostics (if deploying to AWS):**
+   ```bash
+   ./scripts/diagnose-aws.sh
+   ```
+
+3. **AI-assisted setup (Claude Code users):**
    - Type `setup` at the Claude Code prompt for guided setup
 
-3. **Complete setup guide:**
+4. **Complete setup guide:**
    - See [SETUP.md](SETUP.md) for detailed platform-specific instructions
-   - Covers Windows (WSL), macOS, and Linux
-   - Includes installation of all required tools with version requirements
+   - Covers Windows (WSL) and macOS
+   - Includes AWS SSO vs access keys decision guide
+   - Comprehensive AWS troubleshooting
 
 ## Local Development & Testing
 
@@ -74,6 +80,119 @@ docker compose up --build  # Access at http://localhost:5001
 ```
 
 **Important:** Port 5001 is used externally (macOS ControlCenter uses 5000).
+
+## Diagnostic Scripts
+
+### Dependency Checker
+
+Run this to verify all required tools are installed with correct versions:
+
+```bash
+./scripts/check-dependencies.sh
+```
+
+**What it checks:**
+- Docker & Docker Compose (version and daemon status)
+- Terraform >= 1.0.0
+- Git >= 2.0.0
+- Python >= 3.11
+- uv >= 0.1.0
+- AWS CLI >= 2.0.0 (optional)
+- Configuration files (.env, terraform.tfvars)
+- Environment variables (LIQUIBASE_LICENSE_KEY for CI/CD)
+
+**When to run:**
+- First-time setup
+- After installing/upgrading tools
+- When experiencing tool-related issues
+- Before asking for help
+
+### AWS Diagnostics
+
+Comprehensive AWS configuration diagnostics:
+
+```bash
+./scripts/diagnose-aws.sh
+```
+
+**What it checks:**
+- AWS CLI installation and version
+- All configured profiles (SSO, IAM credentials, assume role)
+- Currently active profile (AWS_PROFILE env var)
+- SSO session status (active, expired, not logged in)
+- Authentication test (calls `aws sts get-caller-identity`)
+- Required permissions (S3, Secrets Manager, RDS)
+- Common configuration errors:
+  - Typos in paths (`~/.aaws` instead of `~/.aws`)
+  - Wrong file permissions
+  - Conflicting environment variables
+  - Expired SSO sessions
+
+**When to run:**
+- **ALWAYS** run this first for AWS issues
+- After configuring AWS credentials
+- When SSO session expires
+- Before running Terraform
+- When switching AWS profiles
+- When encountering authentication errors
+
+**Common scenarios this solves:**
+- "Unable to locate credentials" → Shows how to configure
+- "ExpiredToken" → Shows which profile to login with SSO
+- "InvalidClientTokenId" → Identifies invalid credentials
+- "Wrong account" → Shows active profile and how to switch
+- "AccessDenied" → Tests specific permissions needed
+
+## Setup Troubleshooting Workflow
+
+When users report setup or configuration issues:
+
+**1. Run diagnostics first (ALWAYS):**
+```bash
+# General issues
+./scripts/check-dependencies.sh
+
+# AWS-specific issues
+./scripts/diagnose-aws.sh
+```
+
+**2. Common mistakes to check:**
+- Typos: `~/.aaws` instead of `~/.aws`
+- Wrong profile: `echo $AWS_PROFILE`
+- Missing config files: `.env`, `terraform.tfvars`
+- Liquibase license: `echo $LIQUIBASE_LICENSE_KEY`
+
+**3. Documentation-first approach:**
+- Setup issues → Point to SETUP.md specific section
+- AWS SSO → SETUP.md "Option A: Configure AWS SSO"
+- Testing → app/TESTING.md
+- **Don't re-explain what's already documented**
+
+**4. Interactive help:**
+- Type `/setup` for AI-guided troubleshooting
+
+## AWS Configuration Common Issues
+
+**From actual user struggles - check these first:**
+
+| Issue | Detection | Solution |
+|-------|-----------|----------|
+| **Typo in path** | `~/.aaws/` exists | `./scripts/diagnose-aws.sh` detects this |
+| **Expired SSO session** | "ExpiredToken" error | `aws sso login --profile <name>` |
+| **Wrong profile active** | Commands use wrong account | `export AWS_PROFILE=<correct-profile>` |
+| **Multiple configure attempts** | User confusion | See SETUP.md decision tree (SSO vs keys) |
+| **Missing credentials** | "Unable to locate credentials" | `./scripts/diagnose-aws.sh` shows how to fix |
+
+**Always run diagnostics first:**
+```bash
+./scripts/diagnose-aws.sh
+```
+
+Script will show:
+- ✓ All configured profiles
+- ✓ Which profile is active
+- ✓ SSO session status
+- ✓ Exact command to fix issues
 
 ## Common Commands
 
@@ -157,27 +276,119 @@ docker compose logs -f harness-delegate
 docker compose down
 ```
 
+### Liquibase Changeset Development
+
+**Changeset Location:** `db/changelog/changesets/`
+
+**Naming Convention:** `NNN-descriptive-name.sql`
+- `NNN` = Three-digit sequential number (001, 002, etc.)
+- Use kebab-case for names
+- Example: `008-add-product-category.sql`
+
+**Formatted SQL Pattern:**
+```sql
+--liquibase formatted sql
+--changeset author:changeset-id
+
+-- Your SQL statements here
+CREATE TABLE example (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL
+);
+
+--rollback DROP TABLE example;
+```
+
+**Critical Requirements:**
+1. **Always include `--rollback`** - Required by RollbackRequired policy check
+2. **Avoid `SELECT *`** - Triggers SqlSelectStarWarn check
+3. **Don't DROP/TRUNCATE tables** - Triggers BLOCKER checks
+4. **Include indexes** - Required by CheckTablesForIndex
+5. **Update master changelog** - Add reference in `db/changelog/changelog-master.yaml`
+
+**Adding a New Changeset:**
+```bash
+# 1. Create changeset file
+cat > db/changelog/changesets/008-add-product-category.sql << 'EOF'
+--liquibase formatted sql
+--changeset demo:008-add-product-category
+
+-- Add category field to products table
+ALTER TABLE products
+ADD COLUMN category VARCHAR(50) DEFAULT 'standard';
+
+--rollback ALTER TABLE products DROP COLUMN category;
+EOF
+
+# 2. Add to master changelog (db/changelog/changelog-master.yaml)
+# Insert before the final version tag:
+  - include:
+      file: changesets/008-add-product-category.sql
+      relativeToChangelogFile: true
+
+# 3. Test locally
+source ~/.zshrc && docker run --rm \
+  -v $(pwd)/db/changelog:/liquibase/changelog \
+  -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
+  liquibase/liquibase-secure:5.0.1 \
+  --url=jdbc:postgresql://host.docker.internal:5432/bagelstore \
+  --username=postgres \
+  --password=postgres \
+  --changeLogFile=changelog-master.yaml \
+  validate
+
+# 4. Apply changes
+source ~/.zshrc && docker run --rm \
+  -v $(pwd)/db/changelog:/liquibase/changelog \
+  -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
+  liquibase/liquibase-secure:5.0.1 \
+  --url=jdbc:postgresql://host.docker.internal:5432/bagelstore \
+  --username=postgres \
+  --password=postgres \
+  --changeLogFile=changelog-master.yaml \
+  update
+```
+
+**Complete Documentation:** See [db/changelog/README.md](db/changelog/README.md) for:
+- Detailed changeset patterns
+- Policy check compliance
+- Rollback examples
+- Troubleshooting guide
+
 ### Liquibase Testing
 ```bash
-# Test locally with AWS Secrets Manager integration
+# Local testing (requires LIQUIBASE_LICENSE_KEY in ~/.zshrc)
+source ~/.zshrc && docker run --rm \
+  -v $(pwd)/db/changelog:/liquibase/changelog \
+  -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
+  liquibase/liquibase-secure:5.0.1 \
+  --url=jdbc:postgresql://host.docker.internal:5432/bagelstore \
+  --username=postgres \
+  --password=postgres \
+  --changeLogFile=changelog-master.yaml \
+  validate
+
+# AWS Secrets Manager integration (production)
 docker run --rm \
   -v $(pwd)/db/changelog:/liquibase/changelog \
   -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
   -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
   -e AWS_REGION=us-east-1 \
+  -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
   liquibase/liquibase-secure:5.0.1 \
-  --url=jdbc:postgresql://localhost:5432/dev \
+  --url=jdbc:postgresql://rds-endpoint:5432/dev \
   --username='${awsSecretsManager:demo1/rds/username}' \
   --password='${awsSecretsManager:demo1/rds/password}' \
   --changeLogFile=changelog-master.yaml \
   validate
 
 # Run flow file from S3
-docker run --rm \
+source ~/.zshrc && docker run --rm \
   -v $(pwd)/db/changelog:/liquibase/changelog \
   -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
   -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
   -e AWS_REGION=us-east-1 \
+  -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
   liquibase/liquibase-secure:5.0.1 \
   flow \
   --flow-file=s3://bagel-store-demo1-liquibase-flows/pr-validation-flow.yaml
@@ -228,6 +439,23 @@ uv run pytest tests/test_e2e_shopping.py::test_login_success -v
 **When in doubt:** Use `git check-ignore -v <file>` to verify gitignore status
 
 ## Critical Implementation Requirements
+
+### Liquibase Deployment Pattern
+
+**IMPORTANT: Liquibase is NOT installed locally**
+
+- Runs via Docker containers: `liquibase/liquibase-secure:5.0.1`
+- Used in GitHub Actions workflows
+- License key via environment variable: `LIQUIBASE_LICENSE_KEY`
+- **Never** try to install Liquibase CLI locally
+
+**License key requirements:**
+- Required for CI/CD (GitHub Actions)
+- Required for Flow files and policy checks (12 BLOCKER checks)
+- Must be in GitHub Secrets
+- Get free trial: https://www.liquibase.com/trial
+- Check locally: `./scripts/check-dependencies.sh` (shows if set)
+- Verify: `echo $LIQUIBASE_LICENSE_KEY`
 
 ### Liquibase GitHub Actions Configuration
 
@@ -548,12 +776,14 @@ When running Flask app in Docker:
 
 ## Security & Secrets
 
-**GitHub Secrets:**
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `HARNESS_WEBHOOK_URL`
-- `DEMO_ID`
-- `LIQUIBASE_LICENSE_KEY`
+**GitHub Secrets (Required for CI/CD):**
+- `AWS_ACCESS_KEY_ID` - AWS credentials for S3 and Secrets Manager
+- `AWS_SECRET_ACCESS_KEY` - AWS credentials
+- `LIQUIBASE_LICENSE_KEY` - **Required!** Liquibase Pro/Secure license for Flow files and policy checks
+  - Get free trial: https://www.liquibase.com/trial
+  - Used by GitHub Actions workflows for PR validation and main CI
+- `HARNESS_WEBHOOK_URL` - Harness pipeline webhook
+- `DEMO_ID` - Demo instance identifier (e.g., "demo1")
 
 **Harness Secrets:**
 - `AWS_ACCESS_KEY`

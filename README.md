@@ -175,6 +175,13 @@ curl https://{env}.bagel-demo.example.com/health
 
 ## Prerequisites
 
+**First-time setup?** See [SETUP.md](SETUP.md) for complete installation instructions across Windows, macOS, and Linux.
+
+**Quick dependency check:**
+```bash
+./scripts/check-dependencies.sh
+```
+
 ### Development
 
 - **Docker Desktop** - For local development and testing
