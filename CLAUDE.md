@@ -50,10 +50,10 @@ This is a demonstration repository showcasing coordinated application and databa
 │   ├── pr-validation-flow.yaml
 │   ├── main-deployment-flow.yaml
 │   └── liquibase.checks-settings.conf
-├── .github/workflows/            # GitHub Actions (not yet created)
-│   ├── pr-validation.yml
-│   ├── main-ci.yml
-│   └── app-ci.yml
+├── .github/workflows/            # GitHub Actions CI/CD
+│   ├── pr-validation.yml         # PR policy checks
+│   ├── test-deployment.yml       # Deploy + system tests
+│   └── main-ci.yml               # Build artifacts
 ├── scripts/
 │   └── check-dependencies.sh     # Automated dependency checker
 ├── .claude/commands/
@@ -255,6 +255,30 @@ common_tags = {
 
 ## Common Commands
 
+### Common Review Commands
+
+**Verify GitHub Actions Locally:**
+```bash
+# Check workflow syntax
+cat .github/workflows/pr-validation.yml
+
+# Verify Docker mount paths in workflows
+grep -r "github.workspace" .github/workflows/
+
+# Check environment variable patterns
+grep -r "LIQUIBASE_COMMAND_" .github/workflows/
+```
+
+**Flow File Validation:**
+```bash
+# Verify flow file paths are absolute
+grep -n "cd " liquibase-flows/*.yaml
+grep -n "mkdir" liquibase-flows/*.yaml
+
+# Check for relative path issues
+grep -n "\.\." liquibase-flows/*.yaml  # Should find none
+```
+
 ### Git Workflow
 ```bash
 # Check status and review changes
@@ -304,6 +328,169 @@ cat variables.tf terraform.tfvars.example
 # Review default tags (should not include org-specific values)
 grep -A5 "common_tags" variables.tf
 ```
+
+### GitHub Actions CI/CD
+
+**Overview:** Three workflows orchestrate the complete CI/CD pipeline with Liquibase policy checks and system tests.
+
+#### Workflow: PR Validation (pr-validation.yml)
+**Trigger:** Pull requests to main (changes to `db/changelog/` or `liquibase-flows/`)
+
+**Purpose:** Run Liquibase policy checks BEFORE deployment
+
+```bash
+# What it does:
+# 1. Starts PostgreSQL container (postgres:16)
+# 2. Runs Liquibase PR validation flow file
+# 3. Executes 12 BLOCKER-level policy checks
+# 4. Uploads operation reports as artifacts
+# 5. Adds PR comment with pass/fail status
+# 6. Blocks merge if any BLOCKER check fails
+```
+
+**Required GitHub Secrets:**
+- `LIQUIBASE_LICENSE_KEY` - Required for Flow and policy checks
+
+**Key Pattern:**
+- Uses local flow file: `/liquibase/flows/pr-validation-flow.yaml`
+- Migrates to S3 when Terraform permissions resolved (see Phase 1 step 6)
+- Uses `LIQUIBASE_COMMAND_*` environment variables (proven best practice)
+
+#### Workflow: Test Deployment (test-deployment.yml)
+**Trigger:** Pull requests to main (changes to `app/` or `db/changelog/`)
+
+**Purpose:** Deploy changelog to database and verify with system tests
+
+```bash
+# What it does:
+# 1. Creates .env file with random demo credentials (no secrets needed!)
+# 2. Starts full Docker Compose (postgres + Flask app)
+# 3. Deploys Liquibase changelog to dev database
+# 4. Verifies deployment with bash checks
+# 5. Runs pytest test suite (22 tests):
+#    - 7 deployment verification tests (NEW!)
+#    - 4 health check tests
+#    - 11 E2E shopping flow tests (Playwright)
+# 6. Uploads test reports as artifacts
+# 7. Adds PR comment with test results
+```
+
+**Required GitHub Secrets:**
+- `LIQUIBASE_LICENSE_KEY` - ✅ **SET** (repository-level secret)
+
+**Demo Credentials:** Generated randomly per CI run using `openssl rand -base64 32` (no secrets needed)
+
+**NEW Deployment Verification Tests** (`test_liquibase_deployment.py`):
+1. ✅ Verifies databasechangelog table exists
+2. ✅ Confirms all 9 changesets applied in correct order
+3. ✅ Validates all tables created (products, inventory, orders, order_items)
+4. ✅ Checks all 4 indexes created
+5. ✅ Verifies foreign key constraints exist
+6. ✅ Confirms seed data loaded correctly (5 products, 5 inventory)
+7. ✅ Validates database tags applied (v1.0.0-baseline, v1.0.0)
+
+**Test Validation:**
+- Liquibase deployment validated with Python tests
+- Database schema matches changelog exactly
+- All seed data loaded correctly
+- Flask app health checks pass
+- Complete E2E shopping flow works
+
+#### Workflow: Main CI (main-ci.yml)
+**Trigger:** Push to main branch (after PR merge)
+
+**Purpose:** Build and publish versioned artifacts
+
+**Two parallel jobs:**
+
+**Job A: Build Database Artifact**
+```bash
+# 1. Extract version from git tag or commit SHA
+# 2. Run Liquibase main deployment flow file
+#    - Policy checks
+#    - Validation
+#    - Create changelog zip artifact
+# 3. Upload changelog zip to GitHub Packages
+# 4. Upload operation reports as artifacts
+```
+
+**Job B: Build Application Docker Image**
+```bash
+# 1. Extract version from git tag or commit SHA
+# 2. Build Docker image
+# 3. Tag: ghcr.io/<org>/<demo_id>-bagel-store:<version>
+# 4. Push to GitHub Container Registry (public)
+# 5. Also tag as 'latest'
+```
+
+**Job C: Trigger Harness Deployment (optional)**
+```bash
+# Only runs if HARNESS_WEBHOOK_URL variable is configured
+# Triggers Harness CD pipeline for dev environment deployment
+```
+
+**Optional GitHub Variables:**
+- `DEMO_ID` - Demo instance identifier (defaults to "demo1")
+- `HARNESS_WEBHOOK_URL` - For automatic Harness deployments
+
+#### Local Flow Files (Temporary)
+**Current State:**
+- Flow files stored in `liquibase-flows/` directory
+- Mounted locally in Liquibase Docker container
+- Policy checks file: `liquibase.checks-settings.conf`
+
+**Migration to S3 (when Terraform Phase 1 complete):**
+```yaml
+# Before (local):
+--flow-file=/liquibase/flows/pr-validation-flow.yaml
+
+# After (S3):
+--flow-file=s3://bagel-store-${DEMO_ID}-liquibase-flows/pr-validation-flow.yaml
+```
+
+See `requirements-design-plan.md` Phase 1 step 6 for migration checklist.
+
+#### Viewing Workflow Results
+```bash
+# Check workflow status
+gh run list --workflow=pr-validation.yml
+
+# View latest run
+gh run view
+
+# Download artifacts (reports)
+gh run download <run-id>
+
+# View workflow logs
+gh run view <run-id> --log
+```
+
+#### Common Workflow Issues
+
+**"Liquibase license key required"**
+- Ensure `LIQUIBASE_LICENSE_KEY` secret is set in GitHub repository
+- Get free trial: https://www.liquibase.com/trial
+
+**"Policy check BLOCKER violation"**
+- Review operation reports in workflow artifacts
+- See `liquibase.checks-settings.conf` for check definitions
+- All 12 checks must pass (severity 4 = BLOCKER)
+
+**"PostgreSQL connection failed"**
+- Check service health in workflow logs
+- Verify `pg_isready` command succeeds
+- May need to increase wait time in workflow
+
+**"Docker network not found"**
+- In test-deployment workflow, uses Docker Compose network name
+- Network: `app_bagel-network` (defined in docker-compose.yml)
+- Liquibase must use this network to connect to postgres
+
+**"Tests failed after changelog deployment"**
+- Check Liquibase deployment verification step
+- Ensure all 9 changesets applied successfully
+- Verify seed data loaded (5 products, 5 inventory records)
+- Review Flask app logs in workflow output
 
 ### Python Application (using uv)
 ```bash
@@ -567,20 +754,94 @@ uv run pytest tests/test_e2e_shopping.py::test_login_success -v
 
 **Environment Variables - CRITICAL:**
 - **MUST use `LIQUIBASE_COMMAND_*` environment variables in GitHub Actions**
-- **DO NOT use custom property substitution** (e.g., `${VARIABLE}` in properties files)
+- **Use LIQUIBASE_COMMAND_* for all configuration**
+- **Exception:** Flow files can use `${VARIABLE}` syntax for globalVariables
+- **Pattern:** Environment variables override properties files
 - Required variables:
   ```yaml
   env:
     LIQUIBASE_COMMAND_URL: jdbc:postgresql://host:5432/database
     LIQUIBASE_COMMAND_USERNAME: username
     LIQUIBASE_COMMAND_PASSWORD: ${{ secrets.DB_PASSWORD }}
+    LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE: /liquibase/flows/liquibase.checks-settings.conf
     LIQUIBASE_LICENSE_KEY: ${{ secrets.LIQUIBASE_LICENSE_KEY }}
   ```
+
+**GitHub Actions Permissions (REQUIRED):**
+- PR workflows: `contents: read`, `pull-requests: write`
+- Main/deploy workflows: `contents: read`, `packages: write` (for GHCR)
+
+### GitHub Actions Workflow Requirements
+
+**Critical workflow requirements:**
+- Explicit `permissions:` block (contents: read, pull-requests: write for PR workflows)
+- `LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE` environment variable
+- Absolute paths in Docker containers (`/liquibase/changelog`, `/liquibase/artifacts`)
+- Version extraction pattern from git tags (fallback to `dev-$(git rev-parse --short HEAD)`)
+
+**Flow file execution context:**
+- Workflows run from repository root
+- Docker containers mount at `/liquibase/`
+- Flow files execute with working directory context
+- Shell commands in flows MUST use absolute paths: `/liquibase/changelog`, `/liquibase/artifacts`
+
+### GitHub Actions Workflow Files Reference
+
+Quick reference for workflow structure:
+
+**PR Validation:** `pr-validation.yml`
+- Permissions: `contents: read`, `pull-requests: write`
+- Runs policy checks only (no deployment)
+- Uses PostgreSQL service container
+- Mounts: changelog, flows, reports
+
+**Test Deployment:** `test-deployment.yml`
+- Permissions: `contents: read`, `pull-requests: write`
+- Deploys changelog + runs 15 pytest tests
+- Uses Docker Compose (not service container)
+- Verifies: changesets, products, inventory, indexes
+
+**Main CI:** `main-ci.yml`
+- Permissions: `contents: read`, `packages: write`
+- Builds artifacts: changelog zip + Docker image
+- Triggers Harness webhook
+- Versioning from git tags
+
+### Flow File Path Requirements
+
+**CRITICAL:** Flow files execute inside Docker containers with specific mount points.
+
+**Docker mount structure (GitHub Actions):**
+```bash
+-v ${{ github.workspace }}/db/changelog:/liquibase/changelog
+-v ${{ github.workspace }}/liquibase-flows:/liquibase/flows
+-v ${{ github.workspace }}/reports:/liquibase/reports
+-v ${{ github.workspace }}/artifacts:/liquibase/artifacts
+-w /liquibase  # Working directory
+```
+
+**Shell commands in flow files MUST use absolute paths:**
+```yaml
+# ✅ Correct
+- type: shell
+  command: |
+    mkdir -p /liquibase/artifacts
+    cd /liquibase/changelog
+    zip -r /liquibase/artifacts/output.zip .
+
+# ❌ Wrong (relative paths fail)
+- type: shell
+  command: |
+    mkdir -p artifacts
+    cd db/changelog
+    zip -r ../../artifacts/output.zip .
+```
+
+**Why:** Working directory is `/liquibase`, not repository root.
 
 ### Changelog Format
 - **Master changelog:** YAML format (NOT XML) - `changelog-master.yaml`
 - **Individual changesets:** Formatted SQL files in `changesets/` directory
-- Pattern source: `../liquibase-patterns/repos/postgres-flow-policy-demo`
 
 ### Flow File Structure
 All flow files must follow this staged structure:
@@ -889,14 +1150,49 @@ When running Flask app in Docker:
 - `managed_by`: "terraform"
 - `project`: "bagel-store-demo"
 
-## Reference Patterns
+## Architecture Decision Records (ADRs)
 
-This implementation leverages proven patterns from `../liquibase-patterns`:
-- **postgres-flow-policy-demo** - Flow structure, policy checks, operation reports
-- **dbt-example** - GitHub Actions setup, LIQUIBASE_COMMAND_* variables
-- **Liquibase-workshop-repo** - PostgreSQL patterns, AWS integration
+### Why Docker Container Execution for Liquibase?
+- **Decision:** Run Liquibase via Docker container, not `liquibase/setup-liquibase@v1`
+- **Reason:** Consistent across local dev and CI/CD
+- **Trade-off:** Requires explicit Docker mount management
+
+### Why LIQUIBASE_COMMAND_* Environment Variables?
+- **Decision:** Use `LIQUIBASE_COMMAND_*` exclusively in GitHub Actions
+- **Reason:** Proven best practice pattern
+- **Exception:** Flow files use `${VARIABLE}` syntax for globalVariables
+
+### Why Absolute Paths in Flow Files?
+- **Decision:** All shell commands in flow files use absolute paths (`/liquibase/*`)
+- **Reason:** Working directory is `/liquibase`, not repository root
+- **Learned:** October 2025 session debugging artifact creation
+- **Fix Applied:** main-deployment-flow.yaml lines 77-85
+
+### GitHub Actions Workflow Design
+- **PR Validation:** Policy checks only (fast feedback, ~2 min)
+- **Test Deployment:** Full validation (deploy + 15 tests, ~5 min)
+- **Main CI:** Artifact creation only (no database deployment)
+- **Rationale:** Separation of concerns, parallel execution, clear failure points
 
 See [requirements-design-plan.md](requirements-design-plan.md) for complete system design.
+
+## Quick Reference - File Locations
+
+**GitHub Actions:**
+- `.github/workflows/pr-validation.yml` - Policy checks (2 min)
+- `.github/workflows/test-deployment.yml` - Full validation (5 min)
+- `.github/workflows/main-ci.yml` - Artifact build
+
+**Liquibase Flow Files:**
+- `liquibase-flows/pr-validation-flow.yaml` - PR validation stages
+- `liquibase-flows/main-deployment-flow.yaml` - Artifact creation
+- `liquibase-flows/liquibase.checks-settings.conf` - 12 BLOCKER checks
+
+**Key Paths (Inside Docker):**
+- `/liquibase/changelog` - Master changelog and changesets
+- `/liquibase/flows` - Flow files and checks config
+- `/liquibase/reports` - Operation reports (HTML)
+- `/liquibase/artifacts` - Changelog zip files
 
 ## Cost Estimates
 

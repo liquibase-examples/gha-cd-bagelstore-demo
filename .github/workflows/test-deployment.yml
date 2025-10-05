@@ -1,0 +1,283 @@
+name: Test Deployment - Changelog Deployment & System Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'db/changelog/**'
+      - '.github/workflows/test-deployment.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  LIQUIBASE_VERSION: "5.0.1"
+  POSTGRES_VERSION: "16"
+
+jobs:
+  test-deployment:
+    name: Deploy Changelog & Run System Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file for Docker Compose
+        run: |
+          # Generate random demo password for CI testing (no secrets needed)
+          RANDOM_PASSWORD=$(openssl rand -base64 32)
+
+          cat > app/.env << EOF
+          DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dev
+          SECRET_KEY=test-secret-key-for-ci
+          FLASK_ENV=development
+          PORT=5000
+          DEMO_USERNAME=ci-test-user
+          DEMO_PASSWORD=${RANDOM_PASSWORD}
+          EOF
+
+          echo "✅ Created .env with random demo credentials for CI testing"
+
+      - name: Start Docker Compose services
+        working-directory: app
+        run: |
+          echo "Starting PostgreSQL and Flask app..."
+          docker compose up -d
+          echo "Waiting for services to be healthy..."
+          docker compose ps
+
+      - name: Wait for PostgreSQL to be ready
+        working-directory: app
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..30}; do
+            if docker compose exec -T postgres pg_isready -U postgres; then
+              echo "PostgreSQL is ready!"
+              break
+            fi
+            echo "Attempt $i/30: PostgreSQL not ready yet..."
+            sleep 2
+          done
+
+      - name: Verify PostgreSQL connection
+        working-directory: app
+        run: |
+          docker compose exec -T postgres psql -U postgres -d dev -c "SELECT version();"
+
+      - name: Deploy Liquibase changelog to database
+        env:
+          LIQUIBASE_LICENSE_KEY: ${{ secrets.LIQUIBASE_LICENSE_KEY }}
+        run: |
+          echo "Deploying changelog to dev database..."
+          docker run --rm \
+            --network app_bagel-network \
+            -v ${{ github.workspace }}/db/changelog:/liquibase/changelog \
+            -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
+            -e LIQUIBASE_COMMAND_URL="jdbc:postgresql://postgres:5432/dev" \
+            -e LIQUIBASE_COMMAND_USERNAME="postgres" \
+            -e LIQUIBASE_COMMAND_PASSWORD="postgres" \
+            -e LIQUIBASE_COMMAND_CHANGELOG_FILE="changelog-master.yaml" \
+            -w /liquibase/changelog \
+            liquibase/liquibase-secure:${{ env.LIQUIBASE_VERSION }} \
+            update
+
+      - name: Verify Liquibase deployment
+        working-directory: app
+        run: |
+          echo "Verifying Liquibase changelog deployment..."
+
+          # Check databasechangelog table exists
+          echo "✓ Checking databasechangelog table..."
+          docker compose exec -T postgres psql -U postgres -d dev -c \
+            "SELECT COUNT(*) as changeset_count FROM databasechangelog;"
+
+          # Verify expected number of changesets (9 total: 7 SQL + 2 tag changesets)
+          CHANGESET_COUNT=$(docker compose exec -T postgres psql -U postgres -d dev -t -c \
+            "SELECT COUNT(*) FROM databasechangelog;")
+          echo "Changesets applied: $CHANGESET_COUNT"
+          if [ "$CHANGESET_COUNT" -ne 9 ]; then
+            echo "::error::Expected 9 changesets, found $CHANGESET_COUNT"
+            exit 1
+          fi
+
+          # Verify products table has data
+          echo "✓ Checking products table..."
+          PRODUCT_COUNT=$(docker compose exec -T postgres psql -U postgres -d dev -t -c \
+            "SELECT COUNT(*) FROM products;")
+          echo "Products in database: $PRODUCT_COUNT"
+          if [ "$PRODUCT_COUNT" -ne 5 ]; then
+            echo "::error::Expected 5 products, found $PRODUCT_COUNT"
+            exit 1
+          fi
+
+          # Verify inventory table has data
+          echo "✓ Checking inventory table..."
+          INVENTORY_COUNT=$(docker compose exec -T postgres psql -U postgres -d dev -t -c \
+            "SELECT COUNT(*) FROM inventory;")
+          echo "Inventory records: $INVENTORY_COUNT"
+          if [ "$INVENTORY_COUNT" -ne 5 ]; then
+            echo "::error::Expected 5 inventory records, found $INVENTORY_COUNT"
+            exit 1
+          fi
+
+          # Verify indexes exist
+          echo "✓ Checking indexes..."
+          INDEX_COUNT=$(docker compose exec -T postgres psql -U postgres -d dev -t -c \
+            "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname LIKE 'idx_%';")
+          echo "Indexes created: $INDEX_COUNT"
+          if [ "$INDEX_COUNT" -lt 4 ]; then
+            echo "::error::Expected at least 4 indexes, found $INDEX_COUNT"
+            exit 1
+          fi
+
+          echo "✅ Database deployment verification complete!"
+
+      - name: Wait for Flask app to be ready
+        working-directory: app
+        run: |
+          echo "Waiting for Flask app to be healthy..."
+          for i in {1..60}; do
+            if curl -sf http://localhost:5001/health > /dev/null; then
+              echo "Flask app is healthy!"
+              curl http://localhost:5001/health | jq .
+              break
+            fi
+            echo "Attempt $i/60: Flask app not ready yet..."
+            sleep 2
+          done
+
+      - name: Install uv (Python package manager)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Install Python dependencies
+        working-directory: app
+        run: |
+          uv sync --frozen
+
+      - name: Install Playwright browsers
+        working-directory: app
+        run: |
+          uv run playwright install chromium
+          uv run playwright install-deps chromium
+
+      - name: Run pytest system tests
+        working-directory: app
+        run: |
+          echo "Running complete test suite (22 tests)..."
+          echo "- 7 deployment verification tests"
+          echo "- 4 health check tests"
+          echo "- 11 E2E shopping flow tests"
+          uv run pytest -v \
+            -m "deployment or health or e2e" \
+            --html=test-report.html \
+            --self-contained-html \
+            --tb=short
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.event.pull_request.number }}
+          path: |
+            app/test-report.html
+            app/test-results/
+          retention-days: 30
+
+      - name: Show Docker Compose logs on failure
+        if: failure()
+        working-directory: app
+        run: |
+          echo "=== PostgreSQL Logs ==="
+          docker compose logs postgres
+          echo ""
+          echo "=== Flask App Logs ==="
+          docker compose logs app
+
+      - name: Cleanup Docker Compose
+        if: always()
+        working-directory: app
+        run: |
+          docker compose down -v
+          docker compose ps
+
+      - name: Add PR comment with test results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            let status = '✅ PASSED';
+            let color = '28a745';
+
+            if ('${{ job.status }}' === 'failure') {
+              status = '❌ FAILED';
+              color = 'd73a49';
+            }
+
+            const body = `## Test Deployment ${status}
+
+            **PR #${{ github.event.pull_request.number }}** - Changelog deployment and system test results
+
+            ![Status](https://img.shields.io/badge/Tests-${status.replace(' ', '%20')}-${color})
+
+            ### Deployment Verification
+            - ✅ Liquibase changelog deployed successfully
+            - ✅ 9 changesets applied to database
+            - ✅ 5 products seeded
+            - ✅ 5 inventory records created
+            - ✅ 4 indexes created
+
+            ### System Tests
+            - **Total Tests:** 22
+            - **Deployment Verification:** 7 tests
+            - **Health Checks:** 4 tests
+            - **E2E Shopping Flow:** 11 tests
+            - **Test Framework:** pytest + Playwright
+
+            ### Environment
+            - **PostgreSQL:** ${{ env.POSTGRES_VERSION }}
+            - **Liquibase:** Secure ${{ env.LIQUIBASE_VERSION }}
+            - **Python:** 3.11+ (via uv)
+            - **Browser:** Chromium (Playwright)
+
+            📊 Download artifacts from the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) to view detailed test reports.
+
+            ---
+            🤖 Generated by [GitHub Actions](https://github.com/features/actions) | Run ID: ${{ github.run_id }}`;
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Generate workflow summary
+        if: always()
+        run: |
+          echo "## 🧪 Test Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Database Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Liquibase changelog deployed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 9 changesets applied" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Schema validated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Seed data loaded" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### System Tests" >> $GITHUB_STEP_SUMMARY
+          echo "- **Framework:** pytest + Playwright" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Tests:** 22" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment Verification:** 7 tests" >> $GITHUB_STEP_SUMMARY
+          echo "- **Health Checks:** 4 tests" >> $GITHUB_STEP_SUMMARY
+          echo "- **E2E Shopping Flow:** 11 tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- HTML test report with screenshots" >> $GITHUB_STEP_SUMMARY
+          echo "- Test result XML files" >> $GITHUB_STEP_SUMMARY

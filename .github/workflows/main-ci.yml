@@ -1,0 +1,241 @@
+name: Main CI - Build & Publish Artifacts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'db/changelog/**'
+      - 'liquibase-flows/**'
+      - '.github/workflows/main-ci.yml'
+
+env:
+  LIQUIBASE_VERSION: "5.0.1"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-database-artifact:
+    name: Build Database Changelog Artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for version tagging
+
+      - name: Extract version from git
+        id: version
+        run: |
+          # Try to get version from git tag
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          # If no tag, use commit SHA
+          if [ -z "$VERSION" ]; then
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+
+          # Remove 'v' prefix if present
+          VERSION=${VERSION#v}
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Run Liquibase Main Deployment Flow
+        env:
+          LIQUIBASE_LICENSE_KEY: ${{ secrets.LIQUIBASE_LICENSE_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+          LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE: /liquibase/flows/liquibase.checks-settings.conf
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/db/changelog:/liquibase/changelog \
+            -v ${{ github.workspace }}/liquibase-flows:/liquibase/flows \
+            -v ${{ github.workspace }}/reports:/liquibase/reports \
+            -v ${{ github.workspace }}/artifacts:/liquibase/artifacts \
+            -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
+            -e VERSION="${VERSION}" \
+            -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE="${LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE}" \
+            -w /liquibase \
+            liquibase/liquibase-secure:${{ env.LIQUIBASE_VERSION }} \
+            flow \
+            --flow-file=/liquibase/flows/main-deployment-flow.yaml
+
+      - name: Verify artifact was created
+        run: |
+          ARTIFACT_PATH="artifacts/bagel-store-changelog-${{ steps.version.outputs.version }}.zip"
+          if [ ! -f "$ARTIFACT_PATH" ]; then
+            echo "::error::Changelog artifact not found: $ARTIFACT_PATH"
+            exit 1
+          fi
+          echo "✅ Changelog artifact created successfully"
+          ls -lh "$ARTIFACT_PATH"
+
+      - name: Upload changelog artifact to GitHub Packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog-${{ steps.version.outputs.version }}
+          path: artifacts/bagel-store-changelog-${{ steps.version.outputs.version }}.zip
+          retention-days: 90
+
+      - name: Upload operation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-ci-reports-${{ github.run_number }}
+          path: reports/*.html
+          retention-days: 30
+
+      - name: Generate workflow summary
+        if: always()
+        run: |
+          echo "## 📦 Database Artifact Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts Created" >> $GITHUB_STEP_SUMMARY
+          echo "- \`bagel-store-changelog-${{ steps.version.outputs.version }}.zip\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Reports Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- Connection Report" >> $GITHUB_STEP_SUMMARY
+          echo "- Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "- Status Report" >> $GITHUB_STEP_SUMMARY
+          echo "- Policy Check Report" >> $GITHUB_STEP_SUMMARY
+
+  build-app-image:
+    name: Build & Push Application Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from git
+        id: version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$VERSION" ]; then
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+          VERSION=${VERSION#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Extract demo_id from GitHub variables
+        id: demo
+        run: |
+          # Try to get demo_id from GitHub variables, default to 'demo1'
+          DEMO_ID="${{ vars.DEMO_ID }}"
+          if [ -z "$DEMO_ID" ]; then
+            DEMO_ID="demo1"
+            echo "::warning::DEMO_ID variable not set, using default: demo1"
+          fi
+          echo "demo_id=$DEMO_ID" >> $GITHUB_OUTPUT
+          echo "Using demo_id: $DEMO_ID"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.demo.outputs.demo_id }}-bagel-store
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+            type=sha,prefix=
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app
+          file: ./app/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Generate image summary
+        run: |
+          echo "## 🐳 Docker Image Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Demo ID:** ${{ steps.demo.outputs.demo_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Published Images" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Command" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.demo.outputs.demo_id }}-bagel-store:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  trigger-harness-deployment:
+    name: Trigger Harness CD Pipeline
+    runs-on: ubuntu-latest
+    needs: [build-database-artifact, build-app-image]
+    if: success()
+
+    steps:
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$VERSION" ]; then
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+          VERSION=${VERSION#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Trigger Harness webhook
+        if: vars.HARNESS_WEBHOOK_URL != ''
+        run: |
+          echo "Triggering Harness CD pipeline..."
+          curl -X POST "${{ vars.HARNESS_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "${{ steps.version.outputs.version }}",
+              "commit_sha": "${{ github.sha }}",
+              "commit_message": "${{ github.event.head_commit.message }}",
+              "triggered_by": "${{ github.actor }}",
+              "run_id": "${{ github.run_id }}"
+            }'
+          echo "✅ Harness deployment triggered"
+
+      - name: Skip Harness trigger
+        if: vars.HARNESS_WEBHOOK_URL == ''
+        run: |
+          echo "::warning::HARNESS_WEBHOOK_URL variable not configured"
+          echo "Skipping Harness CD trigger. Configure the webhook URL to enable automatic deployments."
+
+      - name: Generate deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 Deployment Trigger" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered By:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ vars.HARNESS_WEBHOOK_URL }}" ]; then
+            echo "✅ Harness CD pipeline triggered successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Harness webhook not configured - manual deployment required" >> $GITHUB_STEP_SUMMARY
+          fi

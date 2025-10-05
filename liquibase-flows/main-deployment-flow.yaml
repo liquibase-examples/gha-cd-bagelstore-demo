@@ -74,15 +74,15 @@ stages:
           echo "========================================"
 
           # Create artifact directory if it doesn't exist
-          mkdir -p artifacts
+          mkdir -p /liquibase/artifacts
 
-          # Navigate to changelog directory and create zip
-          cd db/changelog
-          zip -r ../../artifacts/bagel-store-changelog-${VERSION}.zip . -x "*.git*"
+          # Create zip from the changelog directory
+          cd /liquibase/changelog
+          zip -r /liquibase/artifacts/bagel-store-changelog-${VERSION}.zip . -x "*.git*"
 
           echo ""
           echo "Artifact created successfully!"
-          ls -lh ../../artifacts/bagel-store-changelog-${VERSION}.zip
+          ls -lh /liquibase/artifacts/bagel-store-changelog-${VERSION}.zip
           echo "========================================"
 
 endStage:
