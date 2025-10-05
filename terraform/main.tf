@@ -19,8 +19,8 @@ provider "aws" {
     tags = merge(
       var.common_tags,
       {
-        demo_id     = var.demo_id
-        deployed_by = var.aws_username
+        demo_id   = var.demo_id
+        Requestor = var.aws_username
       }
     )
   }
@@ -37,8 +37,8 @@ locals {
   tags = merge(
     var.common_tags,
     {
-      demo_id     = var.demo_id
-      deployed_by = var.aws_username
+      demo_id   = var.demo_id
+      Requestor = var.aws_username
     }
   )
 }

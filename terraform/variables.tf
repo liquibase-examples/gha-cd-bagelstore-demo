@@ -74,16 +74,24 @@ variable "app_runner_memory" {
   default     = 2048
 }
 
-# ===== DNS Configuration =====
+# ===== DNS Configuration (Optional) =====
+
+variable "enable_route53" {
+  description = "Enable Route53 DNS records for App Runner services"
+  type        = bool
+  default     = false
+}
 
 variable "domain_name" {
-  description = "Base domain for Route53 records (e.g., 'bagel-demo.example.com')"
+  description = "Base domain for Route53 records (e.g., 'bagel-demo.example.com'). Required if enable_route53 = true"
   type        = string
+  default     = ""
 }
 
 variable "route53_zone_id" {
-  description = "Route53 hosted zone ID for the domain"
+  description = "Route53 hosted zone ID for the domain. Required if enable_route53 = true"
   type        = string
+  default     = ""
 }
 
 # ===== Tags =====
@@ -92,7 +100,7 @@ variable "common_tags" {
   description = "Common tags applied to all resources"
   type        = map(string)
   default = {
-    project    = "bagel-store-demo"
-    managed_by = "terraform"
+    Account = "csteam"
+    project = "bagel-store-demo"
   }
 }

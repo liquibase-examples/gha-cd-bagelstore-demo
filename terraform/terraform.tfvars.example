@@ -1,0 +1,73 @@
+# Terraform Variables Template
+# Copy this file to terraform.tfvars and customize with your values
+#
+# Usage:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # Edit terraform.tfvars with your values
+#   terraform init
+#   terraform apply
+
+# ===== Core Demo Configuration =====
+
+# Unique identifier for this demo instance
+# Must be lowercase alphanumeric with hyphens only
+# Examples: "demo1", "customer-abc", "eval-2025"
+demo_id = "demo1"
+
+# AWS region for all resources
+aws_region = "us-east-1"
+
+# AWS username for resource tagging (deployed_by tag)
+# Tip: Get this automatically with: aws sts get-caller-identity --query UserId --output text
+aws_username = "your-aws-username"
+
+# ===== Database Configuration =====
+
+# RDS master username
+db_username = "postgres"
+
+# RDS master password (will be stored in AWS Secrets Manager)
+# Use a strong password - this is for demo purposes only
+db_password = "ChangeMe123!SecurePassword"
+
+# Optional: RDS instance size (default: db.t3.micro)
+# db_instance_class = "db.t3.micro"
+
+# Optional: RDS storage in GB (default: 20)
+# db_allocated_storage = 20
+
+# ===== Application Configuration =====
+
+# GitHub organization or username
+github_org = "your-github-org"
+
+# GitHub Personal Access Token
+# Required scopes: packages:read, read:packages
+# Create at: https://github.com/settings/tokens
+github_pat = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Optional: App Runner CPU (1024 = 1 vCPU)
+# app_runner_cpu = 1024
+
+# Optional: App Runner memory in MB
+# app_runner_memory = 2048
+
+# ===== DNS Configuration (Optional) =====
+
+# Enable Route53 DNS records for custom domains
+# Set to false to use App Runner default URLs (no Route53 permissions needed)
+enable_route53 = false
+
+# Only required if enable_route53 = true
+# Uncomment and configure these values:
+# domain_name = "bagel-demo.example.com"
+# route53_zone_id = "Z1234567890ABC"  # Find with: aws route53 list-hosted-zones
+
+# ===== Optional: Custom Tags =====
+
+# Uncomment to override default tags
+# common_tags = {
+#   project    = "bagel-store-demo"
+#   managed_by = "terraform"
+#   cost_center = "engineering"
+# }

@@ -78,13 +78,16 @@ output "app_runner_services" {
   }
 }
 
-# ===== Route53 Outputs =====
+# ===== Route53 Outputs (Optional) =====
 
 output "dns_records" {
-  description = "DNS records for all environments"
-  value = {
+  description = "DNS records for all environments (only if Route53 is enabled)"
+  value = var.enable_route53 ? {
     for env in local.environments :
     env => "${env}-${var.demo_id}.${var.domain_name}"
+  } : {
+    for env in local.environments :
+    env => "Route53 disabled - use App Runner URL: https://${aws_apprunner_service.bagel_store[env].service_url}"
   }
 }
 
@@ -139,6 +142,7 @@ output "deployment_summary" {
     s3_flows_bucket      = aws_s3_bucket.liquibase_flows.id
     s3_reports_bucket    = aws_s3_bucket.operation_reports.id
     app_runner_count     = length(local.environments)
-    dns_base             = "${var.demo_id}.${var.domain_name}"
+    route53_enabled      = var.enable_route53
+    dns_base             = var.enable_route53 ? "${var.demo_id}.${var.domain_name}" : "Route53 disabled - use App Runner URLs"
   }
 }

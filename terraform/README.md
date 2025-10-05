@@ -10,15 +10,15 @@ This Terraform configuration creates:
 - **AWS Secrets Manager** - Database credentials and GitHub PAT
 - **S3 Buckets** - Liquibase flows (public) and operation reports (private)
 - **App Runner Services** - 4 services (one per environment) with fixed instance count
-- **Route53 DNS** - DNS records for all environments
+- **Route53 DNS** (Optional) - Custom DNS records for all environments
 
 ## Prerequisites
 
-1. **AWS CLI** configured with credentials
+1. **AWS CLI** configured with credentials (use `aws configure sso` for SSO)
 2. **Terraform** >= 1.0
 3. **PostgreSQL client** (psql) for database creation
-4. **Route53 Hosted Zone** already created
-5. **GitHub Personal Access Token** with packages:read scope
+4. **GitHub Personal Access Token** with packages:read scope
+5. **Route53 Hosted Zone** (optional - only if you want custom DNS)
 
 ## Required Variables
 
@@ -40,9 +40,16 @@ db_password = "your-secure-password-here"
 github_org = "your-github-org"
 github_pat = "ghp_xxxxxxxxxxxxxxxxxxxx"
 
-# DNS configuration
-domain_name      = "bagel-demo.example.com"
-route53_zone_id  = "Z1234567890ABC"
+# DNS configuration (Optional - set enable_route53 = false to skip)
+enable_route53 = false
+# domain_name      = "bagel-demo.example.com"
+# route53_zone_id  = "Z1234567890ABC"
+```
+
+**Tip:** Copy the example file and customize it:
+```bash
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
 ```
 
 ## Usage
@@ -95,7 +102,8 @@ Examples:
 - S3 Flow Bucket: `bagel-store-demo1-liquibase-flows`
 - S3 Reports Bucket: `bagel-store-demo1-operation-reports`
 - App Runner Dev: `bagel-store-demo1-dev`
-- DNS: `dev-demo1.bagel-demo.example.com`
+- DNS (if enabled): `dev-demo1.bagel-demo.example.com`
+- App Runner URL (always): `https://xxxxx.us-east-1.awsapprunner.com`
 
 ## Multi-Instance Support
 
