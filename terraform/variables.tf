@@ -23,6 +23,12 @@ variable "aws_username" {
   type        = string
 }
 
+variable "aws_profile" {
+  description = "AWS CLI profile to use for authentication"
+  type        = string
+  default     = ""
+}
+
 # ===== Database Configuration =====
 
 variable "db_username" {
@@ -57,7 +63,7 @@ variable "github_org" {
 }
 
 variable "github_pat" {
-  description = "GitHub Personal Access Token for pulling packages/images"
+  description = "GitHub Personal Access Token for Harness configuration"
   type        = string
   sensitive   = true
 }

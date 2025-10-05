@@ -36,8 +36,7 @@ resource "aws_iam_role_policy" "apprunner_secrets" {
         ]
         Resource = [
           aws_secretsmanager_secret.rds_username.arn,
-          aws_secretsmanager_secret.rds_password.arn,
-          aws_secretsmanager_secret.github_pat.arn
+          aws_secretsmanager_secret.rds_password.arn
         ]
       }
     ]

@@ -7,7 +7,7 @@ Complete AWS infrastructure for the Bagel Store demonstration, supporting multip
 This Terraform configuration creates:
 
 - **RDS PostgreSQL Instance** - Single instance with 4 databases (dev, test, staging, prod)
-- **AWS Secrets Manager** - Database credentials and GitHub PAT
+- **AWS Secrets Manager** - Database credentials
 - **S3 Buckets** - Liquibase flows (public) and operation reports (private)
 - **App Runner Services** - 4 services (one per environment) with fixed instance count
 - **Route53 DNS** (Optional) - Custom DNS records for all environments

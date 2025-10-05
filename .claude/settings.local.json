@@ -11,7 +11,16 @@
       "Bash(fi)",
       "Bash(git init:*)",
       "Bash(git branch:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nPhase 1: Infrastructure Setup - Complete Terraform and Liquibase Flows\n\nComplete implementation of Phase 1 from requirements-design-plan.md.\n\nTerraform Infrastructure:\n- Multi-instance support via demo_id variable\n- RDS PostgreSQL with 4 databases (dev, test, staging, prod)\n- AWS Secrets Manager for credentials\n- S3 buckets for flow files (public) and reports (private)\n- App Runner services for all 4 environments\n- Route53 DNS records\n- Comprehensive outputs and documentation\n\nLiquibase Flows:\n- pr-validation-flow.yaml - PR validation with policy checks\n- main-deployment-flow.yaml - Main branch deployment with artifact creation\n- 12 policy checks configured at BLOCKER severity\n- Pattern based on postgres-flow-policy-demo\n\nKey Features:\n- All resources tagged with demo_id for multi-instance support\n- AWS Secrets Manager native integration\n- Operation reports uploaded to S3\n- Fixed instance count on App Runner (cost control)\n- Public RDS access (demo only)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(aws sts get-caller-identity:*)",
+      "Bash(aws configure:*)",
+      "Read(//Users/recampbell/.aws/**)",
+      "Bash(aws:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nMake Route53 DNS optional and improve Terraform usability\n\nEnhanced Terraform configuration to support deployments without Route53:\n- Made Route53 DNS optional via enable_route53 variable (defaults to false)\n- App Runner services always get default URLs, Route53 adds custom domains\n- Added terraform.tfvars.example template with comprehensive documentation\n- Improved tag consistency (Requestor instead of deployed_by)\n- Updated README with clearer prerequisites and AWS SSO guidance\n\nChanges:\n- variables.tf: Added enable_route53 flag, made domain_name/route53_zone_id optional\n- route53.tf: Conditionally create DNS records only if enable_route53 = true\n- outputs.tf: Show App Runner URLs when Route53 disabled\n- main.tf: Standardized tag names (Requestor, Account)\n- README.md: Document optional Route53, terraform.tfvars.example workflow\n- terraform.tfvars.example: Complete template with all variables documented\n\nThis enables quick demos without Route53 setup while preserving custom DNS capability.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(terraform:*)",
+      "Bash(export AWS_PROFILE=liquibase-csteam-operator)",
+      "Bash(AWS_PROFILE=liquibase-csteam-operator terraform apply)"
     ],
     "deny": [],
     "ask": []

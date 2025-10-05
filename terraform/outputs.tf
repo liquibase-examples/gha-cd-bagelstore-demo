@@ -58,12 +58,6 @@ output "secrets_rds_password_arn" {
   sensitive   = true
 }
 
-output "secrets_github_pat_arn" {
-  description = "ARN of GitHub PAT secret"
-  value       = aws_secretsmanager_secret.github_pat.arn
-  sensitive   = true
-}
-
 # ===== App Runner Outputs =====
 
 output "app_runner_services" {

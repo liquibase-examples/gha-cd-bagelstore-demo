@@ -21,6 +21,10 @@ aws_region = "us-east-1"
 # Tip: Get this automatically with: aws sts get-caller-identity --query UserId --output text
 aws_username = "your-aws-username"
 
+# Optional: AWS CLI profile to use for authentication
+# If not specified, uses default AWS credentials
+# aws_profile = "liquibase-csteam-operator"
+
 # ===== Database Configuration =====
 
 # RDS master username

@@ -1,5 +1,5 @@
 # AWS Secrets Manager Configuration
-# Stores database credentials and GitHub PAT
+# Stores database credentials
 
 # RDS Username Secret
 resource "aws_secretsmanager_secret" "rds_username" {
@@ -37,20 +37,3 @@ resource "aws_secretsmanager_secret_version" "rds_password" {
   secret_string = var.db_password
 }
 
-# GitHub Personal Access Token Secret
-resource "aws_secretsmanager_secret" "github_pat" {
-  name        = "${var.demo_id}/github/pat"
-  description = "GitHub Personal Access Token for ${var.demo_id} demo"
-
-  tags = merge(
-    local.tags,
-    {
-      Name = "${var.demo_id}/github/pat"
-    }
-  )
-}
-
-resource "aws_secretsmanager_secret_version" "github_pat" {
-  secret_id     = aws_secretsmanager_secret.github_pat.id
-  secret_string = var.github_pat
-}

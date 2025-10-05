@@ -129,7 +129,7 @@ Based on analysis of proven implementation patterns from ../liquibase-patterns, 
 #### GitHub Actions Configuration
 - **ALWAYS use `liquibase/setup-liquibase@v1`** - deprecated versions cause failures
 - **Minimum Liquibase version: 4.32.0** - earlier versions (4.29.0) fail with "Version not supported"
-- **Set `edition: 'pro'`** in setup-liquibase action for Flow and policy check features
+- **Set `edition: 'secure'`** in setup-liquibase action for Flow and policy check features
 - **Use `actions/checkout@v4`** - v3 is deprecated
 - **Use `actions/upload-artifact@v4`** - v3 causes workflow failures
 
@@ -252,7 +252,7 @@ Developer uses Liquibase IDE extension for VS Code to develop changesets locally
    - uses: liquibase/setup-liquibase@v1
      with:
        version: '4.32.0'
-       edition: 'pro'
+       edition: 'secure'
    ```
 3. Configure AWS credentials for S3 and Secrets Manager access
 4. Execute Liquibase flow with environment variables:
@@ -290,7 +290,7 @@ Developer uses Liquibase IDE extension for VS Code to develop changesets locally
    - uses: liquibase/setup-liquibase@v1
      with:
        version: '4.32.0'
-       edition: 'pro'
+       edition: 'secure'
    ```
 3. Configure AWS credentials using `aws-actions/configure-aws-credentials@v4`
 4. Execute Liquibase flow with LIQUIBASE_COMMAND_* environment variables:
@@ -608,7 +608,7 @@ aws apprunner update-service \
 - `db_password` - RDS master password (sensitive)
 - `domain_name` - Base domain for Route53 records
 - `github_org` - GitHub organization name
-- `github_pat` - GitHub Personal Access Token (sensitive)
+- `github_pat` - GitHub Personal Access Token for Harness configuration (sensitive)
 
 **Outputs Required:**
 - RDS endpoint
@@ -1368,59 +1368,161 @@ pipeline:
 
 ## 19. Implementation Phases
 
-### Phase 1: Infrastructure Setup
-1. Create Terraform configurations for all AWS resources
-2. Configure demo_id variable and tagging
-3. Provision RDS instance with 4 databases
-4. Create S3 buckets for flows and reports
-5. Set up AWS Secrets Manager secrets
-6. Configure Route53 DNS records
-7. Upload Liquibase flow files and policy checks to S3 via Terraform
+### Phase 1: Infrastructure Setup ⏸️ **BLOCKED** by DAT-20991
 
-### Phase 2: Application Development
-1. Initialize uv project with `uv init`
-2. Create pyproject.toml with Flask and psycopg2 dependencies
-3. Create Flask application structure
-4. Implement database models
-5. Build UI templates
-6. Create Dockerfile using uv for dependency installation
-7. Generate uv.lock file for reproducible builds
-8. Test locally with `uv run` commands
+**Status:** Terraform code complete, awaiting AWS permissions
 
-### Phase 3: Database Schema
-1. **Research:** Study Liquibase best practices for AWS integration
-2. **Research:** Review Liquibase policy checks documentation
-3. Design database schema
-4. Create initial Liquibase changesets
-5. Create master changelog file
-6. Configure policy checks file with BLOCKER severity
-7. Test Liquibase locally with AWS Secrets Manager integration
+**Completed:**
+1. ✅ Created Terraform configurations for all AWS resources
+2. ✅ Configured demo_id variable and tagging
+3. ✅ Configured aws_profile variable support
+4. ✅ Made Route53 DNS optional (enable_route53 flag)
+5. ✅ Created terraform.tfvars.example template
+6. ✅ Removed GitHub PAT from AWS Secrets Manager (kept as Terraform variable)
 
-### Phase 4: CI/CD Pipeline
-1. Create GitHub Actions workflows
-2. Configure AWS credentials in GitHub Secrets
-3. Implement S3 upload for operation reports (organized by run number)
-4. Configure GitHub Packages
-5. Test CI pipelines
+**Blocked by DAT-20991 (DevOps team):**
+- Need IAM roles created: `liquibase-demo-apprunner-instance-role`, `liquibase-demo-apprunner-access-role`
+- Need Security Group created: `liquibase-demo-rds-sg`
+- Need Auto Scaling Config created: `liquibase-demo-fixed-scaling`
+- Need AWS permissions granted: App Runner (CreateService, etc.), RDS (CreateDBInstance, etc.)
 
-### Phase 5: Harness Configuration
-1. **Research:** Review Harness CD Free Edition capabilities and best practices
-2. **Research:** Study Harness Remote pipeline configuration
-3. Set up Harness account
-4. Create Harness delegate docker-compose.yml
-5. Start Harness Delegate locally
-6. Create Harness connectors (GitHub, AWS, Docker)
-7. Build deployment pipeline YAML in Git repository
-8. Configure Harness to use Remote pipeline from Git
-9. Test deployments through all environments
+**Can proceed after DAT-20991 resolved:**
+1. 🔲 Provision RDS instance with 4 databases
+2. 🔲 Create S3 buckets for flows and reports
+3. 🔲 Set up AWS Secrets Manager secrets (RDS credentials only)
+4. 🔲 Configure Route53 DNS records (optional)
+5. 🔲 Upload Liquibase flow files and policy checks to S3 via Terraform
 
-### Phase 6: Integration Testing & Documentation
-1. Test full workflow end-to-end
-2. Verify all environments
-3. Test promotion flow
-4. Validate policy checks enforcement
-5. Verify AWS integration (Secrets Manager, S3)
-6. Document demo script
+### Phase 2: Application Development ✅ **CAN PROCEED**
+
+**Status:** Independent of AWS infrastructure - can start immediately
+
+**Dependencies:** None (local development only)
+
+**Tasks:**
+1. 🔲 Initialize uv project with `uv init`
+2. 🔲 Create pyproject.toml with Flask and psycopg2 dependencies
+3. 🔲 Create Flask application structure (routes, models, templates)
+4. 🔲 Implement database models (products, inventory, orders, order_items)
+5. 🔲 Build UI templates (product catalog, cart, checkout)
+6. 🔲 Create Dockerfile using uv for dependency installation
+7. 🔲 Generate uv.lock file for reproducible builds
+8. 🔲 Test locally with `uv run` commands (can use local PostgreSQL or Docker)
+
+**Notes:**
+- Can develop and test entirely locally
+- Use local PostgreSQL database for development
+- Does NOT require AWS infrastructure
+
+---
+
+### Phase 3: Database Schema ✅ **CAN PROCEED**
+
+**Status:** Independent of AWS infrastructure - can start immediately
+
+**Dependencies:** None (local Liquibase testing)
+
+**Tasks:**
+1. 🔲 **Research:** Study Liquibase best practices for AWS integration via Context7
+2. 🔲 **Research:** Review Liquibase policy checks documentation
+3. 🔲 Design database schema (products, inventory, orders, order_items)
+4. 🔲 Create initial Liquibase changesets in SQL format
+5. 🔲 Create master changelog file (YAML format)
+6. 🔲 Configure policy checks file with BLOCKER severity (12 checks)
+7. 🔲 Test Liquibase locally against local PostgreSQL database
+
+**Notes:**
+- Develop changesets against local PostgreSQL
+- Test policy checks locally before AWS deployment
+- Flow files ready to upload to S3 when Phase 1 unblocked
+
+---
+
+### Phase 4: CI/CD Pipeline ⚠️ **PARTIALLY BLOCKED**
+
+**Status:** Can prepare workflows, but cannot fully test until Phase 1 complete
+
+**Can proceed now:**
+1. 🔲 Create GitHub Actions workflow files (.github/workflows/)
+   - pr-validation.yml
+   - main-ci.yml (database)
+   - app-ci.yml (application)
+2. 🔲 Configure GitHub Packages for Docker images
+3. 🔲 Configure GitHub Secrets (AWS credentials, Liquibase license)
+4. 🔲 Write S3 upload logic for operation reports
+5. 🔲 Test workflow syntax validation
+
+**Blocked until Phase 1 complete:**
+- Cannot test workflows against real RDS database
+- Cannot test S3 uploads (buckets don't exist yet)
+- Cannot test Liquibase with AWS Secrets Manager
+
+**Notes:**
+- Workflows can be written and syntax-validated
+- Use DAT-20991 blocker time to perfect workflow logic
+
+---
+
+### Phase 5: Harness Configuration ✅ **CAN PROCEED**
+
+**Status:** Most work can proceed independently
+
+**Can proceed now:**
+1. 🔲 **Research:** Review Harness CD Free Edition via Context7
+2. 🔲 **Research:** Study Harness Remote pipeline configuration
+3. 🔲 Set up Harness account (harness.io)
+4. 🔲 Create Harness delegate docker-compose.yml
+5. 🔲 Start Harness Delegate locally (test connectivity)
+6. 🔲 Build deployment pipeline YAML in Git repository
+7. 🔲 Configure Harness to use Remote pipeline from Git
+8. 🔲 Create Harness connectors (GitHub - can test)
+
+**Blocked until Phase 1 complete:**
+- Cannot create AWS connector (no infrastructure yet)
+- Cannot test deployments to App Runner
+- Cannot test end-to-end promotion flow
+
+**Notes:**
+- Harness setup, delegate, and pipeline YAML can all be prepared
+- Only actual deployment testing requires AWS infrastructure
+
+### Phase 6: Integration Testing & Documentation ⏸️ **BLOCKED** by Phase 1
+
+**Status:** Requires complete AWS infrastructure
+
+**Dependencies:** Phase 1 (AWS infrastructure), Phase 2 (app), Phase 3 (database), Phase 4 (CI/CD), Phase 5 (Harness)
+
+**Tasks:**
+1. 🔲 Test full workflow end-to-end (PR → merge → deploy → promote)
+2. 🔲 Verify all environments (dev, test, staging, prod)
+3. 🔲 Test promotion flow through Harness CD
+4. 🔲 Validate policy checks enforcement (BLOCKER severity)
+5. 🔲 Verify AWS integration (Secrets Manager, S3, App Runner)
+6. 🔲 Document demo script for Bank of America presentation
+
+**Notes:**
+- Final integration testing requires all phases complete
+- Can prepare test plans while waiting for Phase 1
+
+---
+
+## Summary: What Can Proceed Now
+
+**✅ Immediate work (no blockers):**
+- **Phase 2:** Develop Flask application locally
+- **Phase 3:** Create Liquibase changesets and test locally
+- **Phase 5:** Set up Harness account, delegate, and pipeline YAML
+
+**⚠️ Partial work (prepare but can't test):**
+- **Phase 4:** Write GitHub Actions workflows (can't test until Phase 1)
+
+**⏸️ Blocked by DAT-20991:**
+- **Phase 1:** AWS infrastructure deployment
+- **Phase 6:** Full integration testing
+
+**Critical Path:** DAT-20991 → Phase 1 → Phase 6
+
+**Parallel Work Opportunity:** While waiting for DevOps, complete Phases 2, 3, and 5 to maximize readiness
 
 ---
 
@@ -1623,7 +1725,7 @@ Based on analysis of proven patterns from the ../liquibase-patterns repository, 
 #### GitHub Actions Modernization
 - ✅ Updated to `liquibase/setup-liquibase@v1` (replaces deprecated versions)
 - ✅ Minimum Liquibase version raised to 4.32.0 (from 5.0.1 mention)
-- ✅ Added `edition: 'pro'` parameter for Flow and policy check support
+- ✅ Added `edition: 'secure'` parameter for Flow and policy check support
 - ✅ Updated to `actions/checkout@v4` and `actions/upload-artifact@v4`
 - ✅ Added `aws-actions/configure-aws-credentials@v4` for AWS integration
 

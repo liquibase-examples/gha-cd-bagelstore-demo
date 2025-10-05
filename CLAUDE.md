@@ -240,7 +240,7 @@ All environments share:
 
 **PR Validation:**
 1. `actions/checkout@v4`
-2. `liquibase/setup-liquibase@v1` with edition: 'pro'
+2. `liquibase/setup-liquibase@v1` with edition: 'secure'
 3. Download flow and policy checks from S3
 4. Execute `pr-validation-flow.yaml`
    - Verify connection and syntax
@@ -275,7 +275,6 @@ All environments share:
 **Secrets Manager:**
 - `<demo_id>/rds/username` - Database username
 - `<demo_id>/rds/password` - Database password
-- `<demo_id>/github/pat` - GitHub PAT
 
 **Liquibase native integration:**
 ```bash
