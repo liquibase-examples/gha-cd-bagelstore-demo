@@ -353,8 +353,8 @@ cd app
 docker compose up -d
 uv run pytest
 ```
-IMPORTANT!!!
-**For complete testing documentation, see [app/TESTING.md](app/TESTING.md).**
+
+**IMPORTANT!!! For complete testing documentation, see [app/TESTING.md](app/TESTING.md).**
 
 ### Test Structure
 

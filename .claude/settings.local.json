@@ -56,7 +56,9 @@
       "mcp__playwright__browser_file_upload:*",
       "mcp__playwright__browser_tabs:*",
       "mcp__playwright__browser_navigate_back:*",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(uv run:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
