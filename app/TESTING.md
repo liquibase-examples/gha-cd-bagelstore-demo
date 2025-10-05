@@ -173,43 +173,145 @@ print(products)
 5. **Health Check**
    - [ ] /health returns `{"status": "healthy", "database": "connected"}`
 
-### Automated Testing with Playwright
+### Automated Testing with pytest + Playwright
 
-The project supports automated browser testing using Playwright MCP.
+The project includes comprehensive end-to-end tests using pytest and Playwright.
 
-**Prerequisites:**
-- Playwright MCP tools auto-approved in `.claude/settings.local.json`
-- Application running on http://localhost:5001
+#### Prerequisites
 
-**Test Flow:**
-```python
-# 1. Navigate to homepage
-browser.navigate("http://localhost:5001")
-browser.snapshot()  # Verify 5 products displayed
+1. **Install dependencies:**
+   ```bash
+   cd app
+   uv sync --extra dev
+   ```
 
-# 2. Add item to cart
-browser.click("Add to Cart button for Plain Bagel")
-# Cart page should show 1 item, $2.50 total
+2. **Install Playwright browsers:**
+   ```bash
+   uv run playwright install chromium
+   ```
 
-# 3. Login
-browser.click("Proceed to Checkout")  # Redirects to login
-browser.type("username", "demo")
-browser.type("password", "B@gelSt0re2025!Demo")
-browser.click("Login")
-# Should redirect to homepage with "Welcome, demo!"
+3. **Start Docker Compose services:**
+   ```bash
+   docker compose up -d
+   ```
 
-# 4. Checkout
-browser.click("Cart")
-browser.click("Proceed to Checkout")
-browser.click("Place Order")
-# Should show order confirmation with Order #1
+#### Running Tests
 
-# 5. Health check
-browser.navigate("http://localhost:5001/health")
-# Should return {"status": "healthy", "database": "connected"}
+**Run all tests:**
+```bash
+uv run pytest
 ```
 
-**Screenshots Location:** `.playwright-mcp/` (gitignored)
+**Run with visible browser (headed mode):**
+```bash
+uv run pytest --headed
+```
+
+**Run specific test file:**
+```bash
+uv run pytest tests/test_health_check.py
+uv run pytest tests/test_e2e_shopping.py
+```
+
+**Run tests by marker:**
+```bash
+uv run pytest -m health        # Health check tests only
+uv run pytest -m e2e           # End-to-end tests only
+uv run pytest -m "not slow"    # Skip slow tests
+```
+
+**Run specific test:**
+```bash
+uv run pytest tests/test_e2e_shopping.py::test_complete_checkout_flow
+```
+
+**Verbose output:**
+```bash
+uv run pytest -v
+```
+
+#### Test Structure
+
+```
+app/tests/
+├── conftest.py              # Fixtures and configuration
+├── test_health_check.py     # Health endpoint and DB connectivity tests
+└── test_e2e_shopping.py     # End-to-end shopping flow tests
+```
+
+#### Available Test Fixtures
+
+- `wait_for_services` - Waits for Docker Compose services to be healthy
+- `db_connection` - Provides PostgreSQL connection for DB validation
+- `clean_cart` - Clears session cart before each test
+- `authenticated_page` - Provides logged-in browser session
+- `clean_test_orders` - Cleanup test orders after tests
+
+#### Test Coverage
+
+**Health Tests:**
+- ✅ Health endpoint returns correct JSON
+- ✅ Database connectivity
+- ✅ Sample data initialization
+
+**E2E Shopping Tests:**
+- ✅ Homepage displays all 5 products
+- ✅ Add item to cart
+- ✅ View cart page
+- ✅ Remove item from cart
+- ✅ Multiple items in cart
+- ✅ Product prices displayed
+- ✅ Login success
+- ✅ Login failure
+- ✅ Logout
+- ✅ Checkout requires authentication
+- ✅ Complete checkout flow (login → cart → checkout → order confirmation)
+- ✅ Order creation in database
+- ✅ Cart cleared after order
+
+#### CI/CD Integration
+
+**Future Enhancement:** Add automated tests to GitHub Actions workflow:
+
+```yaml
+- name: Install dependencies
+  run: |
+    uv sync --extra dev
+    uv run playwright install --with-deps chromium
+
+- name: Start services
+  run: docker compose up -d
+
+- name: Wait for services
+  run: sleep 10
+
+- name: Run tests
+  run: uv run pytest --tb=short
+
+- name: Stop services
+  run: docker compose down
+```
+
+#### Troubleshooting Tests
+
+**Services not ready:**
+- Ensure Docker Compose is running: `docker compose ps`
+- Check logs: `docker compose logs app postgres`
+- Restart services: `docker compose restart`
+
+**Playwright browser not installed:**
+```bash
+uv run playwright install chromium
+```
+
+**Test failures:**
+- Run with verbose output: `pytest -v`
+- See full traceback: `pytest --tb=long`
+- Run single test to isolate issue
+
+**Port conflicts:**
+- Ensure nothing else is using port 5001: `lsof -i :5001`
+- Ensure PostgreSQL port 5432 is available: `lsof -i :5432`
 
 ## Common Development Commands
 

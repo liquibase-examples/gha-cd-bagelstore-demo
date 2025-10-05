@@ -111,8 +111,14 @@ uv sync --extra dev
 # Run application locally
 uv run python src/app.py
 
-# Run tests
+# Run tests (see app/TESTING.md for details)
 uv run pytest
+
+# Rebuild Docker image after template changes
+# (Templates are baked into image at build time)
+docker compose build --no-cache
+docker compose up -d
+uv run pytest -m health  # Verify changes
 ```
 
 ### Harness Delegate
@@ -337,6 +343,108 @@ resource "aws_s3_object" "pr_validation_flow" {
 - Harness references version when deploying
 - Both app and database promoted together
 
+## Testing
+
+The application includes comprehensive automated tests using pytest + Playwright for browser automation.
+
+**Quick start:**
+```bash
+cd app
+docker compose up -d
+uv run pytest
+```
+IMPORTANT!!!
+**For complete testing documentation, see [app/TESTING.md](app/TESTING.md).**
+
+### Test Structure
+
+- `app/tests/` - All automated tests (15 tests total)
+  - `conftest.py` - Shared pytest fixtures
+  - `test_health_check.py` - System health validation (4 tests)
+  - `test_e2e_shopping.py` - Complete user flows (11 tests)
+
+### Key Test Fixtures
+
+Available in `conftest.py` for test development:
+- `wait_for_services` - Auto-waits for Docker services to be healthy
+- `db_connection` - PostgreSQL connection for database validation
+- `authenticated_page` - Pre-logged-in browser session
+- `clean_cart` - Clears session cart between tests
+- `clean_test_orders` - Cleans up test orders from database
+
+### Test Commands
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run specific markers
+uv run pytest -m health        # Health checks only
+uv run pytest -m e2e          # E2E tests only
+uv run pytest -m "not slow"   # Skip slow tests
+
+# Debug with visible browser
+uv run pytest --headed
+```
+
+### When Tests Might Break
+
+- After template changes (requires `docker compose build --no-cache`)
+- After route URL changes (check templates for hardcoded URLs)
+- If demo credentials in `routes.py` don't match `login.html`
+
+**Important:** Tests use the actual Docker Compose environment (not mocks), validating real database operations and full user flows.
+
+## Application Development Patterns
+
+### Template and Route Synchronization
+
+**CRITICAL:** Templates are baked into Docker images at build time.
+
+When changing demo credentials, route URLs, or template content:
+
+1. **Check both locations:**
+   - Route handler: `app/src/routes.py` (e.g., `DEMO_USER` constant)
+   - Template display: `app/src/templates/*.html` (demo credentials, URLs)
+
+2. **Rebuild required:**
+   ```bash
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+
+3. **Verify with tests:**
+   ```bash
+   cd app && uv run pytest -m health
+   ```
+
+**Example - Demo credentials:**
+```python
+# Source of truth: app/src/routes.py:12
+DEMO_USER = {'username': 'demo', 'password': 'B@gelSt0re2025!Demo'}
+```
+```html
+<!-- Must match: app/src/templates/login.html:30 -->
+<p>Password: <code>B@gelSt0re2025!Demo</code></p>
+```
+
+### Route URL Reference
+
+Quick reference for test development and understanding flows:
+
+- `/` - Homepage (product catalog)
+- `/login` - GET: login form, POST: authenticate
+- `/logout` - Clear session
+- `/cart` - View shopping cart
+- `/cart/add/<product_id>` - Add item to cart (POST)
+- `/cart/remove/<product_id>` - Remove item (POST)
+- `/checkout` - Checkout page (requires authentication)
+- `/checkout/place-order` - Create order (POST)
+- `/order/<int:order_id>` - Order confirmation (note: `/order/` not `/order-confirmation/`)
+- `/health` - Health check endpoint
+
+See [app/TESTING.md](app/TESTING.md) for test examples using these routes.
+
 ## Database Schema
 
 Required tables:
@@ -365,7 +473,7 @@ When running Flask app in Docker:
   ```
 - After changing imports, rebuild with `docker compose build --no-cache`
 
-See [app/TESTING.md](app/TESTING.md) for detailed troubleshooting.
+**Verification:** See [app/TESTING.md](app/TESTING.md) for automated tests that validate import patterns and detailed troubleshooting.
 
 ## Security & Secrets
 
