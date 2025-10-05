@@ -41,7 +41,41 @@ This is a demonstration repository showcasing coordinated application and databa
     └── app-ci.yml
 ```
 
+## Local Development & Testing
+
+For local development and testing of the Flask application, see [app/TESTING.md](app/TESTING.md).
+
+**Quick Start:**
+```bash
+cd app
+docker compose up --build  # Access at http://localhost:5001
+```
+
+**Important:** Port 5001 is used externally (macOS ControlCenter uses 5000).
+
 ## Common Commands
+
+### Git Workflow
+```bash
+# Check status and review changes
+git status
+git diff <file>
+
+# Check authorship before amending
+git log -1 --format='%an %ae'
+
+# Commit with detailed message
+git add <files>
+git commit -m "$(cat <<'EOF'
+<multi-line commit message>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+git push
+```
 
 ### Terraform
 ```bash
@@ -313,6 +347,26 @@ Required tables:
 
 No user management - single hardcoded user for authentication.
 
+## Python Import Patterns in Docker
+
+When running Flask app in Docker:
+- WORKDIR is `/app`, code is in `/app/src/`
+- Python runs from `/app/src/` context
+- **Use relative imports** in application code:
+  ```python
+  # ✅ Correct
+  from routes import bp
+  from database import execute_query
+  from models import Product
+
+  # ❌ Wrong (fails in Docker)
+  from src.routes import bp
+  from src.database import execute_query
+  ```
+- After changing imports, rebuild with `docker compose build --no-cache`
+
+See [app/TESTING.md](app/TESTING.md) for detailed troubleshooting.
+
 ## Security & Secrets
 
 **GitHub Secrets:**
@@ -354,13 +408,53 @@ Running continuously: ~$37-42/month
 
 **Run `terraform destroy` after demos to minimize costs.**
 
-## Implementation Notes
+## Development Workflow
 
-When encountering errors:
-- Liquibase version issues: Ensure minimum 4.32.0
-- GitHub Actions failures: Verify action versions (v4 for checkout/upload-artifact)
-- Environment variables not working: Use LIQUIBASE_COMMAND_* pattern exclusively
-- Policy check failures: Review `liquibase.checks-settings.conf` for BLOCKER severity settings
-- S3 access issues: Confirm AWS credentials and bucket permissions
+### Phase Completion Checklist
+When completing a phase:
+1. Test locally using Docker Compose (see [app/TESTING.md](app/TESTING.md))
+2. Run automated Playwright tests if UI changes
+3. Update CLAUDE.md with new patterns/commands learned
+4. Update requirements-design-plan.md with implementation details
+5. Commit with descriptive message including phase number
+6. Push to trigger CI/CD workflows
+
+### File Organization Patterns
+- **App code**: `app/src/` - Flask application with Blueprint architecture
+- **Database**: `db/changelog/` - Master YAML + SQL changesets
+- **Infrastructure**: `terraform/` - All AWS resources
+- **CI/CD**: `.github/workflows/` - GitHub Actions
+- **Deployment**: `harness/` - Harness pipelines and delegate
+- **Flow files**: `liquibase-flows/` - Uploaded to S3 by Terraform
+
+## Troubleshooting
+
+### Common Issues
+
+**ModuleNotFoundError: No module named 'src'**
+- Cause: Using absolute imports (`from src.routes`) in Docker
+- Fix: Use relative imports (`from routes`) and rebuild with `--no-cache`
+
+**Port 5000 already in use**
+- Cause: macOS ControlCenter uses port 5000
+- Fix: App already configured for port 5001 externally
+
+**Docker cache issues**
+- Fix: `docker compose build --no-cache && docker compose up`
+
+**Liquibase version issues**
+- Ensure minimum 4.32.0 for Flow and policy checks
+
+**GitHub Actions failures**
+- Verify action versions (v4 for checkout/upload-artifact)
+- Use LIQUIBASE_COMMAND_* environment variables exclusively
+
+**Policy check failures**
+- Review `liquibase.checks-settings.conf` for BLOCKER severity settings
+
+**S3 access issues**
+- Confirm AWS credentials and bucket permissions
+
+For detailed troubleshooting, see [app/TESTING.md](app/TESTING.md).
 
 For Python package conflicts: Use `pipx` for CLI tools, `uv` for project dependencies.
