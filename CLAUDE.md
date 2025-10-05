@@ -209,6 +209,50 @@ Script will show:
 - ✓ SSO session status
 - ✓ Exact command to fix issues
 
+## Terraform Security Best Practices
+
+### Environment-Specific Values
+**IMPORTANT:** Never hardcode AWS environment-specific values in Terraform files.
+
+**Always parameterize via variables:**
+- ✅ Account identifiers/names
+- ✅ VPC IDs (use `data.aws_vpc.default`)
+- ✅ Subnet IDs (use `data.aws_subnets.default`)
+- ✅ Security group IDs
+- ✅ IAM role names/ARNs
+- ✅ Region names
+
+**How to check:**
+```bash
+# Review all .tf files for hardcoded values
+cd terraform
+grep -r "vpc-\|sg-\|arn:aws:iam" *.tf
+
+# Verify all environment-specific values are in variables.tf or terraform.tfvars
+cat variables.tf terraform.tfvars.example
+```
+
+**Pattern for custom tags:**
+```hcl
+variable "common_tags" {
+  description = "Common tags applied to all resources"
+  type        = map(string)
+  default = {
+    project = "bagel-store-demo"
+    # Do NOT include org/account-specific tags here
+  }
+}
+```
+
+Users add their own via `terraform.tfvars`:
+```hcl
+common_tags = {
+  Account     = "my-org-name"
+  project     = "bagel-store-demo"
+  cost_center = "engineering"
+}
+```
+
 ## Common Commands
 
 ### Git Workflow
@@ -246,6 +290,19 @@ terraform apply -var="demo_id=demo1" -var="aws_username=$(aws sts get-caller-ide
 
 # Destroy all resources for a demo instance
 terraform destroy -var="demo_id=demo1"
+```
+
+**Security review before sharing repository:**
+```bash
+# Check for hardcoded AWS-specific values
+cd terraform
+grep -r "vpc-\|sg-\|arn:aws:iam" *.tf
+
+# Verify all values are parameterized
+cat variables.tf terraform.tfvars.example
+
+# Review default tags (should not include org-specific values)
+grep -A5 "common_tags" variables.tf
 ```
 
 ### Python Application (using uv)
@@ -850,6 +907,31 @@ Running continuously: ~$37-42/month
 - Secrets Manager: ~$2
 
 **Run `terraform destroy` after demos to minimize costs.**
+
+## Code Review & Security Checklist
+
+### Before Committing Infrastructure Changes
+
+**Terraform files (.tf, .tfvars.example):**
+- [ ] No hardcoded AWS account names or IDs
+- [ ] No hardcoded VPC/subnet/security group IDs
+- [ ] No organization-specific values in `default` blocks
+- [ ] All secrets use variables (never hardcoded)
+- [ ] `terraform.tfvars.example` includes all required variables
+
+**Application files:**
+- [ ] No credentials in code (use `.env` files)
+- [ ] `.env.example` exists with placeholders
+- [ ] Secrets use environment variables or AWS Secrets Manager
+
+**Git safety:**
+```bash
+# Verify .gitignore is working
+git check-ignore -v app/.env terraform/terraform.tfvars
+
+# Check for accidentally staged secrets
+git diff --staged | grep -i "password\|secret\|token\|key"
+```
 
 ## Development Workflow
 

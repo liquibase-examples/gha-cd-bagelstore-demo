@@ -69,9 +69,10 @@ enable_route53 = false
 
 # ===== Optional: Custom Tags =====
 
-# Uncomment to override default tags
+# Uncomment to override default tags or add custom tags
 # common_tags = {
-#   project    = "bagel-store-demo"
-#   managed_by = "terraform"
+#   Account     = "my-account-name"
+#   project     = "bagel-store-demo"
+#   managed_by  = "terraform"
 #   cost_center = "engineering"
 # }
