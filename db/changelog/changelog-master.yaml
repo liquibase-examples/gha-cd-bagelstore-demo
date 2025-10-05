@@ -1,0 +1,55 @@
+##########################################################################
+# Liquibase Master Changelog - Bagel Store Database
+##########################################################################
+# Purpose: Central changelog file that references all database changesets
+# Format: YAML (modern best practice for Liquibase)
+# Pattern: Based on postgres-flow-policy-demo structure
+##########################################################################
+
+databaseChangeLog:
+  - changeSet:
+      id: metadata
+      author: demo
+      comment: Bagel Store database schema and seed data
+      changes:
+        - tagDatabase:
+            tag: v1.0.0-baseline
+
+  # Schema Creation - Tables
+  - include:
+      file: changesets/001-create-products-table.sql
+      relativeToChangelogFile: true
+
+  - include:
+      file: changesets/002-create-inventory-table.sql
+      relativeToChangelogFile: true
+
+  - include:
+      file: changesets/003-create-orders-table.sql
+      relativeToChangelogFile: true
+
+  - include:
+      file: changesets/004-create-order-items-table.sql
+      relativeToChangelogFile: true
+
+  # Performance Optimization - Indexes
+  - include:
+      file: changesets/005-create-indexes.sql
+      relativeToChangelogFile: true
+
+  # Seed Data
+  - include:
+      file: changesets/006-seed-products.sql
+      relativeToChangelogFile: true
+
+  - include:
+      file: changesets/007-seed-inventory.sql
+      relativeToChangelogFile: true
+
+  # Version Tag
+  - changeSet:
+      id: tag-v1.0.0
+      author: demo
+      changes:
+        - tagDatabase:
+            tag: v1.0.0

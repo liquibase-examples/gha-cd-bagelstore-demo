@@ -13,13 +13,28 @@ This is a demonstration repository showcasing coordinated application and databa
 ```
 ├── app/                          # Flask application
 │   ├── src/                      # Application source code
+│   │   ├── app.py                # Flask app factory
+│   │   ├── routes.py             # Route handlers
+│   │   ├── models.py             # Data models
+│   │   ├── database.py           # Database utilities
+│   │   └── templates/            # Jinja2 HTML templates
+│   ├── tests/                    # Pytest + Playwright tests
 │   ├── Dockerfile                # Docker image definition
+│   ├── docker-compose.yml        # Local dev environment
 │   ├── pyproject.toml            # Python dependencies (PEP 621)
 │   └── uv.lock                   # Locked dependency versions
 ├── db/
 │   └── changelog/
 │       ├── changelog-master.yaml # Master changelog (YAML format)
-│       └── changesets/           # SQL changesets (formatted SQL)
+│       ├── changesets/           # Individual changesets (formatted SQL)
+│       │   ├── 001-create-products-table.sql
+│       │   ├── 002-create-inventory-table.sql
+│       │   ├── 003-create-orders-table.sql
+│       │   ├── 004-create-order-items-table.sql
+│       │   ├── 005-create-indexes.sql
+│       │   ├── 006-seed-products.sql
+│       │   └── 007-seed-inventory.sql
+│       └── README.md             # Changeset documentation
 ├── terraform/                    # AWS infrastructure as code
 │   ├── main.tf
 │   ├── rds.tf                    # PostgreSQL RDS instance
@@ -35,7 +50,7 @@ This is a demonstration repository showcasing coordinated application and databa
 │   ├── pr-validation-flow.yaml
 │   ├── main-deployment-flow.yaml
 │   └── liquibase.checks-settings.conf
-├── .github/workflows/
+├── .github/workflows/            # GitHub Actions (not yet created)
 │   ├── pr-validation.yml
 │   ├── main-ci.yml
 │   └── app-ci.yml
@@ -276,58 +291,37 @@ docker compose logs -f harness-delegate
 docker compose down
 ```
 
-### Liquibase Changeset Development
+### Database Development Workflow
 
-**Changeset Location:** `db/changelog/changesets/`
+**Complete workflow for adding a new changeset:**
 
-**Naming Convention:** `NNN-descriptive-name.sql`
-- `NNN` = Three-digit sequential number (001, 002, etc.)
-- Use kebab-case for names
-- Example: `008-add-product-category.sql`
-
-**Formatted SQL Pattern:**
-```sql
---liquibase formatted sql
---changeset author:changeset-id
-
--- Your SQL statements here
-CREATE TABLE example (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL
-);
-
---rollback DROP TABLE example;
-```
-
-**Critical Requirements:**
-1. **Always include `--rollback`** - Required by RollbackRequired policy check
-2. **Avoid `SELECT *`** - Triggers SqlSelectStarWarn check
-3. **Don't DROP/TRUNCATE tables** - Triggers BLOCKER checks
-4. **Include indexes** - Required by CheckTablesForIndex
-5. **Update master changelog** - Add reference in `db/changelog/changelog-master.yaml`
-
-**Adding a New Changeset:**
 ```bash
-# 1. Create changeset file
+# 1. Ensure PostgreSQL is running
+docker compose ps postgres  # Should show "healthy"
+
+# 2. Create bagelstore database (first time only)
+docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE bagelstore;"
+
+# 3. Create changeset file (increment number)
 cat > db/changelog/changesets/008-add-product-category.sql << 'EOF'
 --liquibase formatted sql
 --changeset demo:008-add-product-category
 
 -- Add category field to products table
-ALTER TABLE products
-ADD COLUMN category VARCHAR(50) DEFAULT 'standard';
+ALTER TABLE products ADD COLUMN category VARCHAR(50) DEFAULT 'standard';
 
 --rollback ALTER TABLE products DROP COLUMN category;
 EOF
 
-# 2. Add to master changelog (db/changelog/changelog-master.yaml)
-# Insert before the final version tag:
+# 4. Update master changelog
+# Edit db/changelog/changelog-master.yaml
+# Add before the final version tag:
   - include:
       file: changesets/008-add-product-category.sql
       relativeToChangelogFile: true
 
-# 3. Test locally
-source ~/.zshrc && docker run --rm \
+# 5. Validate syntax
+docker run --rm \
   -v $(pwd)/db/changelog:/liquibase/changelog \
   -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
   liquibase/liquibase-secure:5.0.1 \
@@ -337,8 +331,8 @@ source ~/.zshrc && docker run --rm \
   --changeLogFile=changelog-master.yaml \
   validate
 
-# 4. Apply changes
-source ~/.zshrc && docker run --rm \
+# 6. Apply changeset (if validation passes)
+docker run --rm \
   -v $(pwd)/db/changelog:/liquibase/changelog \
   -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
   liquibase/liquibase-secure:5.0.1 \
@@ -347,7 +341,26 @@ source ~/.zshrc && docker run --rm \
   --password=postgres \
   --changeLogFile=changelog-master.yaml \
   update
+
+# 7. Verify database change
+docker compose exec -T postgres psql -U postgres -d bagelstore -c "\d products"
+
+# 8. Commit changes
+git add db/changelog/
+git commit -m "Add category field to products table"
 ```
+
+**Changeset Requirements:**
+1. **Always include `--rollback`** - Required by RollbackRequired policy check
+2. **Avoid `SELECT *`** - Triggers SqlSelectStarWarn check
+3. **Don't DROP/TRUNCATE tables** - Triggers BLOCKER checks
+4. **Include indexes** - Required by CheckTablesForIndex
+5. **Update master changelog** - Add reference in `db/changelog/changelog-master.yaml`
+
+**Naming Convention:** `NNN-descriptive-name.sql`
+- `NNN` = Three-digit sequential number (001, 002, etc.)
+- Use kebab-case for names
+- Example: `008-add-product-category.sql`
 
 **Complete Documentation:** See [db/changelog/README.md](db/changelog/README.md) for:
 - Detailed changeset patterns
@@ -355,10 +368,31 @@ source ~/.zshrc && docker run --rm \
 - Rollback examples
 - Troubleshooting guide
 
-### Liquibase Testing
+### Database Verification Commands
+
 ```bash
-# Local testing (requires LIQUIBASE_LICENSE_KEY in ~/.zshrc)
-source ~/.zshrc && docker run --rm \
+# List all tables
+docker compose exec -T postgres psql -U postgres -d bagelstore -c "\dt"
+
+# View table structure
+docker compose exec -T postgres psql -U postgres -d bagelstore -c "\d products"
+
+# Query data
+docker compose exec -T postgres psql -U postgres -d bagelstore -c "SELECT * FROM products;"
+
+# Check Liquibase changelog history
+docker compose exec -T postgres psql -U postgres -d bagelstore -c "SELECT id, author, filename, dateexecuted FROM databasechangelog ORDER BY dateexecuted;"
+
+# Drop database (reset for testing)
+docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS bagelstore;"
+docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE bagelstore;"
+```
+
+### Liquibase Testing
+
+```bash
+# Local testing (requires LIQUIBASE_LICENSE_KEY environment variable)
+docker run --rm \
   -v $(pwd)/db/changelog:/liquibase/changelog \
   -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
   liquibase/liquibase-secure:5.0.1 \
@@ -383,7 +417,7 @@ docker run --rm \
   validate
 
 # Run flow file from S3
-source ~/.zshrc && docker run --rm \
+docker run --rm \
   -v $(pwd)/db/changelog:/liquibase/changelog \
   -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
   -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
