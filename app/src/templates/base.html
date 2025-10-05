@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bagel Store{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1><a href="{{ url_for('main.index') }}">🥯 Bagel Store</a></h1>
+            <nav>
+                <a href="{{ url_for('main.index') }}">Home</a>
+                <a href="{{ url_for('main.cart') }}">Cart {% if session.get('cart') %}({{ session.get('cart')|length }}){% endif %}</a>
+                {% if session.get('user') %}
+                    <span>Welcome, {{ session.get('user') }}!</span>
+                    <a href="{{ url_for('main.logout') }}">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('main.login') }}">Login</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Bagel Store - Demo Application</p>
+        </div>
+    </footer>
+</body>
+</html>
