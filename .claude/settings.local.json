@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/recampbell/workspace/liquibase-patterns/docs/**)",
+      "Read(//Users/recampbell/workspace/liquibase-patterns/repos/postgres-flow-policy-demo/**)",
+      "Read(//Users/recampbell/workspace/liquibase-patterns/repos/Liquibase-workshop-repo/**)",
+      "Read(//Users/recampbell/workspace/liquibase-patterns/repos/**)",
+      "Bash(if [ -f \"README.md\" ])",
+      "Bash(then cat README.md)",
+      "Bash(else echo \"No README.md found\")",
+      "Bash(fi)",
+      "Bash(git init:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

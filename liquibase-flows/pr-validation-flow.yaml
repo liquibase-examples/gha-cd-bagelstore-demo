@@ -1,0 +1,78 @@
+##########           LIQUIBASE FLOWFILE                ##########
+##########  learn more http://docs.liquibase.com/flow  ##########
+##
+## PR Validation Flow
+## Purpose: Validate changelog on pull requests
+## Pattern: Based on postgres-flow-policy-demo
+##
+
+globalVariables:
+  ENV: "PR"
+  REPORTS_PATH: "reports"
+  POLICY_REPORT: "pr-policy-report.html"
+  VALIDATION_REPORT: "pr-validation-report.html"
+  CONNECTION_REPORT: "pr-connection-report.html"
+  STATUS_REPORT: "pr-status-report.html"
+
+stages:
+  # Stage 1: Connection and Validation
+  Verify:
+    actions:
+      - type: liquibase
+        command: connect
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${CONNECTION_REPORT}"
+
+      - type: liquibase
+        command: validate
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${VALIDATION_REPORT}"
+
+      - type: liquibase
+        command: status
+        cmdArgs:
+          verbose: "true"
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${STATUS_REPORT}"
+
+  # Stage 2: Policy Checks (BLOCKER severity)
+  PolicyChecks:
+    actions:
+      - type: liquibase
+        command: checks show
+        cmdArgs:
+          check-status: "enabled"
+
+      - type: liquibase
+        command: checks run
+        cmdArgs:
+          checks-output: "issues"
+          checks-scope: "changelog"
+          auto-update: "on"
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${POLICY_REPORT}"
+          reports-open: "false"
+
+endStage:
+  actions:
+    - type: shell
+      command: |
+        echo "========================================"
+        echo "   PR VALIDATION SUMMARY"
+        echo "========================================"
+        echo "Environment: ${ENV}"
+        echo "Reports Path: ${REPORTS_PATH}/"
+        echo ""
+        echo "Generated Reports:"
+        ls -lh "${REPORTS_PATH}/"*.html 2>/dev/null || echo "  No reports found"
+        echo ""
+        echo "Validation complete!"
+        echo "========================================"

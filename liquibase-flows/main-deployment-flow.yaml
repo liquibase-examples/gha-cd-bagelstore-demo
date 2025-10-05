@@ -1,0 +1,106 @@
+##########           LIQUIBASE FLOWFILE                ##########
+##########  learn more http://docs.liquibase.com/flow  ##########
+##
+## Main Deployment Flow
+## Purpose: Build and validate changelog on main branch
+## Pattern: Extends postgres-flow-policy-demo with artifact creation
+##
+
+globalVariables:
+  ENV: "MAIN"
+  REPORTS_PATH: "reports"
+  POLICY_REPORT: "main-policy-report.html"
+  DEPLOYMENT_REPORT: "main-deployment-report.html"
+  CONNECTION_REPORT: "main-connection-report.html"
+  VALIDATION_REPORT: "main-validation-report.html"
+  STATUS_REPORT: "main-status-report.html"
+  VERSION: "${VERSION:-latest}"
+
+stages:
+  # Stage 1: Connection and Validation
+  Verify:
+    actions:
+      - type: liquibase
+        command: connect
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${CONNECTION_REPORT}"
+
+      - type: liquibase
+        command: validate
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${VALIDATION_REPORT}"
+
+      - type: liquibase
+        command: status
+        cmdArgs:
+          verbose: "true"
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${STATUS_REPORT}"
+
+  # Stage 2: Policy Checks (BLOCKER severity)
+  PolicyChecks:
+    actions:
+      - type: liquibase
+        command: checks show
+        cmdArgs:
+          check-status: "enabled"
+
+      - type: liquibase
+        command: checks run
+        cmdArgs:
+          checks-output: "issues"
+          checks-scope: "changelog"
+          auto-update: "on"
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${POLICY_REPORT}"
+          reports-open: "false"
+
+  # Stage 3: Create Changelog Artifact
+  CreateArtifact:
+    actions:
+      - type: shell
+        command: |
+          echo "========================================"
+          echo "Creating changelog artifact..."
+          echo "Version: ${VERSION}"
+          echo "========================================"
+
+          # Create artifact directory if it doesn't exist
+          mkdir -p artifacts
+
+          # Navigate to changelog directory and create zip
+          cd db/changelog
+          zip -r ../../artifacts/bagel-store-changelog-${VERSION}.zip . -x "*.git*"
+
+          echo ""
+          echo "Artifact created successfully!"
+          ls -lh ../../artifacts/bagel-store-changelog-${VERSION}.zip
+          echo "========================================"
+
+endStage:
+  actions:
+    - type: shell
+      command: |
+        echo "========================================"
+        echo "   MAIN BUILD SUMMARY"
+        echo "========================================"
+        echo "Environment: ${ENV}"
+        echo "Version: ${VERSION}"
+        echo "Reports Path: ${REPORTS_PATH}/"
+        echo ""
+        echo "Generated Reports:"
+        ls -lh "${REPORTS_PATH}/"*.html 2>/dev/null || echo "  No reports found"
+        echo ""
+        echo "Generated Artifacts:"
+        ls -lh artifacts/*.zip 2>/dev/null || echo "  No artifacts found"
+        echo ""
+        echo "Build complete!"
+        echo "========================================"
