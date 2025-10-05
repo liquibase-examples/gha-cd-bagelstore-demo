@@ -261,12 +261,13 @@ All environments share:
    - Extract version from git tag
    - Build Docker image
    - Tag: `ghcr.io/<org>/<demo_id>-bagel-store:<version>`
-   - Push to GitHub Container Registry
+   - Push to GitHub Container Registry as **public** image
 
 **Harness Deployment (Remote YAML pipeline):**
-1. Fetch artifacts (changelog zip + Docker image)
-2. Update database via Liquibase Docker container
-3. Deploy application to App Runner
+1. Fetch changelog zip from GitHub Packages
+2. Pull public Docker image from GitHub Container Registry (no auth needed)
+3. Update database via Liquibase Docker container
+4. Deploy application to App Runner
 4. Health check
 5. Manual approval for next environment
 
@@ -324,7 +325,9 @@ No user management - single hardcoded user for authentication.
 **Harness Secrets:**
 - `AWS_ACCESS_KEY`
 - `AWS_SECRET_KEY`
-- `GITHUB_PAT`
+- `GITHUB_PAT` (for changelog artifacts from GitHub Packages only)
+
+**Note:** Docker images are **public** on GitHub Container Registry - no authentication needed for pulling.
 
 **AWS Tagging (all resources):**
 - `demo_id`: Unique demo identifier

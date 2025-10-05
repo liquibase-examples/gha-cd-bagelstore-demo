@@ -43,31 +43,8 @@ resource "aws_iam_role_policy" "apprunner_secrets" {
   })
 }
 
-# IAM role for App Runner access (to pull images from ECR/GHCR)
-resource "aws_iam_role" "apprunner_access" {
-  name = "${local.name_prefix}-apprunner-access-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "build.apprunner.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = local.tags
-}
-
-# Attach ECR access policy
-resource "aws_iam_role_policy_attachment" "apprunner_ecr" {
-  role       = aws_iam_role.apprunner_access.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
-}
+# Note: No access role needed for public GitHub Container Registry images
+# App Runner can pull public images without authentication
 
 # App Runner services for each environment
 resource "aws_apprunner_service" "bagel_store" {
@@ -79,7 +56,8 @@ resource "aws_apprunner_service" "bagel_store" {
     auto_deployments_enabled = false
 
     image_repository {
-      image_identifier      = "public.ecr.aws/docker/library/nginx:latest" # Placeholder - will be updated by Harness
+      # Placeholder - will be updated by Harness to ghcr.io/<org>/<demo_id>-bagel-store:<version>
+      image_identifier      = "public.ecr.aws/docker/library/nginx:latest"
       image_repository_type = "ECR_PUBLIC"
 
       image_configuration {
@@ -98,9 +76,7 @@ resource "aws_apprunner_service" "bagel_store" {
       }
     }
 
-    authentication_configuration {
-      access_role_arn = aws_iam_role.apprunner_access.arn
-    }
+    # No authentication_configuration needed for public GitHub Container Registry images
   }
 
   instance_configuration {

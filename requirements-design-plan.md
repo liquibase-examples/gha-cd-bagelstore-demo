@@ -417,12 +417,12 @@ services:
 ### 9.3 Harness Connectors
 
 **Required Connectors:**
-1. **GitHub Connector** - Access GitHub Packages and Container Registry
-   - Authentication: Personal Access Token with packages:read and read:packages scopes
+1. **GitHub Connector** - Access GitHub Packages for changelog artifacts
+   - Authentication: Personal Access Token with packages:read scope
 2. **AWS Connector** - Access AWS resources
    - Authentication: AWS Access Key/Secret Key (stored in Harness secrets)
-3. **Docker Registry Connector** - Pull Docker images from ghcr.io
-   - Authentication: GitHub PAT
+
+**Note:** Docker images are pulled from **public** GitHub Container Registry (ghcr.io), so no Docker Registry Connector is needed.
 
 ### 9.4 Harness Pipeline Configuration
 
@@ -564,18 +564,18 @@ aws apprunner update-service \
    - Secrets:
      - `<demo_id>/rds/username` - RDS master username
      - `<demo_id>/rds/password` - RDS master password
-     - `<demo_id>/github/pat` - GitHub Personal Access Token
-   - Access: Accessible by Liquibase and Harness via IAM
+   - Access: Accessible by Liquibase and App Runner via IAM
    - Tags: Include demo_id and deployed_by
 
 5. **App Runner Services (4 instances)**
-   - Service names: 
+   - Service names:
      - `bagel-store-<demo_id>-dev`
      - `bagel-store-<demo_id>-test`
      - `bagel-store-<demo_id>-staging`
      - `bagel-store-<demo_id>-prod`
-   - Source: Container image from GitHub Container Registry
+   - Source: **Public** container image from GitHub Container Registry (ghcr.io)
    - Image: `ghcr.io/<org>/<demo_id>-bagel-store:<version>`
+   - Authentication: **None required** (public images)
    - CPU: 1 vCPU
    - Memory: 2GB
    - Port: 5000
@@ -608,7 +608,6 @@ aws apprunner update-service \
 - `db_password` - RDS master password (sensitive)
 - `domain_name` - Base domain for Route53 records
 - `github_org` - GitHub organization name
-- `github_pat` - GitHub Personal Access Token for Harness configuration (sensitive)
 
 **Outputs Required:**
 - RDS endpoint
@@ -667,6 +666,8 @@ resource "aws_s3_object" "policy_checks_config" {
 ### 11.1 Docker Images (Application)
 
 **Registry:** GitHub Container Registry (ghcr.io)
+
+**Visibility:** **Public** (no authentication required for pulling)
 
 **Naming Convention:** `ghcr.io/<github-org>/<demo_id>-bagel-store:<version>`
 
@@ -741,18 +742,20 @@ resource "aws_s3_object" "policy_checks_config" {
 **AWS Secrets Manager:**
 - `<demo_id>/rds/username` - Database username
 - `<demo_id>/rds/password` - Database password
-- `<demo_id>/github/pat` - GitHub Personal Access Token
 
 **GitHub Secrets:**
 - `AWS_ACCESS_KEY_ID` - For Terraform, GitHub Actions, and S3 access
 - `AWS_SECRET_ACCESS_KEY` - For Terraform, GitHub Actions, and S3 access
 - `HARNESS_WEBHOOK_URL` - For triggering Harness pipelines
 - `DEMO_ID` - Demo instance identifier
+- `LIQUIBASE_LICENSE_KEY` - Liquibase Pro license key
 
 **Harness Secrets:**
 - `AWS_ACCESS_KEY` - AWS access key for deployments
 - `AWS_SECRET_KEY` - AWS secret key for deployments
-- `GITHUB_PAT` - Personal access token for GitHub Packages
+- `GITHUB_PAT` - Personal access token for GitHub Packages (changelog artifacts only)
+
+**Note:** No secrets needed for Docker images - they are public on ghcr.io
 
 ### 12.4 Application Security
 - Authentication: Session-based with hardcoded user
@@ -1585,6 +1588,7 @@ AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
 HARNESS_WEBHOOK_URL
 DEMO_ID
+LIQUIBASE_LICENSE_KEY
 GITHUB_TOKEN (auto-provided)
 ```
 
@@ -1593,7 +1597,7 @@ GITHUB_TOKEN (auto-provided)
 ```
 AWS_ACCESS_KEY
 AWS_SECRET_KEY
-GITHUB_PAT
+GITHUB_PAT (for changelog artifacts from GitHub Packages)
 ```
 
 ### 20.4 AWS Secrets Manager Secrets
@@ -1601,8 +1605,9 @@ GITHUB_PAT
 ```
 <demo_id>/rds/username
 <demo_id>/rds/password
-<demo_id>/github/pat
 ```
+
+**Note:** No GitHub PAT in Secrets Manager - Docker images are public
 
 ### 20.5 Python Dependency Management with uv
 

@@ -70,3 +70,4 @@ harness/.harness/
 
 # GitHub
 .github/secrets/
+.playwright-mcp/
