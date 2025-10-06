@@ -301,6 +301,57 @@ EOF
 git push
 ```
 
+### GitHub Actions Quick Commands
+
+```bash
+# Get latest run ID
+gh run list --limit 1 --json databaseId --jq '.[0].databaseId'
+
+# Watch specific run (use run ID from above)
+gh run watch <run-id> --exit-status
+
+# View failed job logs only
+gh run view <run-id> --log-failed
+
+# Search logs for specific errors
+gh run view <run-id> --log | grep -B5 -A10 "ERROR\|Permission"
+
+# Check specific step output
+gh run view <run-id> --log | grep -A5 "Create changelog artifact"
+
+# List recent runs with status
+gh run list --limit 5
+```
+
+### CI/CD Debugging Workflow
+
+**Pattern for debugging failed GitHub Actions:**
+
+```bash
+# 1. Check git status and push changes
+git status
+git add <files>
+git commit -m "Fix: description"
+git push
+
+# 2. Get latest run ID and watch
+RUN_ID=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch $RUN_ID --exit-status
+
+# 3. If failed, check logs for errors
+gh run view $RUN_ID --log-failed
+gh run view $RUN_ID --log | grep -A10 "ERROR\|Permission denied"
+
+# 4. Check specific step output
+gh run view $RUN_ID --log | grep -A5 "Step name"
+```
+
+**Common Error Patterns:**
+- `zip: command not found` → Use `tar -czf` instead
+- `Permission denied` when writing → Check Docker mount permissions (create artifacts in workflow, not container)
+- `Invalid UUID string` → Check `liquibase.checks-settings.conf` format (must use UUIDs, not shortNames)
+- `expected '<document start>'` → Checks settings file must be YAML format
+
 ### Terraform
 ```bash
 # Initialize
@@ -409,9 +460,9 @@ grep -A5 "common_tags" variables.tf
 # 2. Run Liquibase main deployment flow file
 #    - Policy checks
 #    - Validation
-#    - Create changelog zip artifact
-# 3. Upload changelog zip to GitHub Packages
-# 4. Upload operation reports as artifacts
+# 3. Create changelog tar.gz artifact in workflow (not in flow file)
+# 4. Upload changelog tar.gz to GitHub Packages
+# 5. Upload operation reports as artifacts
 ```
 
 **Job B: Build Application Docker Image**
@@ -634,6 +685,10 @@ docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE bagelstore;
 
 ### Liquibase Testing
 
+**IMPORTANT:** The `zip` command is NOT available in liquibase/liquibase-secure containers.
+- Use `tar -czf` for creating archives
+- Or create artifacts in GitHub Actions workflows (recommended - avoids permission issues)
+
 ```bash
 # Local testing (requires LIQUIBASE_LICENSE_KEY environment variable)
 docker run --rm \
@@ -645,6 +700,9 @@ docker run --rm \
   --password=postgres \
   --changeLogFile=changelog-master.yaml \
   validate
+
+# Note: If you need to create archives, use tar instead of zip:
+# tar -czf /tmp/output.tar.gz --exclude='.git*' .
 
 # AWS Secrets Manager integration (production)
 docker run --rm \
@@ -776,8 +834,14 @@ uv run pytest tests/test_e2e_shopping.py::test_login_success -v
 **Critical workflow requirements:**
 - Explicit `permissions:` block (contents: read, pull-requests: write for PR workflows)
 - `LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE` environment variable
-- Absolute paths in Docker containers (`/liquibase/changelog`, `/liquibase/artifacts`)
+- Absolute paths in Docker containers (`/liquibase/changelog`, `/liquibase/reports`)
 - Version extraction pattern from git tags (fallback to `dev-$(git rev-parse --short HEAD)`)
+
+**Artifact Format:**
+- Use `.tar.gz` format (not `.zip`) for changelog artifacts
+- `tar` is universally available in Linux containers
+- `zip` requires installation in most containers
+- Create artifacts in workflow steps (not in flow files) to avoid Docker permission issues
 
 **Flow file execution context:**
 - Workflows run from repository root
@@ -803,7 +867,7 @@ Quick reference for workflow structure:
 
 **Main CI:** `main-ci.yml`
 - Permissions: `contents: read`, `packages: write`
-- Builds artifacts: changelog zip + Docker image
+- Builds artifacts: changelog tar.gz + Docker image
 - Triggers Harness webhook
 - Versioning from git tags
 
@@ -816,28 +880,22 @@ Quick reference for workflow structure:
 -v ${{ github.workspace }}/db/changelog:/liquibase/changelog
 -v ${{ github.workspace }}/liquibase-flows:/liquibase/flows
 -v ${{ github.workspace }}/reports:/liquibase/reports
--v ${{ github.workspace }}/artifacts:/liquibase/artifacts
 -w /liquibase  # Working directory
 ```
 
-**Shell commands in flow files MUST use absolute paths:**
+**Artifact Creation Pattern (Updated October 2025):**
+- ❌ Do NOT create artifacts in flow files (Docker permission issues)
+- ✅ Create artifacts in GitHub Actions workflow after flow completes
+- Flow files are for validation/checks only
+- Workflow artifact creation example:
 ```yaml
-# ✅ Correct
-- type: shell
-  command: |
-    mkdir -p /liquibase/artifacts
-    cd /liquibase/changelog
-    zip -r /liquibase/artifacts/output.zip .
-
-# ❌ Wrong (relative paths fail)
-- type: shell
-  command: |
-    mkdir -p artifacts
+- name: Create changelog artifact
+  run: |
     cd db/changelog
-    zip -r ../../artifacts/output.zip .
+    tar -czf ../../artifacts/changelog-${VERSION}.tar.gz --exclude='.git*' .
 ```
 
-**Why:** Working directory is `/liquibase`, not repository root.
+**Why:** Docker volume mounts have permission issues - container user cannot write to mounted directories. Creating artifacts in the workflow (native file operations) avoids this entirely.
 
 ### Changelog Format
 - **Master changelog:** YAML format (NOT XML) - `changelog-master.yaml`
