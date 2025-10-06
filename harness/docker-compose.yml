@@ -16,9 +16,14 @@ version: '3.7'
 
 services:
   harness-delegate:
-    image: harness/delegate:latest
+    # Use the exact image version from Harness
+    image: us-docker.pkg.dev/gar-prod-setup/harness-public/harness/delegate:25.09.86800
     container_name: harness-delegate-${DEMO_ID:-demo1}
     restart: unless-stopped
+
+    # Resource limits from Harness instructions
+    cpus: 1
+    mem_limit: 2g
 
     environment:
       # ===== REQUIRED: Get these from Harness UI =====
@@ -28,17 +33,12 @@ services:
 
       # ===== Delegate Configuration =====
       DELEGATE_NAME: "${DEMO_ID:-demo1}-delegate"
+      NEXT_GEN: "true"
       DELEGATE_TYPE: "DOCKER"
-      DELEGATE_TAGS: "${DEMO_ID:-demo1},docker,liquibase"
+      DELEGATE_TAGS: "${DEMO_ID:-demo1}"
 
       # ===== Networking =====
       MANAGER_HOST_AND_PORT: "https://app.harness.io"
-      WATCHER_STORAGE_URL: "https://app.harness.io/public/prod/premium/watchers"
-      WATCHER_CHECK_LOCATION: "current.version"
-      REMOTE_WATCHER_URL_CDN: "https://app.harness.io/public/shared/watchers/builds"
-
-      # ===== Resource Limits =====
-      DELEGATE_RESOURCE_THRESHOLD: "80"
 
       # ===== Optional: Proxy Configuration =====
       # Uncomment if behind corporate proxy
