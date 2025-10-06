@@ -58,9 +58,6 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
-      - name: Create reports directory
-        run: mkdir -p reports
-
       - name: Run Liquibase Main Deployment Flow
         env:
           LIQUIBASE_LICENSE_KEY: ${{ secrets.LIQUIBASE_LICENSE_KEY }}
@@ -71,12 +68,12 @@ jobs:
           LIQUIBASE_COMMAND_CHANGELOG_FILE: changelog-master.yaml
           LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE: /liquibase/flows/liquibase.checks-settings.conf
         run: |
+          mkdir -p reports
           docker run --rm \
             --network host \
             -v ${{ github.workspace }}/db/changelog:/liquibase/changelog \
             -v ${{ github.workspace }}/liquibase-flows:/liquibase/flows \
             -v ${{ github.workspace }}/reports:/liquibase/reports \
-            -v ${{ github.workspace }}/artifacts:/liquibase/artifacts \
             -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
             -e VERSION="${VERSION}" \
             -e LIQUIBASE_COMMAND_URL="${LIQUIBASE_COMMAND_URL}" \
