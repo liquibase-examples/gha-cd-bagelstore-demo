@@ -67,40 +67,35 @@ stages:
   CreateArtifact:
     actions:
       - type: shell
-        command: |
-          echo "========================================"
-          echo "Creating changelog artifact..."
-          echo "Version: ${VERSION}"
-          echo "========================================"
-
-          # Create artifact directory if it doesn't exist
-          mkdir -p /liquibase/artifacts
-
-          # Create zip from the changelog directory
-          cd /liquibase/changelog
-          zip -r /liquibase/artifacts/bagel-store-changelog-${VERSION}.zip . -x "*.git*"
-
-          echo ""
-          echo "Artifact created successfully!"
-          ls -lh /liquibase/artifacts/bagel-store-changelog-${VERSION}.zip
-          echo "========================================"
+        command: >
+          echo '========================================' &&
+          echo 'Creating changelog artifact...' &&
+          echo 'Version: ${VERSION}' &&
+          echo '========================================' &&
+          mkdir -p /liquibase/artifacts &&
+          cd /liquibase/changelog &&
+          zip -r /liquibase/artifacts/bagel-store-changelog-${VERSION}.zip . -x '*.git*' &&
+          echo '' &&
+          echo 'Artifact created successfully!' &&
+          ls -lh /liquibase/artifacts/bagel-store-changelog-${VERSION}.zip &&
+          echo '========================================'
 
 endStage:
   actions:
     - type: shell
-      command: |
-        echo "========================================"
-        echo "   MAIN BUILD SUMMARY"
-        echo "========================================"
-        echo "Environment: ${ENV}"
-        echo "Version: ${VERSION}"
-        echo "Reports Path: ${REPORTS_PATH}/"
-        echo ""
-        echo "Generated Reports:"
-        ls -lh "${REPORTS_PATH}/"*.html 2>/dev/null || echo "  No reports found"
-        echo ""
-        echo "Generated Artifacts:"
-        ls -lh artifacts/*.zip 2>/dev/null || echo "  No artifacts found"
-        echo ""
-        echo "Build complete!"
-        echo "========================================"
+      command: >
+        echo '========================================' &&
+        echo '   MAIN BUILD SUMMARY' &&
+        echo '========================================' &&
+        echo 'Environment: ${ENV}' &&
+        echo 'Version: ${VERSION}' &&
+        echo 'Reports Path: ${REPORTS_PATH}/' &&
+        echo '' &&
+        echo 'Generated Reports:' &&
+        (ls -lh '${REPORTS_PATH}/'*.html 2>/dev/null || echo '  No reports found') &&
+        echo '' &&
+        echo 'Generated Artifacts:' &&
+        (ls -lh artifacts/*.zip 2>/dev/null || echo '  No artifacts found') &&
+        echo '' &&
+        echo 'Build complete!' &&
+        echo '========================================'
