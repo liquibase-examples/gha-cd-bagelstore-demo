@@ -67,6 +67,31 @@ enable_route53 = false
 # domain_name = "bagel-demo.example.com"
 # route53_zone_id = "Z1234567890ABC"  # Find with: aws route53 list-hosted-zones
 
+# ===== Harness Configuration =====
+# Required to automatically configure Harness environments with AWS infrastructure outputs
+
+# Harness account ID
+# Find this in your Harness URL: https://app.harness.io/ng/account/YOUR_ACCOUNT_ID/...
+# Or go to: Account Settings → Overview
+harness_account_id = "your-harness-account-id"
+
+# Harness Platform API key
+# Create at: Profile → My API Keys → New API Key
+# Or use Service Account Token for automation
+# Required scopes: Environment (View, Create/Edit), Project (View)
+harness_api_key = "pat.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Harness organization ID
+# Default organization is usually "default"
+# Find in Harness UI: check URL or Organization Settings
+harness_org_id = "default"
+
+# Harness project ID
+# This is the project where environments will be created
+# Create project first in Harness UI, then use its identifier here
+# Example: "bagel_store_demo"
+harness_project_id = "bagel_store_demo"
+
 # ===== Optional: Custom Tags =====
 
 # Uncomment to override default tags or add custom tags

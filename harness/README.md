@@ -26,6 +26,35 @@ Harness CD Pipeline (this directory)
     Deploys to AWS (RDS + App Runner)
 ```
 
+### Terraform Integration (Zero Manual Configuration)
+
+This demo uses the **Harness Terraform Provider** to eliminate manual environment configuration:
+
+**Traditional Approach (Manual):**
+1. ❌ Run Terraform to create AWS infrastructure
+2. ❌ Manually create Harness environments in UI
+3. ❌ Manually copy/paste AWS outputs (RDS endpoint, ARNs, etc.) into Harness
+4. ❌ High chance of typos or stale values
+5. ❌ Must repeat for every demo instance
+
+**This Demo (Automated):**
+1. ✅ Run Terraform **once** to create both AWS infrastructure AND Harness environments
+2. ✅ Terraform automatically populates environment variables with AWS outputs
+3. ✅ Pipeline references `<+env.variables.variable_name>` (no manual input!)
+4. ✅ Single source of truth - infrastructure changes automatically sync to Harness
+5. ✅ Perfect for multi-instance demos (each `demo_id` = separate environments)
+
+**Implementation Files:**
+- `terraform/harness-provider.tf` - Harness Terraform Provider configuration
+- `terraform/harness-environments.tf` - Creates 4 environments with 14 variables each
+- `pipelines/deploy-pipeline.yaml` - References environment variables (not runtime inputs)
+
+**Benefits:**
+- Zero manual copy/paste
+- No stale infrastructure references
+- Instant multi-instance support
+- Infrastructure as Code for both AWS and Harness
+
 ## Directory Structure
 
 ```
@@ -56,6 +85,7 @@ harness/
    - App Runner services for 4 environments
    - S3 buckets for artifacts
    - AWS Secrets Manager with credentials
+   - ✅ **Harness environments automatically configured by Terraform** (see `terraform/harness-environments.tf`)
 
 4. **Docker**
    - Docker installed locally
@@ -195,18 +225,31 @@ Store sensitive values as Harness Secrets (used in pipeline):
 5. Click **Start**
 6. Harness will load the pipeline from GitHub
 
-### 8. Configure Pipeline Variables
+### 8. Verify Environments (Auto-Configured by Terraform)
 
-After importing, set pipeline-level variables:
+**No manual configuration needed!** Terraform automatically created 4 environments with all AWS infrastructure details.
 
-1. Open pipeline in Harness UI
-2. Go to **Variables** tab
-3. Add/verify these variables:
+**Verify environments exist:**
+
+1. Navigate to: **Environments** (in left sidebar)
+2. You should see 4 environments (created by Terraform):
+   - `demo1_dev` (PreProduction)
+   - `demo1_test` (PreProduction)
+   - `demo1_staging` (PreProduction)
+   - `demo1_prod` (Production)
+
+**Each environment contains 14 variables:**
+- Database: `rds_endpoint`, `rds_address`, `rds_port`, `database_name`, `jdbc_url`
+- App Runner: `app_runner_service_arn`, `app_runner_service_url`, `app_runner_service_id`, `app_runner_service_name`
+- S3: `liquibase_flows_bucket`, `operation_reports_bucket`
+- Config: `demo_id`, `aws_region`, `environment`, `dns_record`
+
+**Pipeline variables (minimal - most are now in environments):**
 
 | Variable Name | Type | Default Value | Description |
 |---------------|------|---------------|-------------|
 | `VERSION` | String | Runtime input | Git tag version (e.g., v1.0.0) |
-| `DEMO_ID` | String | `demo1` | Demo instance identifier |
+| `GITHUB_ORG` | String | Runtime input | GitHub organization name |
 
 ### 9. Configure Webhook Trigger
 
@@ -225,20 +268,24 @@ Allow GitHub Actions to trigger Harness deployments:
    gh secret set HARNESS_WEBHOOK_URL --body "your-webhook-url"
    ```
 
-### 10. Configure Pipeline Inputs
+### 10. Test Pipeline Execution
 
-The pipeline uses Terraform outputs. After Phase 1 is complete:
+The pipeline is now ready to run! Infrastructure details are automatically available via environment variables.
 
-1. Get Terraform outputs:
-   ```bash
-   cd ../terraform
-   terraform output -json > outputs.json
-   ```
+**Test a deployment:**
 
-2. Update pipeline variables with actual values from outputs:
-   - RDS endpoint
-   - App Runner service ARNs
-   - S3 bucket names
+1. Navigate to **Pipelines** → **Deploy Bagel Store - demo1**
+2. Click **Run**
+3. Provide runtime inputs:
+   - **VERSION**: `v1.0.0` (or your version tag)
+   - **GITHUB_ORG**: Your GitHub organization
+4. Watch the deployment progress through all 4 stages
+
+**The pipeline automatically uses:**
+- `<+env.variables.jdbc_url>` - Database connection string
+- `<+env.variables.app_runner_service_arn>` - App Runner service ARN
+- `<+env.variables.demo_id>` - Demo instance identifier
+- And 11 other environment variables (no manual input needed!)
 
 ## Delegate Management
 

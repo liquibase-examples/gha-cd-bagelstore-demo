@@ -100,6 +100,33 @@ variable "route53_zone_id" {
   default     = ""
 }
 
+# ===== Harness Configuration =====
+
+variable "harness_account_id" {
+  description = "Harness account ID (found in Harness URL after login)"
+  type        = string
+  default     = ""
+}
+
+variable "harness_api_key" {
+  description = "Harness Platform API key (Personal Access Token or Service Account Token)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "harness_org_id" {
+  description = "Harness organization ID (e.g., 'default')"
+  type        = string
+  default     = "default"
+}
+
+variable "harness_project_id" {
+  description = "Harness project ID where environments will be created"
+  type        = string
+  default     = ""
+}
+
 # ===== Tags =====
 
 variable "common_tags" {

@@ -62,17 +62,49 @@ This directory contains the Harness CD pipeline configuration for deploying the 
 
 ## Pipeline Variables
 
-The pipeline uses the following variables:
+The pipeline uses **minimal runtime inputs** - infrastructure details are automatically provided via **Harness Environment Variables** (configured by Terraform).
 
-| Variable | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `VERSION` | String | Yes | Runtime input | Git tag version (e.g., v1.0.0) |
-| `DEMO_ID` | String | Yes | `demo1` | Demo instance identifier |
-| `AWS_REGION` | String | Yes | `us-east-1` | AWS region for deployments |
-| `RDS_ENDPOINT` | String | Yes | Runtime input | RDS endpoint from Terraform outputs |
-| `GITHUB_ORG` | String | Yes | Runtime input | GitHub organization name |
+### Runtime Input Variables (User Provides)
 
-**Note:** Variables marked "Runtime input" must be provided when pipeline executes.
+| Variable | Type | Required | Description |
+|----------|------|----------|-------------|
+| `VERSION` | String | Yes | Git tag version (e.g., v1.0.0) |
+| `GITHUB_ORG` | String | Yes | GitHub organization name |
+
+### Environment Variables (Terraform Provides)
+
+Each environment (dev, test, staging, prod) automatically gets 14 variables from Terraform:
+
+| Variable | Example Value | Usage in Pipeline |
+|----------|---------------|-------------------|
+| `rds_endpoint` | `bagel-store-demo1-rds.xxx.rds.amazonaws.com:5432` | Database connection |
+| `rds_address` | `bagel-store-demo1-rds.xxx.rds.amazonaws.com` | Host only |
+| `rds_port` | `5432` | Port only |
+| `database_name` | `dev` / `test` / `staging` / `prod` | Environment-specific DB |
+| `jdbc_url` | `jdbc:postgresql://host:5432/dev` | Complete JDBC URL |
+| `app_runner_service_arn` | `arn:aws:apprunner:...` | Service deployment |
+| `app_runner_service_url` | `xxx.us-east-1.awsapprunner.com` | Health checks |
+| `app_runner_service_id` | `abc123` | Service identification |
+| `app_runner_service_name` | `bagel-store-demo1-dev` | Service name |
+| `liquibase_flows_bucket` | `bagel-store-demo1-liquibase-flows` | Flow files |
+| `operation_reports_bucket` | `bagel-store-demo1-operation-reports` | Reports |
+| `demo_id` | `demo1` | Demo instance ID |
+| `aws_region` | `us-east-1` | AWS region |
+| `environment` | `dev` / `test` / `staging` / `prod` | Environment name |
+| `dns_record` | `dev-demo1.example.com` | DNS (if enabled) |
+
+**Pipeline references these via:** `<+env.variables.variable_name>`
+
+**Example:**
+```yaml
+# Liquibase command in pipeline
+--url=<+env.variables.jdbc_url>
+--username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}'
+
+# App Runner deployment
+--service-arn <+env.variables.app_runner_service_arn>
+--region <+env.variables.aws_region>
+```
 
 ## Stage Details
 
@@ -92,20 +124,21 @@ The pipeline uses the following variables:
 2. **Update Database**
    - Runs `liquibase/liquibase-secure:5.0.1` Docker container
    - Mounts changelog directory
-   - Connects to dev database on RDS
-   - Credentials from AWS Secrets Manager: `${awsSecretsManager:demo1/rds/username}`
+   - Connects to dev database using: `<+env.variables.jdbc_url>`
+   - Credentials from AWS Secrets Manager: `${awsSecretsManager:<+env.variables.demo_id>/rds/username}`
    - Executes: `liquibase update`
 
 3. **Deploy Application**
    - Updates App Runner service via AWS CLI
+   - Service ARN from: `<+env.variables.app_runner_service_arn>`
    - Image: `ghcr.io/{org}/bagel-store:{version}`
    - Environment variables:
-     - `DATABASE_URL`: PostgreSQL connection string (uses Secrets Manager)
+     - `DATABASE_URL`: PostgreSQL connection string (uses Secrets Manager + env vars)
      - `FLASK_ENV`: `production`
      - `APP_VERSION`: Pipeline version variable
 
 4. **Health Check**
-   - Polls App Runner service URL: `https://{service-url}/health`
+   - Polls App Runner service URL from: `<+env.variables.app_runner_service_url>`
    - Waits for HTTP 200 response
    - Timeout: 5 minutes (30 attempts × 10 seconds)
    - Also checks `/version` endpoint for verification

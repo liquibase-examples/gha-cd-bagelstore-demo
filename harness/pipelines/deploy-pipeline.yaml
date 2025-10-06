@@ -4,34 +4,18 @@ pipeline:
   projectIdentifier: bagel_store_demo
   orgIdentifier: default
   tags:
-    demo_id: <+pipeline.variables.DEMO_ID>
+    demo_id: <+env.variables.demo_id>
     deployment_type: coordinated_db_app
 
   # Pipeline-level variables
+  # Note: Infrastructure-specific values (RDS endpoint, App Runner ARNs, etc.)
+  # are now provided via Harness Environment Variables (configured by Terraform)
   variables:
     - name: VERSION
       type: String
       description: Git tag version (e.g., v1.0.0)
       required: true
       value: <+input>
-
-    - name: DEMO_ID
-      type: String
-      description: Demo instance identifier
-      required: true
-      default: demo1
-
-    - name: AWS_REGION
-      type: String
-      description: AWS region for deployments
-      required: true
-      default: us-east-1
-
-    - name: RDS_ENDPOINT
-      type: String
-      description: RDS instance endpoint (from Terraform outputs)
-      required: true
-      value: <+input>.execute-once
 
     - name: GITHUB_ORG
       type: String
@@ -140,21 +124,21 @@ pipeline:
                           set -e
 
                           echo "=== Updating Database with Liquibase ==="
-                          echo "Environment: dev"
-                          echo "RDS Endpoint: <+pipeline.variables.RDS_ENDPOINT>"
-                          echo "Demo ID: <+pipeline.variables.DEMO_ID>"
+                          echo "Environment: <+env.variables.environment>"
+                          echo "RDS Endpoint: <+env.variables.rds_endpoint>"
+                          echo "Demo ID: <+env.variables.demo_id>"
 
                           # Run Liquibase in Docker container
                           docker run --rm \
                             -v /tmp/changelog:/liquibase/changelog \
                             -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
                             -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                            -e AWS_REGION=<+pipeline.variables.AWS_REGION> \
+                            -e AWS_REGION=<+env.variables.aws_region> \
                             -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
                             liquibase/liquibase-secure:5.0.1 \
-                            --url=jdbc:postgresql://<+pipeline.variables.RDS_ENDPOINT>:5432/dev \
-                            --username='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}' \
-                            --password='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}' \
+                            --url=<+env.variables.jdbc_url> \
+                            --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                            --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
                             --changeLogFile=changelog-master.yaml \
                             --log-level=INFO \
                             update
@@ -180,23 +164,19 @@ pipeline:
                           set -e
 
                           echo "=== Deploying Application to App Runner ==="
-                          echo "Environment: dev"
+                          echo "Environment: <+env.variables.environment>"
                           echo "Image: ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>"
 
                           # Configure AWS CLI
                           export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
                           export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                          export AWS_DEFAULT_REGION=<+pipeline.variables.AWS_REGION>
+                          export AWS_DEFAULT_REGION=<+env.variables.aws_region>
 
-                          # Get App Runner service ARN (from Terraform outputs or pipeline variable)
-                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-dev"
-
-                          # Find service ARN
-                          SERVICE_ARN=$(aws apprunner list-services \
-                            --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" \
-                            --output text)
+                          # App Runner service ARN from environment variables (configured by Terraform)
+                          SERVICE_ARN="<+env.variables.app_runner_service_arn>"
 
                           echo "Service ARN: $SERVICE_ARN"
+                          echo "Service Name: <+env.variables.app_runner_service_name>"
 
                           # Update App Runner service with new image
                           aws apprunner update-service \
@@ -208,14 +188,14 @@ pipeline:
                                 \"ImageConfiguration\": {
                                   \"Port\": \"5000\",
                                   \"RuntimeEnvironmentVariables\": {
-                                    \"DATABASE_URL\": \"postgresql://\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}:\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}@<+pipeline.variables.RDS_ENDPOINT>:5432/dev\",
+                                    \"DATABASE_URL\": \"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@<+env.variables.rds_address>:<+env.variables.rds_port>/<+env.variables.database_name>\",
                                     \"FLASK_ENV\": \"production\",
                                     \"APP_VERSION\": \"<+pipeline.variables.VERSION>\"
                                   }
                                 }
                               }
                             }" \
-                            --region <+pipeline.variables.AWS_REGION>
+                            --region <+env.variables.aws_region>
 
                           echo "App Runner service update initiated"
                     environmentVariables: []
@@ -330,7 +310,7 @@ pipeline:
                   name: Approve Test Deployment
                   identifier: Approve_Test_Deployment
                   spec:
-                    approvalMessage: "Please review and approve deployment to TEST environment.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+pipeline.variables.DEMO_ID>\n\nChanges will be applied to test database and application."
+                    approvalMessage: "Please review and approve deployment to TEST environment.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+env.variables.demo_id>\n\nChanges will be applied to test database and application."
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
@@ -384,12 +364,12 @@ pipeline:
                             -v /tmp/changelog:/liquibase/changelog \
                             -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
                             -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                            -e AWS_REGION=<+pipeline.variables.AWS_REGION> \
+                            -e AWS_REGION=<+env.variables.aws_region> \
                             -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
                             liquibase/liquibase-secure:5.0.1 \
-                            --url=jdbc:postgresql://<+pipeline.variables.RDS_ENDPOINT>:5432/test \
-                            --username='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}' \
-                            --password='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}' \
+                            --url=<+env.variables.jdbc_url> \
+                            --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                            --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
                             --changeLogFile=changelog-master.yaml \
                             --log-level=INFO \
                             update
@@ -415,13 +395,17 @@ pipeline:
                           echo "Environment: test"
                           export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
                           export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                          export AWS_DEFAULT_REGION=<+pipeline.variables.AWS_REGION>
-                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-test"
-                          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text)
+                          export AWS_DEFAULT_REGION=<+env.variables.aws_region>
+                          SERVICE_ARN="<+env.variables.app_runner_service_arn>"
+                          # Extract host and port from jdbc_url for DATABASE_URL construction
+                          JDBC_URL="<+env.variables.jdbc_url>"
+                          DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
+                          DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
+                          DB_NAME="<+env.variables.database_name>"
                           aws apprunner update-service \
                             --service-arn "$SERVICE_ARN" \
-                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}:\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}@<+pipeline.variables.RDS_ENDPOINT>:5432/test\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
-                            --region <+pipeline.variables.AWS_REGION>
+                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                            --region <+env.variables.aws_region>
                           echo "App Runner service update initiated"
                     environmentVariables: []
                     outputVariables: []
@@ -441,8 +425,8 @@ pipeline:
                           #!/bin/bash
                           set -e
                           echo "=== Performing Health Check ==="
-                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-test"
-                          SERVICE_URL=$(aws apprunner describe-service --service-arn $(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text) --query "Service.ServiceUrl" --output text --region <+pipeline.variables.AWS_REGION>)
+                          # Use App Runner service URL from environment variables
+                          SERVICE_URL="<+env.variables.app_runner_service_url>"
                           HEALTH_URL="https://$SERVICE_URL/health"
                           MAX_ATTEMPTS=30
                           ATTEMPT=0
@@ -503,7 +487,7 @@ pipeline:
                   name: Approve Staging Deployment
                   identifier: Approve_Staging_Deployment
                   spec:
-                    approvalMessage: "Please review and approve deployment to STAGING environment.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+pipeline.variables.DEMO_ID>\n\nThis is the final pre-production environment."
+                    approvalMessage: "Please review and approve deployment to STAGING environment.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+env.variables.demo_id>\n\nThis is the final pre-production environment."
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
@@ -555,12 +539,12 @@ pipeline:
                             -v /tmp/changelog:/liquibase/changelog \
                             -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
                             -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                            -e AWS_REGION=<+pipeline.variables.AWS_REGION> \
+                            -e AWS_REGION=<+env.variables.aws_region> \
                             -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
                             liquibase/liquibase-secure:5.0.1 \
-                            --url=jdbc:postgresql://<+pipeline.variables.RDS_ENDPOINT>:5432/staging \
-                            --username='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}' \
-                            --password='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}' \
+                            --url=<+env.variables.jdbc_url> \
+                            --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                            --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
                             --changeLogFile=changelog-master.yaml \
                             --log-level=INFO \
                             update
@@ -585,13 +569,17 @@ pipeline:
                           echo "Environment: staging"
                           export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
                           export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                          export AWS_DEFAULT_REGION=<+pipeline.variables.AWS_REGION>
-                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-staging"
-                          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text)
+                          export AWS_DEFAULT_REGION=<+env.variables.aws_region>
+                          SERVICE_ARN="<+env.variables.app_runner_service_arn>"
+                          # Extract host and port from jdbc_url for DATABASE_URL construction
+                          JDBC_URL="<+env.variables.jdbc_url>"
+                          DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
+                          DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
+                          DB_NAME="<+env.variables.database_name>"
                           aws apprunner update-service \
                             --service-arn "$SERVICE_ARN" \
-                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}:\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}@<+pipeline.variables.RDS_ENDPOINT>:5432/staging\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
-                            --region <+pipeline.variables.AWS_REGION>
+                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                            --region <+env.variables.aws_region>
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -609,8 +597,9 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
-                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-staging"
-                          SERVICE_URL=$(aws apprunner describe-service --service-arn $(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text) --query "Service.ServiceUrl" --output text --region <+pipeline.variables.AWS_REGION>)
+                          echo "=== Performing Health Check ==="
+                          # Use App Runner service URL from environment variables
+                          SERVICE_URL="<+env.variables.app_runner_service_url>"
                           HEALTH_URL="https://$SERVICE_URL/health"
                           MAX_ATTEMPTS=30
                           ATTEMPT=0
@@ -620,9 +609,11 @@ pipeline:
                               echo "✅ Health check passed!"
                               exit 0
                             fi
+                            echo "Retrying in 10s..."
                             sleep 10
                             ATTEMPT=$((ATTEMPT + 1))
                           done
+                          echo "❌ Health check failed"
                           exit 1
                     environmentVariables: []
                     outputVariables: []
@@ -669,7 +660,7 @@ pipeline:
                   name: Approve Production Deployment
                   identifier: Approve_Production_Deployment
                   spec:
-                    approvalMessage: "⚠️ PRODUCTION DEPLOYMENT\n\nPlease carefully review before approving deployment to PRODUCTION.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+pipeline.variables.DEMO_ID>\n\nThis will apply database changes and deploy to production environment."
+                    approvalMessage: "⚠️ PRODUCTION DEPLOYMENT\n\nPlease carefully review before approving deployment to PRODUCTION.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+env.variables.demo_id>\n\nThis will apply database changes and deploy to production environment."
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
@@ -721,12 +712,12 @@ pipeline:
                             -v /tmp/changelog:/liquibase/changelog \
                             -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
                             -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                            -e AWS_REGION=<+pipeline.variables.AWS_REGION> \
+                            -e AWS_REGION=<+env.variables.aws_region> \
                             -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
                             liquibase/liquibase-secure:5.0.1 \
-                            --url=jdbc:postgresql://<+pipeline.variables.RDS_ENDPOINT>:5432/prod \
-                            --username='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}' \
-                            --password='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}' \
+                            --url=<+env.variables.jdbc_url> \
+                            --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                            --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
                             --changeLogFile=changelog-master.yaml \
                             --log-level=INFO \
                             update
@@ -751,13 +742,17 @@ pipeline:
                           echo "Environment: prod"
                           export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
                           export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                          export AWS_DEFAULT_REGION=<+pipeline.variables.AWS_REGION>
-                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-prod"
-                          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text)
+                          export AWS_DEFAULT_REGION=<+env.variables.aws_region>
+                          SERVICE_ARN="<+env.variables.app_runner_service_arn>"
+                          # Extract host and port from jdbc_url for DATABASE_URL construction
+                          JDBC_URL="<+env.variables.jdbc_url>"
+                          DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
+                          DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
+                          DB_NAME="<+env.variables.database_name>"
                           aws apprunner update-service \
                             --service-arn "$SERVICE_ARN" \
-                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}:\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}@<+pipeline.variables.RDS_ENDPOINT>:5432/prod\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
-                            --region <+pipeline.variables.AWS_REGION>
+                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                            --region <+env.variables.aws_region>
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -775,8 +770,9 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
-                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-prod"
-                          SERVICE_URL=$(aws apprunner describe-service --service-arn $(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text) --query "Service.ServiceUrl" --output text --region <+pipeline.variables.AWS_REGION>)
+                          echo "=== Performing Health Check ==="
+                          # Use App Runner service URL from environment variables
+                          SERVICE_URL="<+env.variables.app_runner_service_url>"
                           HEALTH_URL="https://$SERVICE_URL/health"
                           MAX_ATTEMPTS=30
                           ATTEMPT=0
@@ -787,9 +783,11 @@ pipeline:
                               echo "🎉 All environments now running version <+pipeline.variables.VERSION>"
                               exit 0
                             fi
+                            echo "Retrying in 10s..."
                             sleep 10
                             ATTEMPT=$((ATTEMPT + 1))
                           done
+                          echo "❌ Health check failed"
                           exit 1
                     environmentVariables: []
                     outputVariables: []

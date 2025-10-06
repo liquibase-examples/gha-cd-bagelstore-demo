@@ -11,6 +11,7 @@ This Terraform configuration creates:
 - **S3 Buckets** - Liquibase flows (public) and operation reports (private)
 - **App Runner Services** - 4 services (one per environment) with fixed instance count
 - **Route53 DNS** (Optional) - Custom DNS records for all environments
+- **Harness Environments** - Automatically configured with AWS infrastructure outputs
 
 ## Prerequisites
 
@@ -19,6 +20,7 @@ This Terraform configuration creates:
 3. **PostgreSQL client** (psql) for database creation
 4. **GitHub Personal Access Token** with packages:read scope
 5. **Route53 Hosted Zone** (optional - only if you want custom DNS)
+6. **Harness Account** with API key (for automatic Harness environment configuration)
 
 ## Required Variables
 
@@ -44,6 +46,12 @@ github_pat = "ghp_xxxxxxxxxxxxxxxxxxxx"
 enable_route53 = false
 # domain_name      = "bagel-demo.example.com"
 # route53_zone_id  = "Z1234567890ABC"
+
+# Harness CD configuration (automatically creates environments with AWS outputs)
+harness_account_id  = "your-harness-account-id"
+harness_api_key     = "pat.xxxxxxxxxxxxxxxx"
+harness_org_id      = "default"
+harness_project_id  = "bagel_store_demo"
 ```
 
 **Tip:** Copy the example file and customize it:
@@ -207,30 +215,122 @@ Ensure the Liquibase flow files exist before running Terraform:
 - `../liquibase-flows/main-deployment-flow.yaml`
 - `../liquibase-flows/liquibase.checks-settings.conf`
 
+## Harness CD Integration
+
+### Automatic Environment Configuration
+
+This Terraform configuration **automatically creates and configures Harness environments** with AWS infrastructure outputs. This eliminates manual configuration and ensures the Harness deployment pipeline always has correct infrastructure details.
+
+**How it works:**
+
+1. Terraform provisions AWS resources (RDS, App Runner, S3, etc.)
+2. Terraform **also** creates Harness environments via the Harness Terraform Provider
+3. Each environment gets 14 variables populated with AWS resource details
+4. Harness pipeline references these via `<+env.variables.variable_name>`
+
+**Environment Variables Created:**
+
+Each of the 4 environments (dev, test, staging, prod) gets these variables:
+
+```yaml
+# Database Configuration
+rds_endpoint     # Full endpoint (host:port)
+rds_address      # Host only
+rds_port         # Port number
+database_name    # Environment-specific database (dev/test/staging/prod)
+jdbc_url         # Complete JDBC connection string
+
+# App Runner Configuration
+app_runner_service_arn   # Service ARN for AWS CLI
+app_runner_service_url   # Default service URL
+app_runner_service_id    # Service ID
+app_runner_service_name  # Service name
+
+# S3 Configuration
+liquibase_flows_bucket       # Bucket for flow files
+operation_reports_bucket     # Bucket for reports
+
+# Demo Configuration
+demo_id          # Demo instance identifier
+aws_region       # AWS region
+environment      # Environment name (dev/test/staging/prod)
+dns_record       # DNS record (if Route53 enabled)
+```
+
+**Usage in Harness Pipeline:**
+
+Instead of manual runtime inputs, the pipeline uses environment variables:
+
+```yaml
+# Liquibase deployment
+docker run liquibase/liquibase-secure:5.0.1 \
+  --url=<+env.variables.jdbc_url> \
+  --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+  --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+  update
+
+# App Runner deployment
+aws apprunner update-service \
+  --service-arn <+env.variables.app_runner_service_arn> \
+  --region <+env.variables.aws_region>
+```
+
+**Benefits:**
+
+- ✅ Zero manual configuration in Harness
+- ✅ Single source of truth (Terraform)
+- ✅ No runtime input prompts for infrastructure details
+- ✅ Automatic multi-instance support (different `demo_id` = different environments)
+- ✅ Infrastructure changes automatically propagate to Harness
+
+**Configuration:**
+
+Set these variables in `terraform.tfvars`:
+
+```hcl
+# Find in Harness URL: https://app.harness.io/ng/account/YOUR_ACCOUNT_ID/...
+harness_account_id = "your-account-id"
+
+# Create at: Profile → My API Keys → New API Key
+# Required scopes: Environment (View, Create/Edit), Project (View)
+harness_api_key = "pat.xxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Organization ID (usually "default")
+harness_org_id = "default"
+
+# Project ID (create in Harness first, then use identifier here)
+harness_project_id = "bagel_store_demo"
+```
+
+See `harness-provider.tf` and `harness-environments.tf` for implementation details.
+
 ## File Structure
 
 ```
 terraform/
-├── main.tf              # Provider and local variables
-├── variables.tf         # Input variable definitions
-├── outputs.tf           # Output definitions
-├── rds.tf              # PostgreSQL RDS instance
-├── secrets.tf          # AWS Secrets Manager
-├── s3.tf               # S3 buckets and file uploads
-├── app-runner.tf       # App Runner services (4 environments)
-├── route53.tf          # DNS records
-└── README.md           # This file
+├── main.tf                   # Provider and local variables
+├── variables.tf              # Input variable definitions
+├── outputs.tf                # Output definitions
+├── rds.tf                    # PostgreSQL RDS instance
+├── secrets.tf                # AWS Secrets Manager
+├── s3.tf                     # S3 buckets and file uploads
+├── app-runner.tf             # App Runner services (4 environments)
+├── route53.tf                # DNS records
+├── harness-provider.tf       # Harness Terraform Provider configuration
+├── harness-environments.tf   # Harness environment creation and configuration
+└── README.md                 # This file
 ```
 
 ## Next Steps
 
 After Terraform completes:
 
-1. Note the RDS endpoint from outputs
-2. Configure GitHub Actions secrets with RDS endpoint and demo_id
-3. Create Liquibase changelogs in `db/changelog/`
-4. Build and push Docker image to GitHub Container Registry
-5. Configure Harness CD pipeline with service ARNs
+1. ✅ **Harness environments are automatically configured** - No manual steps needed!
+2. Note the RDS endpoint and other outputs: `terraform output`
+3. Configure GitHub Actions secrets with `DEMO_ID` (Harness environments reference this)
+4. Create Liquibase changelogs in `db/changelog/`
+5. Build and push Docker image to GitHub Container Registry
+6. Deploy via Harness pipeline (infrastructure details already configured via environment variables)
 
 ## Support
 
