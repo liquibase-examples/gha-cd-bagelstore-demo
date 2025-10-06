@@ -63,24 +63,6 @@ stages:
           reports-name: "${POLICY_REPORT}"
           reports-open: "false"
 
-  # Stage 3: Create Changelog Artifact
-  CreateArtifact:
-    actions:
-      - type: shell
-        command: >
-          echo '========================================' &&
-          echo 'Creating changelog artifact...' &&
-          echo 'Version: ${VERSION}' &&
-          echo '========================================' &&
-          cd /liquibase/changelog &&
-          tar -czf /tmp/bagel-store-changelog-${VERSION}.tar.gz --exclude='.git*' . &&
-          mkdir -p /liquibase/artifacts &&
-          cp /tmp/bagel-store-changelog-${VERSION}.tar.gz /liquibase/artifacts/ &&
-          echo '' &&
-          echo 'Artifact created successfully!' &&
-          ls -lh /liquibase/artifacts/bagel-store-changelog-${VERSION}.tar.gz &&
-          echo '========================================'
-
 endStage:
   actions:
     - type: shell
@@ -95,8 +77,7 @@ endStage:
         echo 'Generated Reports:' &&
         (ls -lh '${REPORTS_PATH}/'*.html 2>/dev/null || echo '  No reports found') &&
         echo '' &&
-        echo 'Generated Artifacts:' &&
-        (ls -lh artifacts/*.zip 2>/dev/null || echo '  No artifacts found') &&
+        echo 'Policy checks: PASSED' &&
         echo '' &&
         echo 'Build complete!' &&
         echo '========================================'

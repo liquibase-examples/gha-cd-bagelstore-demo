@@ -89,21 +89,20 @@ jobs:
             flow \
             --flow-file=/liquibase/flows/main-deployment-flow.yaml
 
-      - name: Verify artifact was created
+      - name: Create changelog artifact
         run: |
-          ARTIFACT_PATH="artifacts/bagel-store-changelog-${{ steps.version.outputs.version }}.zip"
-          if [ ! -f "$ARTIFACT_PATH" ]; then
-            echo "::error::Changelog artifact not found: $ARTIFACT_PATH"
-            exit 1
-          fi
+          mkdir -p artifacts
+          cd db/changelog
+          tar -czf ../../artifacts/bagel-store-changelog-${{ steps.version.outputs.version }}.tar.gz --exclude='.git*' .
+          cd ../..
           echo "✅ Changelog artifact created successfully"
-          ls -lh "$ARTIFACT_PATH"
+          ls -lh artifacts/bagel-store-changelog-${{ steps.version.outputs.version }}.tar.gz
 
       - name: Upload changelog artifact to GitHub Packages
         uses: actions/upload-artifact@v4
         with:
           name: changelog-${{ steps.version.outputs.version }}
-          path: artifacts/bagel-store-changelog-${{ steps.version.outputs.version }}.zip
+          path: artifacts/bagel-store-changelog-${{ steps.version.outputs.version }}.tar.gz
           retention-days: 90
 
       - name: Upload operation reports
