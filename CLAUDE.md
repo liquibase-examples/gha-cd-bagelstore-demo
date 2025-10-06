@@ -67,6 +67,9 @@ This is a demonstration repository showcasing coordinated application and databa
 - **Flow files and policy checks** → See [liquibase-flows/README.md](liquibase-flows/README.md)
   - Flow file patterns, globalVariables, absolute paths
 
+- **Harness CD pipelines** → Review [harness/README.md](harness/README.md) and [harness/pipelines/README.md](harness/pipelines/README.md)
+  - Delegate setup, connector configuration, pipeline architecture
+
 - **Any errors or issues** → Start with [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
   - Diagnostic scripts, common errors, solutions
 
@@ -201,6 +204,15 @@ gh run watch $RUN_ID --exit-status
 gh run view $RUN_ID --log-failed
 ```
 
+### Harness Delegate
+```bash
+cd harness
+docker compose up -d          # Start delegate
+docker compose logs -f        # View logs
+docker compose ps             # Check status
+docker compose down           # Stop delegate
+```
+
 See [docs/COMMANDS.md](docs/COMMANDS.md) for complete reference.
 
 ## Documentation Index
@@ -227,6 +239,10 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for complete reference.
 ### Flow Files
 - **[liquibase-flows/README.md](liquibase-flows/README.md)** - Flow file documentation
 
+### Harness CD
+- **[harness/README.md](harness/README.md)** - Delegate setup, connectors, secrets
+- **[harness/pipelines/README.md](harness/pipelines/README.md)** - Pipeline architecture and execution
+
 ## Security & Secrets
 
 ### GitHub Secrets (Required for CI/CD)
@@ -236,15 +252,23 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for complete reference.
 - `HARNESS_WEBHOOK_URL` - Harness pipeline webhook
 - `DEMO_ID` - Demo instance identifier (e.g., "demo1")
 
+### Harness Secrets (Required for Deployment)
+- `github_pat` - GitHub Personal Access Token (scopes: `repo`, `read:packages`)
+- `aws_access_key_id` - AWS Access Key for deployments
+- `aws_secret_access_key` - AWS Secret Key for deployments
+- `liquibase_license_key` - Liquibase Pro/Secure license key
+
 ### Security-Sensitive Files
 
 **Never commit these:**
 - `app/.env` - Local credentials (in .gitignore)
 - `terraform/*.tfvars` - Infrastructure secrets (in .gitignore)
+- `harness/.env` - Harness delegate credentials (in .gitignore)
 
 **Always commit these:**
 - `app/.env.example` - Template with placeholders
 - `terraform/terraform.tfvars.example` - Infrastructure template
+- `harness/.env.example` - Harness delegate template
 
 **Check:** `git check-ignore -v <file>` to verify gitignore status
 

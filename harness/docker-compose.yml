@@ -1,0 +1,104 @@
+# Harness Delegate - Docker Compose Configuration
+#
+# This delegate runs locally and executes deployment commands for Harness CD.
+# The delegate needs access to:
+# - Docker socket (to run Liquibase containers)
+# - Network access to AWS resources (RDS, App Runner, S3, Secrets Manager)
+#
+# Setup Instructions:
+# 1. Create delegate in Harness UI (Project Settings > Delegates > New Delegate)
+# 2. Copy ACCOUNT_ID and DELEGATE_TOKEN from Harness UI
+# 3. Update environment variables below
+# 4. Run: docker compose up -d
+# 5. Verify connection in Harness UI
+
+version: '3.7'
+
+services:
+  harness-delegate:
+    image: harness/delegate:latest
+    container_name: harness-delegate-${DEMO_ID:-demo1}
+    restart: unless-stopped
+
+    environment:
+      # ===== REQUIRED: Get these from Harness UI =====
+      # Navigate to: Project Settings > Delegates > Tokens
+      ACCOUNT_ID: "${HARNESS_ACCOUNT_ID}"
+      DELEGATE_TOKEN: "${HARNESS_DELEGATE_TOKEN}"
+
+      # ===== Delegate Configuration =====
+      DELEGATE_NAME: "${DEMO_ID:-demo1}-delegate"
+      DELEGATE_TYPE: "DOCKER"
+      DELEGATE_TAGS: "${DEMO_ID:-demo1},docker,liquibase"
+
+      # ===== Networking =====
+      MANAGER_HOST_AND_PORT: "https://app.harness.io"
+      WATCHER_STORAGE_URL: "https://app.harness.io/public/prod/premium/watchers"
+      WATCHER_CHECK_LOCATION: "current.version"
+      REMOTE_WATCHER_URL_CDN: "https://app.harness.io/public/shared/watchers/builds"
+
+      # ===== Resource Limits =====
+      DELEGATE_RESOURCE_THRESHOLD: "80"
+
+      # ===== Optional: Proxy Configuration =====
+      # Uncomment if behind corporate proxy
+      # PROXY_HOST: "proxy.example.com"
+      # PROXY_PORT: "8080"
+      # PROXY_SCHEME: "http"
+      # NO_PROXY: "localhost,127.0.0.1"
+
+      # ===== AWS Configuration (Optional - can use IAM role) =====
+      # AWS credentials can be passed through environment or use IAM role
+      # AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      # AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      # AWS_DEFAULT_REGION: "us-east-1"
+
+    volumes:
+      # Mount Docker socket to run Liquibase containers
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # Optional: Mount local directory for artifacts
+      - ./artifacts:/artifacts
+
+    # ===== Health Check =====
+    healthcheck:
+      test: ["CMD", "test", "-f", "/opt/harness-delegate/msg/data/watcher-data"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # ===== Logging =====
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ===== Networks =====
+networks:
+  default:
+    name: harness-${DEMO_ID:-demo1}
+
+# ===== Usage Notes =====
+#
+# Start Delegate:
+#   docker compose up -d
+#
+# View Logs:
+#   docker compose logs -f harness-delegate
+#
+# Stop Delegate:
+#   docker compose down
+#
+# Restart Delegate:
+#   docker compose restart harness-delegate
+#
+# Check Status:
+#   docker compose ps
+#
+# Environment Variables:
+# Create a .env file in this directory with:
+#   DEMO_ID=demo1
+#   HARNESS_ACCOUNT_ID=your-account-id
+#   HARNESS_DELEGATE_TOKEN=your-delegate-token

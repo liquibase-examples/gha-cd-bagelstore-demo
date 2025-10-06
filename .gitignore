@@ -66,6 +66,8 @@ logs/
 
 # Harness
 harness/.harness/
+harness/.env
+harness/artifacts/
 
 # GitHub
 .github/secrets/

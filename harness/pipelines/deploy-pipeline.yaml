@@ -1,0 +1,811 @@
+pipeline:
+  name: Deploy Bagel Store
+  identifier: Deploy_Bagel_Store
+  projectIdentifier: bagel_store_demo
+  orgIdentifier: default
+  tags:
+    demo_id: <+pipeline.variables.DEMO_ID>
+    deployment_type: coordinated_db_app
+
+  # Pipeline-level variables
+  variables:
+    - name: VERSION
+      type: String
+      description: Git tag version (e.g., v1.0.0)
+      required: true
+      value: <+input>
+
+    - name: DEMO_ID
+      type: String
+      description: Demo instance identifier
+      required: true
+      default: demo1
+
+    - name: AWS_REGION
+      type: String
+      description: AWS region for deployments
+      required: true
+      default: us-east-1
+
+    - name: RDS_ENDPOINT
+      type: String
+      description: RDS instance endpoint (from Terraform outputs)
+      required: true
+      value: <+input>.execute-once
+
+    - name: GITHUB_ORG
+      type: String
+      description: GitHub organization name
+      required: true
+      value: <+input>.execute-once
+
+  # Deployment stages for all four environments
+  stages:
+    # ===== STAGE 1: Deploy to Dev (Automatic) =====
+    - stage:
+        name: Deploy to Dev
+        identifier: Deploy_to_Dev
+        description: Automatically deploy database and application to dev environment
+        type: Deployment
+        tags:
+          environment: dev
+
+        spec:
+          deploymentType: CustomDeployment
+
+          # Service definition
+          service:
+            serviceRef: bagel_store
+            serviceInputs:
+              serviceDefinition:
+                type: CustomDeployment
+                spec:
+                  artifacts:
+                    primary:
+                      primaryArtifactRef: docker_image
+                      sources:
+                        - identifier: docker_image
+                          type: DockerRegistry
+                          spec:
+                            connectorRef: github_container_registry
+                            imagePath: <+pipeline.variables.GITHUB_ORG>/bagel-store
+                            tag: <+pipeline.variables.VERSION>
+
+          # Environment configuration
+          environment:
+            environmentRef: dev
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: dev_infrastructure
+
+          # Execution steps
+          execution:
+            steps:
+              # Step 1: Fetch changelog artifact from GitHub Packages
+              - step:
+                  type: ShellScript
+                  name: Fetch Changelog Artifact
+                  identifier: Fetch_Changelog_Artifact
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+
+                          echo "=== Fetching Changelog Artifact ==="
+                          echo "Version: <+pipeline.variables.VERSION>"
+                          echo "GitHub Org: <+pipeline.variables.GITHUB_ORG>"
+
+                          # Create working directory
+                          mkdir -p /tmp/changelog
+                          cd /tmp/changelog
+
+                          # Download changelog zip from GitHub Packages
+                          # Note: GitHub Packages uses Maven format for generic packages
+                          PACKAGE_URL="https://maven.pkg.github.com/<+pipeline.variables.GITHUB_ORG>/harness-gha-bagelstore/bagel-store-changelog/<+pipeline.variables.VERSION>/bagel-store-changelog-<+pipeline.variables.VERSION>.zip"
+
+                          echo "Downloading from: $PACKAGE_URL"
+
+                          curl -L \
+                            -H "Authorization: token <+secrets.getValue('github_pat')>" \
+                            -o changelog.zip \
+                            "$PACKAGE_URL"
+
+                          # Extract changelog
+                          unzip -q changelog.zip -d .
+
+                          echo "Changelog extracted successfully"
+                          ls -la
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 5m
+
+              # Step 2: Update database with Liquibase
+              - step:
+                  type: ShellScript
+                  name: Update Database
+                  identifier: Update_Database
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+
+                          echo "=== Updating Database with Liquibase ==="
+                          echo "Environment: dev"
+                          echo "RDS Endpoint: <+pipeline.variables.RDS_ENDPOINT>"
+                          echo "Demo ID: <+pipeline.variables.DEMO_ID>"
+
+                          # Run Liquibase in Docker container
+                          docker run --rm \
+                            -v /tmp/changelog:/liquibase/changelog \
+                            -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
+                            -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                            -e AWS_REGION=<+pipeline.variables.AWS_REGION> \
+                            -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                            liquibase/liquibase-secure:5.0.1 \
+                            --url=jdbc:postgresql://<+pipeline.variables.RDS_ENDPOINT>:5432/dev \
+                            --username='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}' \
+                            --password='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}' \
+                            --changeLogFile=changelog-master.yaml \
+                            --log-level=INFO \
+                            update
+
+                          echo "Database update completed successfully"
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+              # Step 3: Deploy application to App Runner
+              - step:
+                  type: ShellScript
+                  name: Deploy Application
+                  identifier: Deploy_Application
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+
+                          echo "=== Deploying Application to App Runner ==="
+                          echo "Environment: dev"
+                          echo "Image: ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>"
+
+                          # Configure AWS CLI
+                          export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
+                          export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
+                          export AWS_DEFAULT_REGION=<+pipeline.variables.AWS_REGION>
+
+                          # Get App Runner service ARN (from Terraform outputs or pipeline variable)
+                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-dev"
+
+                          # Find service ARN
+                          SERVICE_ARN=$(aws apprunner list-services \
+                            --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" \
+                            --output text)
+
+                          echo "Service ARN: $SERVICE_ARN"
+
+                          # Update App Runner service with new image
+                          aws apprunner update-service \
+                            --service-arn "$SERVICE_ARN" \
+                            --source-configuration "{
+                              \"ImageRepository\": {
+                                \"ImageIdentifier\": \"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",
+                                \"ImageRepositoryType\": \"ECR_PUBLIC\",
+                                \"ImageConfiguration\": {
+                                  \"Port\": \"5000\",
+                                  \"RuntimeEnvironmentVariables\": {
+                                    \"DATABASE_URL\": \"postgresql://\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}:\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}@<+pipeline.variables.RDS_ENDPOINT>:5432/dev\",
+                                    \"FLASK_ENV\": \"production\",
+                                    \"APP_VERSION\": \"<+pipeline.variables.VERSION>\"
+                                  }
+                                }
+                              }
+                            }" \
+                            --region <+pipeline.variables.AWS_REGION>
+
+                          echo "App Runner service update initiated"
+                    environmentVariables: []
+                    outputVariables:
+                      - name: SERVICE_URL
+                        type: String
+                        value: service_url
+                  timeout: 10m
+
+              # Step 4: Health check
+              - step:
+                  type: ShellScript
+                  name: Health Check
+                  identifier: Health_Check
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+
+                          echo "=== Performing Health Check ==="
+
+                          # Get service URL
+                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-dev"
+                          SERVICE_URL=$(aws apprunner describe-service \
+                            --service-arn $(aws apprunner list-services \
+                              --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" \
+                              --output text) \
+                            --query "Service.ServiceUrl" \
+                            --output text \
+                            --region <+pipeline.variables.AWS_REGION>)
+
+                          HEALTH_URL="https://$SERVICE_URL/health"
+                          echo "Health check URL: $HEALTH_URL"
+
+                          # Wait for service to be ready (max 5 minutes)
+                          MAX_ATTEMPTS=30
+                          ATTEMPT=0
+
+                          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                            echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS..."
+
+                            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+
+                            if [ "$HTTP_CODE" = "200" ]; then
+                              echo "✅ Health check passed!"
+
+                              # Also check version endpoint
+                              VERSION_RESPONSE=$(curl -s "https://$SERVICE_URL/version")
+                              echo "Version info: $VERSION_RESPONSE"
+
+                              exit 0
+                            fi
+
+                            echo "Health check returned HTTP $HTTP_CODE, retrying in 10s..."
+                            sleep 10
+                            ATTEMPT=$((ATTEMPT + 1))
+                          done
+
+                          echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
+                          exit 1
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+            # Rollback steps (if deployment fails)
+            rollbackSteps: []
+
+        # Failure strategy
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Abort
+
+        # Execute when
+        when:
+          pipelineStatus: Success
+
+    # ===== STAGE 2: Deploy to Test (Manual Approval Required) =====
+    - stage:
+        name: Deploy to Test
+        identifier: Deploy_to_Test
+        description: Deploy database and application to test environment (requires approval)
+        type: Deployment
+        tags:
+          environment: test
+
+        spec:
+          deploymentType: CustomDeployment
+
+          service:
+            useFromStage:
+              stage: Deploy_to_Dev
+
+          environment:
+            environmentRef: test
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: test_infrastructure
+
+          execution:
+            steps:
+              # Manual approval gate
+              - step:
+                  type: HarnessApproval
+                  name: Approve Test Deployment
+                  identifier: Approve_Test_Deployment
+                  spec:
+                    approvalMessage: "Please review and approve deployment to TEST environment.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+pipeline.variables.DEMO_ID>\n\nChanges will be applied to test database and application."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+                    approverInputs: []
+                  timeout: 1d
+
+              # Reuse steps from Dev stage (same pattern)
+              - step:
+                  type: ShellScript
+                  name: Fetch Changelog Artifact
+                  identifier: Fetch_Changelog_Artifact_Test
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Fetching Changelog Artifact ==="
+                          mkdir -p /tmp/changelog
+                          cd /tmp/changelog
+                          PACKAGE_URL="https://maven.pkg.github.com/<+pipeline.variables.GITHUB_ORG>/harness-gha-bagelstore/bagel-store-changelog/<+pipeline.variables.VERSION>/bagel-store-changelog-<+pipeline.variables.VERSION>.zip"
+                          curl -L -H "Authorization: token <+secrets.getValue('github_pat')>" -o changelog.zip "$PACKAGE_URL"
+                          unzip -q changelog.zip -d .
+                          echo "Changelog extracted successfully"
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 5m
+
+              - step:
+                  type: ShellScript
+                  name: Update Database
+                  identifier: Update_Database_Test
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Updating Database with Liquibase ==="
+                          echo "Environment: test"
+                          docker run --rm \
+                            -v /tmp/changelog:/liquibase/changelog \
+                            -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
+                            -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                            -e AWS_REGION=<+pipeline.variables.AWS_REGION> \
+                            -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                            liquibase/liquibase-secure:5.0.1 \
+                            --url=jdbc:postgresql://<+pipeline.variables.RDS_ENDPOINT>:5432/test \
+                            --username='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}' \
+                            --password='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}' \
+                            --changeLogFile=changelog-master.yaml \
+                            --log-level=INFO \
+                            update
+                          echo "Database update completed successfully"
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+              - step:
+                  type: ShellScript
+                  name: Deploy Application
+                  identifier: Deploy_Application_Test
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Deploying Application to App Runner ==="
+                          echo "Environment: test"
+                          export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
+                          export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
+                          export AWS_DEFAULT_REGION=<+pipeline.variables.AWS_REGION>
+                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-test"
+                          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text)
+                          aws apprunner update-service \
+                            --service-arn "$SERVICE_ARN" \
+                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}:\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}@<+pipeline.variables.RDS_ENDPOINT>:5432/test\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                            --region <+pipeline.variables.AWS_REGION>
+                          echo "App Runner service update initiated"
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+              - step:
+                  type: ShellScript
+                  name: Health Check
+                  identifier: Health_Check_Test
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Performing Health Check ==="
+                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-test"
+                          SERVICE_URL=$(aws apprunner describe-service --service-arn $(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text) --query "Service.ServiceUrl" --output text --region <+pipeline.variables.AWS_REGION>)
+                          HEALTH_URL="https://$SERVICE_URL/health"
+                          MAX_ATTEMPTS=30
+                          ATTEMPT=0
+                          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+                            if [ "$HTTP_CODE" = "200" ]; then
+                              echo "✅ Health check passed!"
+                              exit 0
+                            fi
+                            echo "Retrying in 10s..."
+                            sleep 10
+                            ATTEMPT=$((ATTEMPT + 1))
+                          done
+                          echo "❌ Health check failed"
+                          exit 1
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+            rollbackSteps: []
+
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Abort
+
+        when:
+          pipelineStatus: Success
+
+    # ===== STAGE 3: Deploy to Staging (Manual Approval Required) =====
+    - stage:
+        name: Deploy to Staging
+        identifier: Deploy_to_Staging
+        description: Deploy database and application to staging environment (requires approval)
+        type: Deployment
+        tags:
+          environment: staging
+
+        spec:
+          deploymentType: CustomDeployment
+
+          service:
+            useFromStage:
+              stage: Deploy_to_Dev
+
+          environment:
+            environmentRef: staging
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: staging_infrastructure
+
+          execution:
+            steps:
+              - step:
+                  type: HarnessApproval
+                  name: Approve Staging Deployment
+                  identifier: Approve_Staging_Deployment
+                  spec:
+                    approvalMessage: "Please review and approve deployment to STAGING environment.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+pipeline.variables.DEMO_ID>\n\nThis is the final pre-production environment."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+                    approverInputs: []
+                  timeout: 1d
+
+              - step:
+                  type: ShellScript
+                  name: Fetch Changelog Artifact
+                  identifier: Fetch_Changelog_Artifact_Staging
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Fetching Changelog Artifact ==="
+                          mkdir -p /tmp/changelog
+                          cd /tmp/changelog
+                          PACKAGE_URL="https://maven.pkg.github.com/<+pipeline.variables.GITHUB_ORG>/harness-gha-bagelstore/bagel-store-changelog/<+pipeline.variables.VERSION>/bagel-store-changelog-<+pipeline.variables.VERSION>.zip"
+                          curl -L -H "Authorization: token <+secrets.getValue('github_pat')>" -o changelog.zip "$PACKAGE_URL"
+                          unzip -q changelog.zip -d .
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 5m
+
+              - step:
+                  type: ShellScript
+                  name: Update Database
+                  identifier: Update_Database_Staging
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Updating Database with Liquibase ==="
+                          echo "Environment: staging"
+                          docker run --rm \
+                            -v /tmp/changelog:/liquibase/changelog \
+                            -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
+                            -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                            -e AWS_REGION=<+pipeline.variables.AWS_REGION> \
+                            -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                            liquibase/liquibase-secure:5.0.1 \
+                            --url=jdbc:postgresql://<+pipeline.variables.RDS_ENDPOINT>:5432/staging \
+                            --username='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}' \
+                            --password='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}' \
+                            --changeLogFile=changelog-master.yaml \
+                            --log-level=INFO \
+                            update
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+              - step:
+                  type: ShellScript
+                  name: Deploy Application
+                  identifier: Deploy_Application_Staging
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Deploying Application to App Runner ==="
+                          echo "Environment: staging"
+                          export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
+                          export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
+                          export AWS_DEFAULT_REGION=<+pipeline.variables.AWS_REGION>
+                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-staging"
+                          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text)
+                          aws apprunner update-service \
+                            --service-arn "$SERVICE_ARN" \
+                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}:\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}@<+pipeline.variables.RDS_ENDPOINT>:5432/staging\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                            --region <+pipeline.variables.AWS_REGION>
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+              - step:
+                  type: ShellScript
+                  name: Health Check
+                  identifier: Health_Check_Staging
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-staging"
+                          SERVICE_URL=$(aws apprunner describe-service --service-arn $(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text) --query "Service.ServiceUrl" --output text --region <+pipeline.variables.AWS_REGION>)
+                          HEALTH_URL="https://$SERVICE_URL/health"
+                          MAX_ATTEMPTS=30
+                          ATTEMPT=0
+                          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+                            if [ "$HTTP_CODE" = "200" ]; then
+                              echo "✅ Health check passed!"
+                              exit 0
+                            fi
+                            sleep 10
+                            ATTEMPT=$((ATTEMPT + 1))
+                          done
+                          exit 1
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+            rollbackSteps: []
+
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Abort
+
+        when:
+          pipelineStatus: Success
+
+    # ===== STAGE 4: Deploy to Production (Manual Approval Required) =====
+    - stage:
+        name: Deploy to Production
+        identifier: Deploy_to_Production
+        description: Deploy database and application to production environment (requires approval)
+        type: Deployment
+        tags:
+          environment: prod
+
+        spec:
+          deploymentType: CustomDeployment
+
+          service:
+            useFromStage:
+              stage: Deploy_to_Dev
+
+          environment:
+            environmentRef: prod
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: prod_infrastructure
+
+          execution:
+            steps:
+              - step:
+                  type: HarnessApproval
+                  name: Approve Production Deployment
+                  identifier: Approve_Production_Deployment
+                  spec:
+                    approvalMessage: "⚠️ PRODUCTION DEPLOYMENT\n\nPlease carefully review before approving deployment to PRODUCTION.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+pipeline.variables.DEMO_ID>\n\nThis will apply database changes and deploy to production environment."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+                    approverInputs: []
+                  timeout: 1d
+
+              - step:
+                  type: ShellScript
+                  name: Fetch Changelog Artifact
+                  identifier: Fetch_Changelog_Artifact_Prod
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Fetching Changelog Artifact ==="
+                          mkdir -p /tmp/changelog
+                          cd /tmp/changelog
+                          PACKAGE_URL="https://maven.pkg.github.com/<+pipeline.variables.GITHUB_ORG>/harness-gha-bagelstore/bagel-store-changelog/<+pipeline.variables.VERSION>/bagel-store-changelog-<+pipeline.variables.VERSION>.zip"
+                          curl -L -H "Authorization: token <+secrets.getValue('github_pat')>" -o changelog.zip "$PACKAGE_URL"
+                          unzip -q changelog.zip -d .
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 5m
+
+              - step:
+                  type: ShellScript
+                  name: Update Database
+                  identifier: Update_Database_Prod
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Updating Database with Liquibase ==="
+                          echo "Environment: prod"
+                          docker run --rm \
+                            -v /tmp/changelog:/liquibase/changelog \
+                            -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
+                            -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                            -e AWS_REGION=<+pipeline.variables.AWS_REGION> \
+                            -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                            liquibase/liquibase-secure:5.0.1 \
+                            --url=jdbc:postgresql://<+pipeline.variables.RDS_ENDPOINT>:5432/prod \
+                            --username='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}' \
+                            --password='${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}' \
+                            --changeLogFile=changelog-master.yaml \
+                            --log-level=INFO \
+                            update
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+              - step:
+                  type: ShellScript
+                  name: Deploy Application
+                  identifier: Deploy_Application_Prod
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          echo "=== Deploying Application to App Runner ==="
+                          echo "Environment: prod"
+                          export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
+                          export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
+                          export AWS_DEFAULT_REGION=<+pipeline.variables.AWS_REGION>
+                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-prod"
+                          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text)
+                          aws apprunner update-service \
+                            --service-arn "$SERVICE_ARN" \
+                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/username}:\${awsSecretsManager:<+pipeline.variables.DEMO_ID>/rds/password}@<+pipeline.variables.RDS_ENDPOINT>:5432/prod\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                            --region <+pipeline.variables.AWS_REGION>
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+              - step:
+                  type: ShellScript
+                  name: Health Check
+                  identifier: Health_Check_Prod
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          set -e
+                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-prod"
+                          SERVICE_URL=$(aws apprunner describe-service --service-arn $(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text) --query "Service.ServiceUrl" --output text --region <+pipeline.variables.AWS_REGION>)
+                          HEALTH_URL="https://$SERVICE_URL/health"
+                          MAX_ATTEMPTS=30
+                          ATTEMPT=0
+                          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+                            if [ "$HTTP_CODE" = "200" ]; then
+                              echo "✅ Production deployment successful!"
+                              echo "🎉 All environments now running version <+pipeline.variables.VERSION>"
+                              exit 0
+                            fi
+                            sleep 10
+                            ATTEMPT=$((ATTEMPT + 1))
+                          done
+                          exit 1
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 10m
+
+            rollbackSteps: []
+
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Abort
+
+        when:
+          pipelineStatus: Success
+
+  # Allow individual stage execution
+  allowStageExecutions: true
