@@ -304,21 +304,94 @@ harness_project_id = "bagel_store_demo"
 
 See `harness-provider.tf` and `harness-environments.tf` for implementation details.
 
+### Complete Harness Automation (Zero Manual Setup)
+
+**NEW:** This Terraform configuration now creates **ALL** Harness resources automatically:
+
+✅ **Environments** (4 environments with 14 variables each)
+✅ **Secrets** (GitHub PAT, AWS credentials, Liquibase license)
+✅ **Connectors** (GitHub, AWS)
+✅ **Service** (Bagel Store service definition)
+✅ **Pipeline** (Remote pipeline registration)
+
+**What This Means:**
+
+After running `terraform apply`, you can immediately execute the Harness deployment pipeline with **zero manual configuration** in the Harness UI. Everything is created and configured automatically.
+
+**Required Variables:**
+
+Add these to your `terraform.tfvars`:
+
+```hcl
+# GitHub credentials
+github_username = "your-github-username"
+github_pat      = "ghp_xxxxxxxxxxxxxxxxxxxx"  # Scopes: repo, read:packages
+
+# AWS credentials for Harness deployments
+aws_access_key_id     = "AKIAXXXXXXXXXXXX"
+aws_secret_access_key = "xxxxxxxxxxxxxxxx"
+
+# Liquibase license
+liquibase_license_key = "YOUR_LICENSE_KEY"  # Get free trial: liquibase.com/trial
+
+# Harness configuration
+harness_account_id  = "your-account-id"
+harness_api_key     = "pat.xxxxxxxxxxxxxxxx"
+harness_org_id      = "default"
+harness_project_id  = "bagel_store_demo"
+```
+
+**Terraform Resources Created:**
+
+| Resource Type | File | Description |
+|--------------|------|-------------|
+| Environments | `harness-environments.tf` | 4 environments with AWS infrastructure details |
+| Secrets | `harness-secrets.tf` | 4 secrets (GitHub PAT, AWS creds, Liquibase license) |
+| Connectors | `harness-connectors.tf` | GitHub and AWS connectors |
+| Service | `harness-service.tf` | Bagel Store service definition |
+| Pipeline | `harness-pipeline.tf` | Remote pipeline registration (YAML in Git) |
+
+**Verification:**
+
+After `terraform apply`, check the Harness UI:
+
+1. **Environments** → Should see 4 environments: `demo1_dev`, `demo1_test`, `demo1_staging`, `demo1_prod`
+2. **Secrets** → Should see 4 secrets: `github-pat`, `aws-access-key-id`, `aws-secret-access-key`, `liquibase-license-key`
+3. **Connectors** → Should see 2 connectors: `github-bagel-store`, `aws-bagel-store` (both Connected)
+4. **Services** → Should see: `Bagel Store`
+5. **Pipelines** → Should see: `Deploy Bagel Store - demo1`
+
+**Pipeline Execution:**
+
+The pipeline requires only 2 runtime inputs:
+- `VERSION`: Git tag (e.g., `v1.0.0`)
+- `GITHUB_ORG`: GitHub organization name
+
+All infrastructure details come from environment variables (no manual input needed).
+
 ## File Structure
 
 ```
 terraform/
-├── main.tf                   # Provider and local variables
-├── variables.tf              # Input variable definitions
-├── outputs.tf                # Output definitions
-├── rds.tf                    # PostgreSQL RDS instance
-├── secrets.tf                # AWS Secrets Manager
-├── s3.tf                     # S3 buckets and file uploads
-├── app-runner.tf             # App Runner services (4 environments)
-├── route53.tf                # DNS records
-├── harness-provider.tf       # Harness Terraform Provider configuration
-├── harness-environments.tf   # Harness environment creation and configuration
-└── README.md                 # This file
+├── main.tf                      # Provider and local variables
+├── variables.tf                 # Input variable definitions
+├── outputs.tf                   # Output definitions
+├── terraform.tfvars.example     # Variable template
+│
+├── rds.tf                       # PostgreSQL RDS instance
+├── secrets.tf                   # AWS Secrets Manager
+├── s3.tf                        # S3 buckets and file uploads
+├── app-runner.tf                # App Runner services (4 environments)
+├── route53.tf                   # DNS records (optional)
+│
+├── harness-provider.tf          # Harness Terraform Provider configuration
+├── harness-environments.tf      # Harness environments (4) with AWS outputs
+├── harness-secrets.tf           # Harness secrets (GitHub PAT, AWS creds, Liquibase)
+├── harness-connectors.tf        # Harness connectors (GitHub, AWS)
+├── harness-service.tf           # Harness service definition (Bagel Store)
+├── harness-pipeline.tf          # Harness pipeline registration (Remote)
+│
+└── README.md                    # This file
 ```
 
 ## Next Steps

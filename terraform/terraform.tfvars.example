@@ -45,8 +45,11 @@ db_password = "ChangeMe123!SecurePassword"
 # GitHub organization or username
 github_org = "your-github-org"
 
+# GitHub username for Harness connector authentication
+github_username = "your-github-username"
+
 # GitHub Personal Access Token
-# Required scopes: packages:read, read:packages
+# Required scopes: repo, read:packages, packages:read
 # Create at: https://github.com/settings/tokens
 github_pat = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
@@ -91,6 +94,24 @@ harness_org_id = "default"
 # Create project first in Harness UI, then use its identifier here
 # Example: "bagel_store_demo"
 harness_project_id = "bagel_store_demo"
+
+# ===== AWS Credentials for Harness =====
+# These credentials are stored as Harness secrets and used by the deployment pipeline
+# They should have permissions for: App Runner, RDS, Secrets Manager, S3
+
+# AWS Access Key ID for Harness deployments
+# Same credentials can be used as for Terraform, or use separate deployment credentials
+aws_access_key_id = "AKIAXXXXXXXXXXXX"
+
+# AWS Secret Access Key for Harness deployments
+aws_secret_access_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# ===== Liquibase Configuration =====
+
+# Liquibase Secure/Pro license key
+# Required for: Flow files, policy checks, operation reports
+# Get free trial: https://www.liquibase.com/trial
+liquibase_license_key = "YOUR_LIQUIBASE_LICENSE_KEY_HERE"
 
 # ===== Optional: Custom Tags =====
 

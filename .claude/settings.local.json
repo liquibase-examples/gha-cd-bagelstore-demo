@@ -58,7 +58,12 @@
       "mcp__playwright__browser_navigate_back:*",
       "Bash(git push:*)",
       "Bash(uv run:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "mcp__context7__resolve-library-id",
+      "WebSearch",
+      "WebFetch(domain:registry.terraform.io)",
+      "WebFetch(domain:developer.harness.io)",
+      "WebFetch(domain:revealjs.com)"
     ],
     "deny": [],
     "ask": []

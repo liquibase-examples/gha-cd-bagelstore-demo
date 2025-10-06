@@ -62,6 +62,12 @@ variable "github_org" {
   type        = string
 }
 
+variable "github_username" {
+  description = "GitHub username for connector authentication"
+  type        = string
+  default     = ""
+}
+
 variable "github_pat" {
   description = "GitHub Personal Access Token for Harness configuration"
   type        = string
@@ -124,6 +130,31 @@ variable "harness_org_id" {
 variable "harness_project_id" {
   description = "Harness project ID where environments will be created"
   type        = string
+  default     = ""
+}
+
+# ===== AWS Credentials for Harness =====
+
+variable "aws_access_key_id" {
+  description = "AWS Access Key ID for Harness deployments (stored as Harness secret)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "aws_secret_access_key" {
+  description = "AWS Secret Access Key for Harness deployments (stored as Harness secret)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# ===== Liquibase Configuration =====
+
+variable "liquibase_license_key" {
+  description = "Liquibase Secure/Pro license key for database deployments"
+  type        = string
+  sensitive   = true
   default     = ""
 }
 

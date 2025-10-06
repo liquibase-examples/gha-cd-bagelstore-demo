@@ -2,6 +2,35 @@
 
 This directory contains Harness Continuous Delivery configuration for the Bagel Store demo, including the Harness Delegate and deployment pipelines.
 
+---
+
+## 🎉 **FULLY AUTOMATED SETUP** 🎉
+
+**All Harness resources are now created automatically via Terraform!**
+
+✅ Environments (4) with AWS infrastructure details
+✅ Secrets (GitHub PAT, AWS credentials, Liquibase license)
+✅ Connectors (GitHub, AWS)
+✅ Service (Bagel Store)
+✅ Pipeline (Remote pipeline registration)
+
+**What you need to do:**
+1. Configure `terraform.tfvars` with your credentials
+2. Run `terraform apply` in the `terraform/` directory
+3. Start the Harness Delegate (see below)
+4. **That's it!** The pipeline is ready to execute.
+
+**What you DON'T need to do:**
+❌ Manually create connectors in Harness UI
+❌ Manually create secrets in Harness UI
+❌ Manually create service in Harness UI
+❌ Manually import pipeline in Harness UI
+❌ Copy/paste infrastructure values between AWS and Harness
+
+See the "Setup Instructions" section below for the simplified workflow.
+
+---
+
 ## Overview
 
 **Harness CD** orchestrates deployments across four environments (dev, test, staging, prod) with:
@@ -91,17 +120,33 @@ harness/
    - Docker installed locally
    - Docker Compose v2+
 
-## Setup Instructions
+## Setup Instructions (Simplified - Automated Workflow)
 
-### 1. Create Harness Account
+### Prerequisites
+
+1. **Harness Account** - Sign up at https://app.harness.io (free tier works)
+2. **Harness Organization & Project** - Create in Harness UI first
+3. **Terraform Applied** - Complete `terraform apply` (creates all Harness resources automatically)
+
+### Step-by-Step Setup
+
+### 1. Create Harness Account (One-Time)
 
 1. Go to https://app.harness.io
 2. Sign up with GitHub OAuth or email
-3. Create organization: `liquibase-demos`
+3. Create organization: `liquibase-demos` (or use existing)
 4. Create project: `bagel-store-demo`
-5. Note your **Account ID** (visible in URL or Settings)
+5. Note your **Account ID** (visible in URL: `https://app.harness.io/ng/account/YOUR_ACCOUNT_ID/...`)
 
-### 2. Create Delegate Token
+### 2. Create Harness API Key (For Terraform - One-Time)
+
+1. Navigate to: **Profile** → **My API Keys** → **New API Key**
+2. Name: `terraform-automation`
+3. Required scopes: Environment (View, Create/Edit), Connector (View, Create/Edit), Secret (View, Create/Edit), Service (View, Create/Edit), Pipeline (View, Create/Edit)
+4. Copy the API key (starts with `pat.`)
+5. Add to `terraform/terraform.tfvars`: `harness_api_key = "pat.xxxxxxx"`
+
+### 3. Create Delegate Token (For Delegate - One-Time)
 
 1. Navigate to: **Project Settings** → **Delegates** → **Tokens**
 2. Click **New Token**
@@ -109,7 +154,23 @@ harness/
 4. Copy the token value (you won't see it again!)
 5. Note your **Account ID**
 
-### 3. Configure Delegate Environment
+### 4. Run Terraform (Creates ALL Harness Resources)
+
+```bash
+cd terraform
+terraform apply
+```
+
+**This single command creates:**
+- ✅ 4 Harness environments (dev, test, staging, prod) with AWS infrastructure details
+- ✅ 4 Harness secrets (GitHub PAT, AWS credentials, Liquibase license)
+- ✅ 2 Harness connectors (GitHub, AWS)
+- ✅ 1 Harness service (Bagel Store)
+- ✅ 1 Harness pipeline (Deploy Bagel Store - registered from Git)
+
+**Verify in Harness UI:** Navigate to Environments, Secrets, Connectors, Services, and Pipelines to see all resources.
+
+### 5. Configure Delegate Environment
 
 ```bash
 cd harness
@@ -123,7 +184,7 @@ HARNESS_ACCOUNT_ID=your-account-id-here
 HARNESS_DELEGATE_TOKEN=your-token-here
 ```
 
-### 4. Start Delegate
+### 6. Start Delegate
 
 ```bash
 docker compose up -d
@@ -141,117 +202,48 @@ docker compose logs -f harness-delegate
 3. Status should be **Connected** (green)
 4. May take 2-3 minutes for initial connection
 
-### 5. Create Connectors
+### 7. Verify Resources in Harness UI
 
-Harness uses **Connectors** to access external systems.
+**All resources created automatically by Terraform!** Verify they exist:
 
-#### A. GitHub Connector (for changelog artifacts)
+#### ✅ Environments
+Navigate to: **Environments** → You should see 4 environments:
+- `demo1_dev` (PreProduction)
+- `demo1_test` (PreProduction)
+- `demo1_staging` (PreProduction)
+- `demo1_prod` (Production)
 
-1. Navigate to: **Project Settings** → **Connectors** → **New Connector**
-2. Select **Code Repositories** → **GitHub**
-3. Configure:
-   - **Name:** `github-bagel-store`
-   - **URL Type:** Repository
-   - **Connection Type:** HTTP
-   - **GitHub Repository URL:** `https://github.com/YOUR_ORG/harness-gha-bagelstore`
-4. **Credentials:**
-   - **Username:** Your GitHub username
-   - **Personal Access Token:** Create new secret
-     - Click **Create or Select a Secret**
-     - Name: `github-pat`
-     - Token: Your GitHub PAT with scopes: `repo`, `read:packages`
-5. **API Access:**
-   - Enable **API access**
-   - Token: Use same `github-pat` secret
-6. **Connectivity Mode:**
-   - Select **Connect through Harness Delegate**
-   - Delegate Selector: `demo1`
-7. Click **Save and Continue**
-8. Test connection (should succeed)
+Each environment has 14 variables with AWS infrastructure details (RDS, App Runner, S3, etc.)
 
-#### B. AWS Connector (for infrastructure access)
+#### ✅ Secrets
+Navigate to: **Project Settings** → **Secrets** → You should see 4 secrets:
+- `github-pat`
+- `aws-access-key-id`
+- `aws-secret-access-key`
+- `liquibase-license-key`
 
-1. Navigate to: **Project Settings** → **Connectors** → **New Connector**
-2. Select **Cloud Providers** → **AWS**
-3. Configure:
-   - **Name:** `aws-bagel-store`
-   - **Credentials:**
-     - Select **AWS Access Key**
-     - **Access Key:** Create secret `aws-access-key-id`
-     - **Secret Key:** Create secret `aws-secret-access-key`
-   - **Default Region:** `us-east-1` (or your region)
-4. **Connectivity Mode:**
-   - Select **Connect through Harness Delegate**
-   - Delegate Selector: `demo1`
-5. Click **Save and Continue**
-6. Test connection (should succeed)
+#### ✅ Connectors
+Navigate to: **Project Settings** → **Connectors** → You should see 2 connectors:
+- `github-bagel-store` (Status: Connected)
+- `aws-bagel-store` (Status: Connected)
 
-#### C. Docker Registry Connector (optional - images are public)
+**Note:** If connectors show "Not Connected", check delegate status and network connectivity.
 
-Only needed if you make images private later.
+#### ✅ Service
+Navigate to: **Services** → You should see:
+- `Bagel Store` (Type: CustomDeployment)
 
-1. Navigate to: **Project Settings** → **Connectors** → **New Connector**
-2. Select **Artifact Repositories** → **Docker Registry**
-3. Configure:
-   - **Name:** `github-container-registry`
-   - **Provider Type:** Other
-   - **URL:** `https://ghcr.io`
-   - **Authentication:** Anonymous (since images are public)
-4. Click **Save**
+#### ✅ Pipeline
+Navigate to: **Pipelines** → You should see:
+- `Deploy Bagel Store - demo1` (Remote pipeline from Git)
 
-### 6. Create Harness Secrets
+**Pipeline Runtime Inputs (Only 2 Required):**
+- `VERSION`: Git tag version (e.g., v1.0.0)
+- `GITHUB_ORG`: GitHub organization name
 
-Store sensitive values as Harness Secrets (used in pipeline):
+All infrastructure details come from environment variables - no manual input needed!
 
-1. Navigate to: **Project Settings** → **Secrets**
-2. Create the following secrets:
-
-| Secret Name | Type | Value | Description |
-|-------------|------|-------|-------------|
-| `github-pat` | Text | Your GitHub PAT | For accessing GitHub Packages |
-| `aws-access-key-id` | Text | AWS Access Key | For AWS deployments |
-| `aws-secret-access-key` | Text | AWS Secret Key | For AWS deployments |
-
-### 7. Import Remote Pipeline
-
-1. Navigate to: **Pipelines** → **Create a Pipeline**
-2. **Name:** `Deploy Bagel Store - demo1`
-3. **Setup:** Select **Remote**
-4. Configure Git details:
-   - **Git Connector:** Select `github-bagel-store`
-   - **Repository:** `harness-gha-bagelstore`
-   - **Git Branch:** `main`
-   - **YAML Path:** `harness/pipelines/deploy-pipeline.yaml`
-5. Click **Start**
-6. Harness will load the pipeline from GitHub
-
-### 8. Verify Environments (Auto-Configured by Terraform)
-
-**No manual configuration needed!** Terraform automatically created 4 environments with all AWS infrastructure details.
-
-**Verify environments exist:**
-
-1. Navigate to: **Environments** (in left sidebar)
-2. You should see 4 environments (created by Terraform):
-   - `demo1_dev` (PreProduction)
-   - `demo1_test` (PreProduction)
-   - `demo1_staging` (PreProduction)
-   - `demo1_prod` (Production)
-
-**Each environment contains 14 variables:**
-- Database: `rds_endpoint`, `rds_address`, `rds_port`, `database_name`, `jdbc_url`
-- App Runner: `app_runner_service_arn`, `app_runner_service_url`, `app_runner_service_id`, `app_runner_service_name`
-- S3: `liquibase_flows_bucket`, `operation_reports_bucket`
-- Config: `demo_id`, `aws_region`, `environment`, `dns_record`
-
-**Pipeline variables (minimal - most are now in environments):**
-
-| Variable Name | Type | Default Value | Description |
-|---------------|------|---------------|-------------|
-| `VERSION` | String | Runtime input | Git tag version (e.g., v1.0.0) |
-| `GITHUB_ORG` | String | Runtime input | GitHub organization name |
-
-### 9. Configure Webhook Trigger
+### 8. Configure Webhook Trigger (Optional)
 
 Allow GitHub Actions to trigger Harness deployments:
 
@@ -268,24 +260,34 @@ Allow GitHub Actions to trigger Harness deployments:
    gh secret set HARNESS_WEBHOOK_URL --body "your-webhook-url"
    ```
 
-### 10. Test Pipeline Execution
+### 9. Test Pipeline Execution
 
-The pipeline is now ready to run! Infrastructure details are automatically available via environment variables.
+**🎉 The pipeline is ready to run immediately! 🎉**
 
-**Test a deployment:**
+All infrastructure details are pre-configured via environment variables from Terraform.
+
+**Execute a deployment:**
 
 1. Navigate to **Pipelines** → **Deploy Bagel Store - demo1**
 2. Click **Run**
-3. Provide runtime inputs:
+3. Provide **only 2 runtime inputs**:
    - **VERSION**: `v1.0.0` (or your version tag)
    - **GITHUB_ORG**: Your GitHub organization
-4. Watch the deployment progress through all 4 stages
+4. Click **Run Pipeline**
+5. Watch the deployment progress through all 4 stages:
+   - Dev (automatic)
+   - Test (requires approval)
+   - Staging (requires approval)
+   - Production (requires approval)
 
-**The pipeline automatically uses:**
+**The pipeline automatically uses environment variables:**
 - `<+env.variables.jdbc_url>` - Database connection string
 - `<+env.variables.app_runner_service_arn>` - App Runner service ARN
+- `<+env.variables.rds_address>` - RDS endpoint
 - `<+env.variables.demo_id>` - Demo instance identifier
-- And 11 other environment variables (no manual input needed!)
+- And 10 other variables - all pre-configured by Terraform!
+
+**No manual infrastructure input needed!** ✨
 
 ## Delegate Management
 

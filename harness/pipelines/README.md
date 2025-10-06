@@ -2,6 +2,29 @@
 
 This directory contains the Harness CD pipeline configuration for deploying the Bagel Store application and database across four environments.
 
+---
+
+## 🎉 **FULLY AUTOMATED PREREQUISITES** 🎉
+
+**All pipeline prerequisites are created automatically via Terraform!**
+
+✅ **Environments** - 4 environments with AWS infrastructure details pre-configured
+✅ **Secrets** - GitHub PAT, AWS credentials, Liquibase license stored in Harness
+✅ **Connectors** - GitHub and AWS connectors configured and tested
+✅ **Service** - Bagel Store service definition created
+✅ **Pipeline** - This pipeline registered from Git (Remote pipeline)
+
+**What this means:** After running `terraform apply`, this pipeline is **immediately executable** with zero manual configuration in the Harness UI.
+
+**Pipeline Execution Requirements:**
+- ✅ Terraform applied (creates all resources)
+- ✅ Harness Delegate running (see `harness/README.md`)
+- ✅ Two runtime inputs: `VERSION` and `GITHUB_ORG`
+
+**That's it!** All infrastructure details are automatically provided via environment variables.
+
+---
+
 ## Pipeline Overview
 
 **Pipeline Name:** Deploy Bagel Store
