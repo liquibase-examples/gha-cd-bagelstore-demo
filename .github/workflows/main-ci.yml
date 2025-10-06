@@ -20,6 +20,21 @@ jobs:
     name: Build Database Changelog Artifact
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bagelstore
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,15 +65,24 @@ jobs:
         env:
           LIQUIBASE_LICENSE_KEY: ${{ secrets.LIQUIBASE_LICENSE_KEY }}
           VERSION: ${{ steps.version.outputs.version }}
+          LIQUIBASE_COMMAND_URL: jdbc:postgresql://localhost:5432/bagelstore
+          LIQUIBASE_COMMAND_USERNAME: postgres
+          LIQUIBASE_COMMAND_PASSWORD: postgres
+          LIQUIBASE_COMMAND_CHANGELOG_FILE: changelog-master.yaml
           LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE: /liquibase/flows/liquibase.checks-settings.conf
         run: |
           docker run --rm \
+            --network host \
             -v ${{ github.workspace }}/db/changelog:/liquibase/changelog \
             -v ${{ github.workspace }}/liquibase-flows:/liquibase/flows \
             -v ${{ github.workspace }}/reports:/liquibase/reports \
             -v ${{ github.workspace }}/artifacts:/liquibase/artifacts \
             -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
             -e VERSION="${VERSION}" \
+            -e LIQUIBASE_COMMAND_URL="${LIQUIBASE_COMMAND_URL}" \
+            -e LIQUIBASE_COMMAND_USERNAME="${LIQUIBASE_COMMAND_USERNAME}" \
+            -e LIQUIBASE_COMMAND_PASSWORD="${LIQUIBASE_COMMAND_PASSWORD}" \
+            -e LIQUIBASE_COMMAND_CHANGELOG_FILE="${LIQUIBASE_COMMAND_CHANGELOG_FILE}" \
             -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE="${LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE}" \
             -w /liquibase \
             liquibase/liquibase-secure:${{ env.LIQUIBASE_VERSION }} \
