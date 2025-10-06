@@ -72,9 +72,10 @@ stages:
           echo 'Creating changelog artifact...' &&
           echo 'Version: ${VERSION}' &&
           echo '========================================' &&
-          mkdir -p /liquibase/artifacts &&
           cd /liquibase/changelog &&
-          tar -czf /liquibase/artifacts/bagel-store-changelog-${VERSION}.tar.gz --exclude='.git*' . &&
+          tar -czf /tmp/bagel-store-changelog-${VERSION}.tar.gz --exclude='.git*' . &&
+          mkdir -p /liquibase/artifacts &&
+          cp /tmp/bagel-store-changelog-${VERSION}.tar.gz /liquibase/artifacts/ &&
           echo '' &&
           echo 'Artifact created successfully!' &&
           ls -lh /liquibase/artifacts/bagel-store-changelog-${VERSION}.tar.gz &&
