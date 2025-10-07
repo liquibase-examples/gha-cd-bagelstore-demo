@@ -1,0 +1,12 @@
+# Diagrams Directory
+
+This directory is for custom architecture diagrams.
+
+You can create diagrams using:
+- Mermaid.js (inline in HTML)
+- Draw.io / diagrams.net
+- Lucidchart
+- PowerPoint/Keynote exports
+- SVG graphics
+
+Export as PNG or SVG for use in the presentation.

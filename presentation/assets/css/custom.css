@@ -1,0 +1,811 @@
+/* Custom styles for Bagel Store Demo Presentation */
+
+:root {
+    --harness-blue: #00ADE4;
+    --github-black: #24292e;
+    --aws-orange: #FF9900;
+    --liquibase-blue: #2962ff;
+    --success-green: #51cf66;
+    --warning-yellow: #ffc107;
+    --danger-red: #ff6b6b;
+}
+
+/* Override reveal.js defaults */
+.reveal {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 32px;
+}
+
+.reveal h1, .reveal h2, .reveal h3 {
+    font-weight: 700;
+    text-transform: none;
+}
+
+.reveal h2 {
+    color: var(--harness-blue);
+    margin-bottom: 0.8em;
+    font-size: 1.8em;
+}
+
+.reveal h3 {
+    font-size: 1.2em;
+}
+
+.reveal ul, .reveal ol {
+    font-size: 0.85em;
+}
+
+.reveal p {
+    font-size: 0.9em;
+}
+
+/* Title slide */
+.title-main {
+    font-size: 2.5em;
+    line-height: 1.2;
+    margin-bottom: 0.5em;
+}
+
+.title-sub {
+    color: #888;
+    font-weight: 400;
+}
+
+/* Two-column layout */
+.two-column {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2em;
+    text-align: left;
+}
+
+.two-column h3 {
+    font-size: 1.2em;
+    margin-bottom: 0.8em;
+}
+
+.two-column ul {
+    font-size: 0.85em;
+    line-height: 1.8;
+}
+
+/* Architecture diagram */
+.architecture-diagram {
+    margin-top: 1.5em;
+}
+
+.arch-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    margin-bottom: 1.5em;
+    flex-wrap: nowrap;
+    overflow-x: visible;
+    font-size: 0.85em;
+}
+
+.arch-box {
+    padding: 0.8em 1em;
+    border-radius: 8px;
+    min-width: 110px;
+    max-width: 130px;
+    text-align: center;
+    font-size: 0.75em;
+    border: 2px solid;
+    flex-shrink: 0;
+    line-height: 1.3;
+}
+
+.arch-box.github {
+    background: var(--github-black);
+    border-color: #fff;
+}
+
+.arch-box.ci {
+    background: #2088ff;
+    border-color: #fff;
+}
+
+.arch-box.artifacts {
+    background: #6b46c1;
+    border-color: #fff;
+}
+
+.arch-box.harness {
+    background: var(--harness-blue);
+    border-color: #fff;
+}
+
+.arch-box.aws {
+    background: var(--aws-orange);
+    border-color: #fff;
+    color: #000;
+}
+
+.arch-arrow {
+    font-size: 1.5em;
+    color: var(--harness-blue);
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.arch-support {
+    display: flex;
+    gap: 1.5em;
+    justify-content: center;
+    margin-top: 1.5em;
+    flex-wrap: wrap;
+}
+
+.support-item {
+    padding: 0.7em 1.2em;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    font-size: 0.8em;
+}
+
+/* Technology stack */
+.tech-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5em;
+    margin-top: 2em;
+}
+
+.tech-category h3 {
+    font-size: 1.1em;
+    margin-bottom: 0.8em;
+    color: var(--harness-blue);
+}
+
+.tech-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+}
+
+.tech-badge {
+    padding: 0.4em 0.8em;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.tech-badge.github {
+    background: var(--github-black);
+}
+
+.tech-badge.harness {
+    background: var(--harness-blue);
+}
+
+.tech-badge.liquibase {
+    background: var(--liquibase-blue);
+}
+
+.tech-badge.postgres {
+    background: #336791;
+}
+
+.tech-badge.python {
+    background: #3776ab;
+}
+
+.tech-badge.docker {
+    background: #2496ed;
+}
+
+.tech-badge.aws {
+    background: var(--aws-orange);
+    color: #000;
+}
+
+.tech-badge.terraform {
+    background: #7b42bc;
+}
+
+/* Environment flow */
+.env-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6em;
+    margin: 2em 0;
+    flex-wrap: nowrap;
+    font-size: 0.9em;
+    overflow-x: visible;
+}
+
+.env-box {
+    padding: 1em 1.2em;
+    border-radius: 8px;
+    min-width: 120px;
+    max-width: 140px;
+    text-align: center;
+    border: 2px solid;
+    flex-shrink: 0;
+}
+
+.env-box.dev {
+    background: rgba(81, 207, 102, 0.2);
+    border-color: var(--success-green);
+}
+
+.env-box.test {
+    background: rgba(32, 136, 255, 0.2);
+    border-color: #2088ff;
+}
+
+.env-box.staging {
+    background: rgba(255, 193, 7, 0.2);
+    border-color: var(--warning-yellow);
+}
+
+.env-box.prod {
+    background: rgba(255, 107, 107, 0.2);
+    border-color: var(--danger-red);
+}
+
+.env-name {
+    font-size: 1em;
+    font-weight: 700;
+    margin-bottom: 0.4em;
+}
+
+.env-trigger {
+    font-size: 0.75em;
+    opacity: 0.8;
+}
+
+.flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 1.5em;
+    color: var(--harness-blue);
+    flex-shrink: 0;
+}
+
+.approval-gate {
+    font-size: 0.35em;
+    background: rgba(255, 193, 7, 0.2);
+    padding: 0.25em 0.5em;
+    border-radius: 3px;
+    margin-bottom: 0.2em;
+    white-space: nowrap;
+}
+
+.highlight {
+    color: var(--harness-blue);
+    font-weight: 600;
+    font-size: 1.1em;
+}
+
+/* IAC grid */
+.feature-highlight {
+    margin-top: 1em;
+}
+
+.iac-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2em;
+    margin-top: 1.5em;
+    text-align: left;
+}
+
+.iac-category strong {
+    color: var(--harness-blue);
+    font-size: 1.1em;
+    display: block;
+    margin-bottom: 0.5em;
+}
+
+.iac-category ul {
+    font-size: 0.85em;
+    line-height: 1.8;
+}
+
+.benefit {
+    margin-top: 2em;
+    padding: 1em;
+    background: rgba(0, 173, 228, 0.1);
+    border-left: 4px solid var(--harness-blue);
+    border-radius: 4px;
+    font-size: 0.95em;
+}
+
+/* Workflow steps */
+.workflow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1em;
+    margin-bottom: 1em;
+    text-align: left;
+}
+
+.step-number {
+    background: var(--harness-blue);
+    color: #fff;
+    width: 1.8em;
+    height: 1.8em;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+    font-size: 0.9em;
+}
+
+.step-content h3 {
+    margin: 0 0 0.4em 0;
+    font-size: 0.9em;
+}
+
+.step-content pre {
+    margin: 0;
+    font-size: 0.65em;
+}
+
+.step-content p {
+    font-size: 0.85em;
+    margin: 0.3em 0;
+}
+
+/* Validation flow */
+.validation-flow {
+    margin-top: 1em;
+}
+
+.checks-list {
+    margin: 1em 0;
+}
+
+.check-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    justify-content: center;
+    margin-bottom: 1em;
+}
+
+.check-item.blocker {
+    padding: 0.6em;
+    background: rgba(255, 107, 107, 0.2);
+    border: 2px solid var(--danger-red);
+    border-radius: 8px;
+    font-size: 1em;
+}
+
+.check-icon {
+    font-size: 1.3em;
+}
+
+.check-examples {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6em;
+    margin-top: 1em;
+}
+
+.check-example {
+    padding: 0.5em;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    font-size: 0.75em;
+}
+
+.validation-result {
+    display: flex;
+    gap: 1em;
+    justify-content: center;
+    margin-top: 1.5em;
+}
+
+.result-box {
+    padding: 0.8em 1.5em;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.85em;
+}
+
+.result-box.success {
+    background: rgba(81, 207, 102, 0.2);
+    border: 2px solid var(--success-green);
+}
+
+.result-box.failure {
+    background: rgba(255, 107, 107, 0.2);
+    border: 2px solid var(--danger-red);
+}
+
+/* Pipeline parallel */
+.pipeline-parallel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2em;
+    margin-top: 2em;
+    text-align: left;
+}
+
+.pipeline-branch h3 {
+    color: var(--harness-blue);
+    margin-bottom: 1em;
+}
+
+.pipeline-branch ol {
+    font-size: 0.85em;
+    line-height: 1.8;
+}
+
+.pipeline-trigger {
+    margin-top: 2em;
+    text-align: center;
+}
+
+/* Deployment steps */
+.deployment-steps {
+    margin-top: 2em;
+}
+
+.deploy-step {
+    display: flex;
+    align-items: center;
+    gap: 1.5em;
+    padding: 1em;
+    margin-bottom: 1em;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    text-align: left;
+}
+
+.step-icon {
+    font-size: 2em;
+    flex-shrink: 0;
+}
+
+.step-detail strong {
+    color: var(--harness-blue);
+    display: block;
+    margin-bottom: 0.3em;
+}
+
+.step-detail p {
+    margin: 0.2em 0;
+    font-size: 0.85em;
+}
+
+.tech-note {
+    font-size: 0.75em;
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.duration {
+    text-align: center;
+    margin-top: 2em;
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+/* Promotion control */
+.promotion-control {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2em;
+    margin-top: 2em;
+    text-align: left;
+}
+
+.promotion-feature h3 {
+    color: var(--harness-blue);
+    margin-bottom: 1em;
+}
+
+.promotion-feature ul {
+    font-size: 0.85em;
+    line-height: 1.8;
+}
+
+.promotion-benefit {
+    margin-top: 2em;
+    text-align: center;
+}
+
+/* Policy details */
+.policy-details {
+    margin-top: 1em;
+}
+
+.policy-header {
+    margin-bottom: 2em;
+}
+
+.policy-header p {
+    font-size: 0.85em;
+    opacity: 0.8;
+    margin-top: 0.5em;
+}
+
+.policy-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5em;
+    text-align: left;
+}
+
+.policy-category {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1em;
+    border-radius: 8px;
+}
+
+.policy-category strong {
+    color: var(--harness-blue);
+    display: block;
+    margin-bottom: 0.8em;
+}
+
+.policy-category ul {
+    font-size: 0.8em;
+    line-height: 1.6;
+}
+
+/* Flow structure */
+.flow-structure {
+    margin-top: 1em;
+}
+
+.flow-stages {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1em;
+    margin-top: 2em;
+}
+
+.flow-stage {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1em;
+    border-radius: 8px;
+    border: 2px solid var(--harness-blue);
+}
+
+.stage-name {
+    color: var(--harness-blue);
+    font-weight: 700;
+    margin-bottom: 1em;
+    text-align: center;
+}
+
+.stage-actions p {
+    font-size: 0.75em;
+    margin: 0.4em 0;
+    text-align: left;
+}
+
+/* AWS services */
+.aws-services {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5em;
+    margin-top: 2em;
+    text-align: left;
+}
+
+.aws-service {
+    background: rgba(255, 153, 0, 0.1);
+    padding: 1em;
+    border-radius: 8px;
+    border: 2px solid var(--aws-orange);
+}
+
+.aws-service h3 {
+    color: var(--aws-orange);
+    margin-bottom: 0.8em;
+}
+
+.aws-service ul {
+    font-size: 0.85em;
+    line-height: 1.6;
+}
+
+/* Terraform benefit */
+.terraform-benefit {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2em;
+    margin-top: 2em;
+    text-align: left;
+}
+
+.traditional, .automated {
+    padding: 1em;
+    border-radius: 8px;
+}
+
+.traditional {
+    background: rgba(255, 107, 107, 0.1);
+    border: 2px solid var(--danger-red);
+}
+
+.automated {
+    background: rgba(81, 207, 102, 0.1);
+    border: 2px solid var(--success-green);
+}
+
+.traditional h3, .automated h3 {
+    margin-bottom: 1em;
+}
+
+.traditional ol, .automated ol {
+    font-size: 0.85em;
+    line-height: 1.8;
+}
+
+.code-example {
+    margin-top: 2em;
+}
+
+.code-example pre {
+    font-size: 0.7em;
+}
+
+/* Multi-instance */
+.multi-instance {
+    margin-top: 1em;
+}
+
+.multi-instance h3 {
+    margin-bottom: 1.5em;
+}
+
+.multi-instance code {
+    color: var(--harness-blue);
+    font-weight: 700;
+}
+
+.instance-examples {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2em;
+    margin-top: 2em;
+    text-align: left;
+}
+
+.instance {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1em;
+    border-radius: 8px;
+}
+
+.instance strong {
+    color: var(--harness-blue);
+    display: block;
+    margin-bottom: 0.8em;
+}
+
+.instance ul {
+    font-size: 0.8em;
+    line-height: 1.6;
+}
+
+.benefit-list {
+    margin-top: 2em;
+    text-align: left;
+}
+
+.benefit-list ul {
+    font-size: 0.9em;
+    line-height: 1.8;
+}
+
+/* Value grid */
+.value-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5em;
+    margin-top: 2em;
+}
+
+.value-item {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1.5em;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.value-icon {
+    font-size: 3em;
+    margin-bottom: 0.5em;
+}
+
+.value-item h3 {
+    color: var(--harness-blue);
+    margin-bottom: 0.8em;
+    font-size: 1.1em;
+}
+
+.value-item p {
+    font-size: 0.8em;
+    line-height: 1.6;
+}
+
+/* System diagram */
+.system-diagram {
+    margin-top: 2em;
+}
+
+.system-layer {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1em;
+    margin-bottom: 1em;
+    border-radius: 8px;
+    border-left: 4px solid var(--harness-blue);
+}
+
+.layer-title {
+    color: var(--harness-blue);
+    font-weight: 700;
+    margin-bottom: 0.5em;
+    font-size: 1em;
+}
+
+.layer-content {
+    font-size: 0.85em;
+    line-height: 1.6;
+}
+
+/* Next steps */
+.next-steps {
+    margin-top: 2em;
+    text-align: left;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.next-steps ul {
+    font-size: 0.9em;
+    line-height: 2;
+}
+
+.next-steps code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.2em 0.5em;
+    border-radius: 3px;
+}
+
+/* Code blocks */
+.reveal pre {
+    width: 100%;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.reveal code {
+    font-family: 'Fira Code', 'Monaco', 'Courier New', monospace;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .tech-grid,
+    .pipeline-parallel,
+    .promotion-control,
+    .policy-grid,
+    .aws-services,
+    .terraform-benefit,
+    .instance-examples,
+    .value-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .flow-stages {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .check-examples {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

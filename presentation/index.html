@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coordinated Database + Application Deployments with Harness CD</title>
+
+    <!-- Reveal.js core CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/reset.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/theme/black.css">
+
+    <!-- Syntax highlighting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/plugin/highlight/monokai.css">
+
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="assets/css/custom.css">
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- Slide 1: Title -->
+            <section data-background-gradient="linear-gradient(to bottom, #1a1a1a, #2d2d2d)">
+                <h1 class="title-main">Coordinated Database + Application Deployments</h1>
+                <h3 class="title-sub">with Harness CD, GitHub Actions & Liquibase</h3>
+                <p style="margin-top: 3em; font-size: 0.8em; opacity: 0.7;">
+                    Demo: Bagel Store Ordering Application
+                </p>
+                <aside class="notes">
+                    Welcome! Today we'll demonstrate a complete CI/CD solution that coordinates database
+                    and application deployments across multiple environments using modern DevOps practices.
+                </aside>
+            </section>
+
+            <!-- Slide 2: The Challenge -->
+            <section>
+                <h2>The Challenge</h2>
+                <div class="two-column">
+                    <div>
+                        <h3 style="color: #ff6b6b;">❌ Traditional Approach</h3>
+                        <ul>
+                            <li>Database and app deployed separately</li>
+                            <li>Manual coordination required</li>
+                            <li>No automated governance</li>
+                            <li>Risky changes slip through</li>
+                            <li>Version mismatches common</li>
+                            <li>Limited audit trail</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 style="color: #51cf66;">✅ Our Solution</h3>
+                        <ul>
+                            <li>Coordinated deployments</li>
+                            <li>Automated orchestration</li>
+                            <li>Policy checks enforce governance</li>
+                            <li>Prevent risky changes</li>
+                            <li>Versioned together</li>
+                            <li>Complete audit trail</li>
+                        </ul>
+                    </div>
+                </div>
+                <aside class="notes">
+                    Traditional deployments often have DB and app changes released separately, leading to
+                    version mismatches and manual coordination. Our solution treats them as a unit.
+                </aside>
+            </section>
+
+            <!-- Slide 3: High-Level Architecture -->
+            <section>
+                <h2>Solution Architecture</h2>
+                <div class="architecture-diagram">
+                    <div class="arch-flow">
+                        <div class="arch-box github">
+                            <strong>GitHub</strong><br>
+                            Source Control
+                        </div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-box ci">
+                            <strong>GitHub Actions</strong><br>
+                            CI Pipeline
+                        </div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-box artifacts">
+                            <strong>Artifacts</strong><br>
+                            Docker + Changelog
+                        </div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-box harness">
+                            <strong>Harness CD</strong><br>
+                            Orchestration
+                        </div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-box aws">
+                            <strong>AWS</strong><br>
+                            RDS + App Runner
+                        </div>
+                    </div>
+                    <div class="arch-support">
+                        <div class="support-item">
+                            <strong>Liquibase</strong> - Database Change Management + Policy Checks
+                        </div>
+                        <div class="support-item">
+                            <strong>Terraform</strong> - Infrastructure as Code (AWS + Harness)
+                        </div>
+                    </div>
+                </div>
+                <aside class="notes">
+                    End-to-end flow: Developer commits to GitHub, Actions builds artifacts, Harness
+                    orchestrates deployment to AWS. Liquibase manages DB changes, Terraform manages infrastructure.
+                </aside>
+            </section>
+
+            <!-- Slide 4: Technology Stack -->
+            <section>
+                <h2>Technology Stack</h2>
+                <div class="tech-grid">
+                    <div class="tech-category">
+                        <h3>Source & CI/CD</h3>
+                        <div class="tech-items">
+                            <span class="tech-badge github">GitHub Actions</span>
+                            <span class="tech-badge harness">Harness CD</span>
+                        </div>
+                    </div>
+                    <div class="tech-category">
+                        <h3>Database</h3>
+                        <div class="tech-items">
+                            <span class="tech-badge liquibase">Liquibase Secure 5.0.1</span>
+                            <span class="tech-badge postgres">PostgreSQL</span>
+                        </div>
+                    </div>
+                    <div class="tech-category">
+                        <h3>Application</h3>
+                        <div class="tech-items">
+                            <span class="tech-badge python">Python Flask</span>
+                            <span class="tech-badge docker">Docker</span>
+                        </div>
+                    </div>
+                    <div class="tech-category">
+                        <h3>Cloud & Infrastructure</h3>
+                        <div class="tech-items">
+                            <span class="tech-badge aws">AWS RDS</span>
+                            <span class="tech-badge aws">App Runner</span>
+                            <span class="tech-badge aws">S3</span>
+                            <span class="tech-badge aws">Secrets Manager</span>
+                            <span class="tech-badge terraform">Terraform</span>
+                        </div>
+                    </div>
+                </div>
+                <aside class="notes">
+                    Modern stack leveraging industry-standard tools. Liquibase for DB changes,
+                    Harness for orchestration, AWS for infrastructure, all managed via Terraform.
+                </aside>
+            </section>
+
+            <!-- Slide 5: Four Environment Promotion -->
+            <section>
+                <h2>Environment Promotion Flow</h2>
+                <div class="env-flow">
+                    <div class="env-box dev">
+                        <div class="env-name">Development</div>
+                        <div class="env-trigger">✅ Automatic</div>
+                    </div>
+                    <div class="flow-arrow">
+                        <div class="approval-gate">⏸️ Manual Approval</div>
+                        →
+                    </div>
+                    <div class="env-box test">
+                        <div class="env-name">Test</div>
+                        <div class="env-trigger">👤 Approved</div>
+                    </div>
+                    <div class="flow-arrow">
+                        <div class="approval-gate">⏸️ Manual Approval</div>
+                        →
+                    </div>
+                    <div class="env-box staging">
+                        <div class="env-name">Staging</div>
+                        <div class="env-trigger">👤 Approved</div>
+                    </div>
+                    <div class="flow-arrow">
+                        <div class="approval-gate">⏸️ Manual Approval</div>
+                        →
+                    </div>
+                    <div class="env-box prod">
+                        <div class="env-name">Production</div>
+                        <div class="env-trigger">👤 Approved</div>
+                    </div>
+                </div>
+                <div style="margin-top: 2em;">
+                    <p class="highlight">✨ Same versioned artifacts promoted through all environments</p>
+                    <p>Each environment has its own database and application instance</p>
+                </div>
+                <aside class="notes">
+                    Dev deploys automatically on merge. Test, Staging, and Prod require manual approval for safety.
+                    Same Docker image and changelog zip promoted through all environments - no rebuilding.
+                </aside>
+            </section>
+
+            <!-- Slide 6: Infrastructure as Code -->
+            <section>
+                <h2>Infrastructure as Code</h2>
+                <div class="feature-highlight">
+                    <h3>Single Terraform Apply Creates Everything:</h3>
+                    <div class="iac-grid">
+                        <div class="iac-category">
+                            <strong>AWS Resources</strong>
+                            <ul>
+                                <li>RDS PostgreSQL (4 databases)</li>
+                                <li>App Runner (4 services)</li>
+                                <li>S3 buckets (flows + reports)</li>
+                                <li>Secrets Manager</li>
+                                <li>Route53 DNS (optional)</li>
+                            </ul>
+                        </div>
+                        <div class="iac-category">
+                            <strong>Harness Resources</strong>
+                            <ul>
+                                <li>4 Environments with variables</li>
+                                <li>Connectors (GitHub, AWS)</li>
+                                <li>Secrets (credentials, license)</li>
+                                <li>Service definition</li>
+                                <li>Pipeline registration</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <p class="benefit">
+                    ✨ <strong>Zero Manual Configuration:</strong> Infrastructure auto-syncs to Harness via Terraform Provider
+                </p>
+                <aside class="notes">
+                    Using Harness Terraform Provider eliminates manual copy-paste of infrastructure values.
+                    Run terraform apply once, everything is configured correctly.
+                </aside>
+            </section>
+
+            <!-- Slide 7: Developer Experience -->
+            <section>
+                <h2>Developer Workflow: Creating a Database Change</h2>
+                <div class="workflow-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Create Feature Branch</h3>
+                        <pre><code class="bash">git checkout -b feature/add-new-bagel-type</code></pre>
+                    </div>
+                </div>
+                <div class="workflow-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Create Liquibase Changeset (Formatted SQL)</h3>
+                        <pre><code class="sql">--liquibase formatted sql
+--changeset developer:008-add-sesame-bagel
+
+INSERT INTO products (name, description, price)
+VALUES ('Sesame', 'Classic topped with sesame seeds', 2.75);
+
+--rollback DELETE FROM products WHERE name = 'Sesame';</code></pre>
+                    </div>
+                </div>
+                <div class="workflow-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Create Pull Request</h3>
+                        <p>Automated validation begins immediately...</p>
+                    </div>
+                </div>
+                <aside class="notes">
+                    Simple developer workflow: create branch, add changeset with rollback, submit PR.
+                    All formatted SQL with clear rollback statements.
+                </aside>
+            </section>
+
+            <!-- Slide 8: Pull Request Validation -->
+            <section>
+                <h2>Automated PR Validation</h2>
+                <div class="validation-flow">
+                    <h3>GitHub Actions Runs Policy Checks:</h3>
+                    <div class="checks-list">
+                        <div class="check-item blocker">
+                            <span class="check-icon">🛡️</span>
+                            <strong>12 BLOCKER-Level Checks</strong>
+                        </div>
+                        <div class="check-examples">
+                            <div class="check-example">✓ Prevent DROP TABLE/COLUMN</div>
+                            <div class="check-example">✓ Prevent TRUNCATE operations</div>
+                            <div class="check-example">✓ Require rollback capability</div>
+                            <div class="check-example">✓ Detect risky GRANT/REVOKE</div>
+                            <div class="check-example">✓ Enforce table column limits</div>
+                            <div class="check-example">✓ Check for proper indexes</div>
+                        </div>
+                    </div>
+                    <div class="validation-result">
+                        <div class="result-box success">
+                            ✅ All checks passed → PR can be merged
+                        </div>
+                        <div class="result-box failure">
+                            ❌ BLOCKER violation found → PR blocked until fixed
+                        </div>
+                    </div>
+                </div>
+                <aside class="notes">
+                    Policy checks run before merge, blocking risky changes. All checks set to BLOCKER severity.
+                    Reports uploaded to S3 and GitHub Actions for review.
+                </aside>
+            </section>
+
+            <!-- Slide 9: CI/CD Pipeline -->
+            <section>
+                <h2>Main Branch CI: Parallel Build</h2>
+                <div class="pipeline-parallel">
+                    <div class="pipeline-branch">
+                        <h3>Database Workflow</h3>
+                        <ol>
+                            <li>Validate changelog</li>
+                            <li>Run policy checks</li>
+                            <li>Create changelog.tar.gz</li>
+                            <li>Upload to GitHub Packages</li>
+                            <li>Upload reports to S3</li>
+                        </ol>
+                    </div>
+                    <div class="pipeline-branch">
+                        <h3>Application Workflow</h3>
+                        <ol>
+                            <li>Extract version from git tag</li>
+                            <li>Build Docker image</li>
+                            <li>Tag with version</li>
+                            <li>Push to ghcr.io (public)</li>
+                            <li>Tag as 'latest'</li>
+                        </ol>
+                    </div>
+                </div>
+                <div class="pipeline-trigger">
+                    <h3>↓</h3>
+                    <p class="highlight">Both jobs complete → Trigger Harness webhook</p>
+                </div>
+                <aside class="notes">
+                    Parallel builds for speed. Database and application artifacts created simultaneously.
+                    Both artifacts tagged with same version for coordinated deployment.
+                </aside>
+            </section>
+
+            <!-- Slide 10: Automatic Dev Deployment -->
+            <section>
+                <h2>Harness Deploys to Dev Automatically</h2>
+                <div class="deployment-steps">
+                    <div class="deploy-step">
+                        <span class="step-icon">📦</span>
+                        <div class="step-detail">
+                            <strong>Step 1: Fetch Changelog</strong>
+                            <p>Download changelog.tar.gz from GitHub Packages</p>
+                        </div>
+                    </div>
+                    <div class="deploy-step">
+                        <span class="step-icon">🗄️</span>
+                        <div class="step-detail">
+                            <strong>Step 2: Update Database</strong>
+                            <p>Liquibase update via Docker container</p>
+                            <p class="tech-note">Credentials from AWS Secrets Manager</p>
+                        </div>
+                    </div>
+                    <div class="deploy-step">
+                        <span class="step-icon">🚀</span>
+                        <div class="step-detail">
+                            <strong>Step 3: Deploy Application</strong>
+                            <p>Update App Runner service with new Docker image</p>
+                        </div>
+                    </div>
+                    <div class="deploy-step">
+                        <span class="step-icon">✅</span>
+                        <div class="step-detail">
+                            <strong>Step 4: Health Check</strong>
+                            <p>Verify /health and /version endpoints</p>
+                        </div>
+                    </div>
+                </div>
+                <p class="duration">⏱️ Typical duration: 5-10 minutes</p>
+                <aside class="notes">
+                    Coordinated deployment: database updated first, then application. Health checks ensure
+                    deployment success. All automatic after merge to main.
+                </aside>
+            </section>
+
+            <!-- Slide 11: Manual Promotion Gates -->
+            <section>
+                <h2>Controlled Promotion to Higher Environments</h2>
+                <div class="promotion-control">
+                    <div class="promotion-feature">
+                        <h3>🛡️ Safety Controls</h3>
+                        <ul>
+                            <li>Manual approval required for Test, Staging, Prod</li>
+                            <li>Approval messages show version + demo ID</li>
+                            <li>Complete audit trail of who approved when</li>
+                            <li>Production has extra warning message</li>
+                        </ul>
+                    </div>
+                    <div class="promotion-feature">
+                        <h3>📊 Visibility</h3>
+                        <ul>
+                            <li>Real-time deployment status in Harness UI</li>
+                            <li>Step-by-step execution logs</li>
+                            <li>Deployment history for all environments</li>
+                            <li>Version tracking across environments</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="promotion-benefit">
+                    <p class="highlight">✨ Same artifacts promoted through all environments - no rebuilding</p>
+                </div>
+                <aside class="notes">
+                    Manual gates prevent accidental production deployments. Full audit trail for compliance.
+                    Presenter controls promotion timing during demos.
+                </aside>
+            </section>
+
+            <!-- Slide 12: Liquibase Policy Checks -->
+            <section>
+                <h2>Governance with Liquibase Policy Checks</h2>
+                <div class="policy-details">
+                    <div class="policy-header">
+                        <h3>12 Checks Configured at BLOCKER Severity</h3>
+                        <p>Exit code 4 = Pipeline fails, PR cannot merge</p>
+                    </div>
+                    <div class="policy-grid">
+                        <div class="policy-category">
+                            <strong>Destructive Operations</strong>
+                            <ul>
+                                <li>ChangeDropTableWarn</li>
+                                <li>ChangeDropColumnWarn</li>
+                                <li>ChangeTruncateTableWarn</li>
+                            </ul>
+                        </div>
+                        <div class="policy-category">
+                            <strong>Safety Requirements</strong>
+                            <ul>
+                                <li>RollbackRequired</li>
+                                <li>ModifyDataTypeWarn</li>
+                                <li>CheckTablesForIndex</li>
+                            </ul>
+                        </div>
+                        <div class="policy-category">
+                            <strong>Security & Permissions</strong>
+                            <ul>
+                                <li>SqlGrantWarn</li>
+                                <li>SqlGrantOptionWarn</li>
+                                <li>SqlGrantAdminWarn</li>
+                                <li>SqlRevokeWarn</li>
+                            </ul>
+                        </div>
+                        <div class="policy-category">
+                            <strong>Best Practices</strong>
+                            <ul>
+                                <li>SqlSelectStarWarn</li>
+                                <li>TableColumnLimit (50 max)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <aside class="notes">
+                    Policy checks enforce database governance automatically. Prevent common mistakes and risky changes.
+                    Configuration stored in S3, referenced by all workflows.
+                </aside>
+            </section>
+
+            <!-- Slide 13: Liquibase Flows -->
+            <section>
+                <h2>Liquibase Flow Automation</h2>
+                <div class="flow-structure">
+                    <h3>Structured Stages for Consistency</h3>
+                    <div class="flow-stages">
+                        <div class="flow-stage">
+                            <div class="stage-name">1. Verify</div>
+                            <div class="stage-actions">
+                                <p>• Test database connection</p>
+                                <p>• Validate changelog syntax</p>
+                                <p>• Check changeset status</p>
+                            </div>
+                        </div>
+                        <div class="flow-stage">
+                            <div class="stage-name">2. PolicyChecks</div>
+                            <div class="stage-actions">
+                                <p>• Run all 12 checks</p>
+                                <p>• Generate HTML report</p>
+                                <p>• Fail on BLOCKER violations</p>
+                            </div>
+                        </div>
+                        <div class="flow-stage">
+                            <div class="stage-name">3. Deploy/Build</div>
+                            <div class="stage-actions">
+                                <p>• Execute database update</p>
+                                <p>• OR create artifact (CI)</p>
+                                <p>• Apply changesets</p>
+                            </div>
+                        </div>
+                        <div class="flow-stage">
+                            <div class="stage-name">4. EndStage</div>
+                            <div class="stage-actions">
+                                <p>• Summary reporting</p>
+                                <p>• Upload operation reports</p>
+                                <p>• Cleanup actions</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <p class="tech-note">Flow files stored in S3, referenced by all workflows</p>
+                <aside class="notes">
+                    Flow files provide structured automation. Same pattern used in PR validation and deployments.
+                    Operation reports provide complete audit trail.
+                </aside>
+            </section>
+
+            <!-- Slide 14: AWS Integration -->
+            <section>
+                <h2>AWS Services Integration</h2>
+                <div class="aws-services">
+                    <div class="aws-service">
+                        <h3>🗄️ RDS PostgreSQL</h3>
+                        <ul>
+                            <li>Single instance, 4 databases</li>
+                            <li>dev, test, staging, prod</li>
+                            <li>Credentials in Secrets Manager</li>
+                        </ul>
+                    </div>
+                    <div class="aws-service">
+                        <h3>🚀 App Runner</h3>
+                        <ul>
+                            <li>4 services (one per environment)</li>
+                            <li>Public Docker images from ghcr.io</li>
+                            <li>Fixed instance count (cost control)</li>
+                        </ul>
+                    </div>
+                    <div class="aws-service">
+                        <h3>🔐 Secrets Manager</h3>
+                        <ul>
+                            <li>Database credentials</li>
+                            <li>Native Liquibase integration</li>
+                            <li>No hardcoded passwords</li>
+                        </ul>
+                    </div>
+                    <div class="aws-service">
+                        <h3>☁️ S3</h3>
+                        <ul>
+                            <li>Flow files (public bucket)</li>
+                            <li>Operation reports (private)</li>
+                            <li>Organized by run number</li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="tech-note">All managed via Terraform with <code>demo_id</code> tagging</p>
+                <aside class="notes">
+                    Complete AWS integration. Secrets Manager for credentials, S3 for artifacts and reports,
+                    RDS for database, App Runner for containerized app hosting.
+                </aside>
+            </section>
+
+            <!-- Slide 15: Harness Terraform Provider -->
+            <section>
+                <h2>Zero-Config Deployments</h2>
+                <div class="terraform-benefit">
+                    <div class="traditional">
+                        <h3 style="color: #ff6b6b;">❌ Traditional Approach</h3>
+                        <ol>
+                            <li>Run Terraform → Create AWS infrastructure</li>
+                            <li>Manually create Harness environments</li>
+                            <li>Copy/paste 14 values per environment</li>
+                            <li>Risk of typos and stale values</li>
+                            <li>Repeat for every demo instance</li>
+                        </ol>
+                    </div>
+                    <div class="automated">
+                        <h3 style="color: #51cf66;">✅ This Demo</h3>
+                        <ol>
+                            <li>Run Terraform → Creates EVERYTHING</li>
+                            <li>Harness environments auto-created</li>
+                            <li>Infrastructure values auto-populated</li>
+                            <li>Pipeline references via variables</li>
+                            <li>One command, fully configured</li>
+                        </ol>
+                    </div>
+                </div>
+                <div class="code-example">
+                    <pre><code class="hcl"># Pipeline references environment variables
+--url=&lt;+env.variables.jdbc_url&gt;
+--service-arn &lt;+env.variables.app_runner_service_arn&gt;</code></pre>
+                </div>
+                <p class="highlight">✨ Single source of truth - infrastructure changes automatically sync</p>
+                <aside class="notes">
+                    Game-changer: Harness Terraform Provider eliminates all manual configuration.
+                    Infrastructure and Harness environments stay in sync automatically.
+                </aside>
+            </section>
+
+            <!-- Slide 16: Multi-Instance Support -->
+            <section>
+                <h2>Multi-Instance Demo Support</h2>
+                <div class="multi-instance">
+                    <h3>Every resource tagged with <code>demo_id</code></h3>
+                    <div class="instance-examples">
+                        <div class="instance">
+                            <strong>demo_id: "demo1"</strong>
+                            <ul>
+                                <li>bagel-store-demo1-rds</li>
+                                <li>bagel-store-demo1-dev</li>
+                                <li>bagel-store-demo1-liquibase-flows</li>
+                                <li>dev-demo1.example.com</li>
+                            </ul>
+                        </div>
+                        <div class="instance">
+                            <strong>demo_id: "customer-abc"</strong>
+                            <ul>
+                                <li>bagel-store-customer-abc-rds</li>
+                                <li>bagel-store-customer-abc-dev</li>
+                                <li>bagel-store-customer-abc-liquibase-flows</li>
+                                <li>dev-customer-abc.example.com</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="benefit-list">
+                    <h3>Benefits:</h3>
+                    <ul>
+                        <li>✅ Run multiple concurrent demos without conflicts</li>
+                        <li>✅ Each demo is completely isolated</li>
+                        <li>✅ Easy cleanup with <code>terraform destroy</code></li>
+                        <li>✅ Same codebase, different instances</li>
+                    </ul>
+                </div>
+                <aside class="notes">
+                    Every AWS and Harness resource includes demo_id in name and tags. Enables multiple
+                    concurrent demos from same codebase. Perfect for customer evaluations.
+                </aside>
+            </section>
+
+            <!-- Slide 17: Business Value -->
+            <section>
+                <h2>Business Value & Benefits</h2>
+                <div class="value-grid">
+                    <div class="value-item">
+                        <div class="value-icon">🛡️</div>
+                        <h3>Safety</h3>
+                        <p>Policy checks prevent risky changes before merge. Manual approval gates for production.</p>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-icon">⚡</div>
+                        <h3>Speed</h3>
+                        <p>Automated pipelines reduce deployment time. Parallel builds maximize efficiency.</p>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-icon">📋</div>
+                        <h3>Compliance</h3>
+                        <p>Complete audit trail. Policy enforcement at PR stage. Versioned deployments.</p>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-icon">🔄</div>
+                        <h3>Consistency</h3>
+                        <p>Same artifacts promoted through all environments. Infrastructure as Code.</p>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-icon">👨‍💻</div>
+                        <h3>Developer Experience</h3>
+                        <p>Simple workflow. Fast feedback. Automated validation. Self-service deployments.</p>
+                    </div>
+                    <div class="value-item">
+                        <div class="value-icon">💰</div>
+                        <h3>Cost Efficiency</h3>
+                        <p>Infrastructure as Code. Multi-instance support. Easy cleanup. No manual overhead.</p>
+                    </div>
+                </div>
+                <aside class="notes">
+                    Business value across multiple dimensions. Safety through automation, speed through parallelization,
+                    compliance through audit trails, consistency through IaC.
+                </aside>
+            </section>
+
+            <!-- Slide 18: Complete System Diagram -->
+            <section>
+                <h2>Complete Architecture</h2>
+                <div class="system-diagram">
+                    <div class="system-layer">
+                        <div class="layer-title">Developer Workflow</div>
+                        <div class="layer-content">
+                            Create PR → Policy Checks → Merge → Auto-deploy Dev → Manual Promotion
+                        </div>
+                    </div>
+                    <div class="system-layer">
+                        <div class="layer-title">CI/CD Pipeline</div>
+                        <div class="layer-content">
+                            GitHub Actions (PR validation, Test deployment, Main CI) → Harness CD (4-stage deployment)
+                        </div>
+                    </div>
+                    <div class="system-layer">
+                        <div class="layer-title">Artifacts & Storage</div>
+                        <div class="layer-content">
+                            Docker Images (ghcr.io) | Changelog Artifacts (GitHub Packages) | Flow Files (S3) | Reports (S3)
+                        </div>
+                    </div>
+                    <div class="system-layer">
+                        <div class="layer-title">AWS Infrastructure</div>
+                        <div class="layer-content">
+                            RDS PostgreSQL | App Runner (4 services) | Secrets Manager | Route53 DNS
+                        </div>
+                    </div>
+                    <div class="system-layer">
+                        <div class="layer-title">Automation & Governance</div>
+                        <div class="layer-content">
+                            Liquibase Flows | 12 Policy Checks | Terraform (AWS + Harness) | Audit Trail
+                        </div>
+                    </div>
+                </div>
+                <aside class="notes">
+                    Complete system showing all layers from developer workflow to infrastructure.
+                    Everything automated, governed, and auditable.
+                </aside>
+            </section>
+
+            <!-- Slide 19: Questions & Next Steps -->
+            <section data-background-gradient="linear-gradient(to bottom, #1a1a1a, #2d2d2d)">
+                <h2>Questions?</h2>
+                <div class="next-steps">
+                    <h3>Next Steps</h3>
+                    <ul>
+                        <li>🔗 GitHub Repository: <code>harness-gha-bagelstore</code></li>
+                        <li>📖 Complete documentation in repository</li>
+                        <li>🚀 Quick setup: <code>terraform apply</code></li>
+                        <li>🎮 Live demo available</li>
+                    </ul>
+                </div>
+                <div class="contact" style="margin-top: 3em; font-size: 0.9em; opacity: 0.7;">
+                    <p>Demo: Bagel Store Ordering Application</p>
+                    <p>Coordinated Database + Application Deployments</p>
+                </div>
+                <aside class="notes">
+                    Thank you! Questions? Complete working demo available in repository.
+                    Single terraform apply creates everything needed for evaluation.
+                </aside>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- Reveal.js core -->
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/plugin/notes/notes.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/plugin/highlight/highlight.js"></script>
+
+    <script>
+        Reveal.initialize({
+            hash: true,
+            slideNumber: true,
+            transition: 'slide',
+            backgroundTransition: 'fade',
+            center: true,
+            width: 1280,
+            height: 720,
+            margin: 0.04,
+            minScale: 0.2,
+            maxScale: 2.0,
+            plugins: [ RevealNotes, RevealHighlight ]
+        });
+    </script>
+</body>
+</html>

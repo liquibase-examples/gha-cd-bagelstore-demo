@@ -3,6 +3,8 @@
 
 # IAM role for App Runner instance
 resource "aws_iam_role" "apprunner_instance" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   name = "${local.name_prefix}-apprunner-instance-role"
 
   assume_role_policy = jsonencode({
@@ -23,8 +25,10 @@ resource "aws_iam_role" "apprunner_instance" {
 
 # Policy to allow App Runner to access Secrets Manager
 resource "aws_iam_role_policy" "apprunner_secrets" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   name = "${local.name_prefix}-apprunner-secrets-policy"
-  role = aws_iam_role.apprunner_instance.id
+  role = aws_iam_role.apprunner_instance[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -35,8 +39,8 @@ resource "aws_iam_role_policy" "apprunner_secrets" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = [
-          aws_secretsmanager_secret.rds_username.arn,
-          aws_secretsmanager_secret.rds_password.arn
+          aws_secretsmanager_secret.rds_username[0].arn,
+          aws_secretsmanager_secret.rds_password[0].arn
         ]
       }
     ]
@@ -48,7 +52,7 @@ resource "aws_iam_role_policy" "apprunner_secrets" {
 
 # App Runner services for each environment
 resource "aws_apprunner_service" "bagel_store" {
-  for_each = toset(local.environments)
+  for_each = var.deployment_mode == "aws" ? toset(local.environments) : []
 
   service_name = "${local.name_prefix}-${each.key}"
 
@@ -61,17 +65,17 @@ resource "aws_apprunner_service" "bagel_store" {
       image_repository_type = "ECR_PUBLIC"
 
       image_configuration {
-        port = "5000"
+        port = "80"  # NGINX default port
 
         runtime_environment_variables = {
           FLASK_ENV    = each.key
           ENVIRONMENT  = each.key
-          DATABASE_URL = "postgresql://$${SECRETS_MANAGER_ARN_USERNAME}:$${SECRETS_MANAGER_ARN_PASSWORD}@${aws_db_instance.postgres.address}:5432/${each.key}"
+          DATABASE_URL = "postgresql://$${SECRETS_MANAGER_ARN_USERNAME}:$${SECRETS_MANAGER_ARN_PASSWORD}@${aws_db_instance.postgres[0].address}:5432/${each.key}"
         }
 
         runtime_environment_secrets = {
-          SECRETS_MANAGER_ARN_USERNAME = aws_secretsmanager_secret.rds_username.arn
-          SECRETS_MANAGER_ARN_PASSWORD = aws_secretsmanager_secret.rds_password.arn
+          SECRETS_MANAGER_ARN_USERNAME = aws_secretsmanager_secret.rds_username[0].arn
+          SECRETS_MANAGER_ARN_PASSWORD = aws_secretsmanager_secret.rds_password[0].arn
         }
       }
     }
@@ -82,12 +86,12 @@ resource "aws_apprunner_service" "bagel_store" {
   instance_configuration {
     cpu               = var.app_runner_cpu
     memory            = var.app_runner_memory
-    instance_role_arn = aws_iam_role.apprunner_instance.arn
+    instance_role_arn = aws_iam_role.apprunner_instance[0].arn
   }
 
   health_check_configuration {
     protocol            = "HTTP"
-    path                = "/health"
+    path                = "/"  # Use root path for NGINX placeholder (Harness will update to /health)
     interval            = 10
     timeout             = 5
     healthy_threshold   = 1
@@ -95,7 +99,7 @@ resource "aws_apprunner_service" "bagel_store" {
   }
 
   # Fixed instance count (no auto-scaling)
-  auto_scaling_configuration_arn = aws_apprunner_auto_scaling_configuration_version.fixed.arn
+  auto_scaling_configuration_arn = aws_apprunner_auto_scaling_configuration_version.fixed[0].arn
 
   tags = merge(
     local.tags,
@@ -108,6 +112,8 @@ resource "aws_apprunner_service" "bagel_store" {
 
 # Auto-scaling configuration with fixed instance count
 resource "aws_apprunner_auto_scaling_configuration_version" "fixed" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   auto_scaling_configuration_name = "${local.name_prefix}-fixed-scaling"
 
   max_concurrency = 100

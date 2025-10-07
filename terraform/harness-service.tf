@@ -16,12 +16,12 @@ resource "harness_platform_service" "bagel_store" {
   org_id      = var.harness_org_id
   project_id  = var.harness_project_id
 
-  tags = {
-    demo_id    = var.demo_id
-    managed_by = "terraform"
-    app_type   = "flask"
-    db_type    = "postgresql"
-  }
+  tags = [
+    "demo_id:${var.demo_id}",
+    "managed_by:terraform",
+    "app_type:flask",
+    "db_type:postgresql"
+  ]
 
   # YAML configuration for service
   yaml = <<-EOT

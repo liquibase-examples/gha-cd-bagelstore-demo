@@ -15,14 +15,14 @@ resource "harness_platform_connector_github" "github_bagel_store" {
   org_id      = var.harness_org_id
   project_id  = var.harness_project_id
 
-  url                = "https://github.com/${var.github_org}/harness-gha-bagelstore"
+  url                = "https://github.com/${var.github_org}/${var.github_repo}"
   connection_type    = "Repo"
-  validation_repo    = "harness-gha-bagelstore"
+  validation_repo    = var.github_repo
   delegate_selectors = [var.demo_id]
 
   credentials {
     http {
-      username  = var.github_username
+      username  = "git"
       token_ref = harness_platform_secret_text.github_pat.identifier
     }
   }
@@ -31,10 +31,10 @@ resource "harness_platform_connector_github" "github_bagel_store" {
     token_ref = harness_platform_secret_text.github_pat.identifier
   }
 
-  tags = {
-    demo_id    = var.demo_id
-    managed_by = "terraform"
-  }
+  tags = [
+    "demo_id:${var.demo_id}",
+    "managed_by:terraform"
+  ]
 
   depends_on = [
     harness_platform_secret_text.github_pat
@@ -54,12 +54,21 @@ resource "harness_platform_connector_aws" "aws_bagel_store" {
   # This is ideal for demo environments where delegates have IAM roles
   manual {
     delegate_selectors = [var.demo_id]
+    # The secret_key_ref is not needed for delegate-based credentials
+    # But the provider requires it, so we reference the secret anyway
+    access_key         = harness_platform_secret_text.aws_access_key_id.identifier
+    secret_key_ref     = harness_platform_secret_text.aws_secret_access_key.identifier
   }
 
-  tags = {
-    demo_id    = var.demo_id
-    managed_by = "terraform"
-  }
+  tags = [
+    "demo_id:${var.demo_id}",
+    "managed_by:terraform"
+  ]
+
+  depends_on = [
+    harness_platform_secret_text.aws_access_key_id,
+    harness_platform_secret_text.aws_secret_access_key
+  ]
 
   # Note: Using manual mode means the delegate's AWS credentials are used.
   # If you prefer explicit credentials, uncomment below:

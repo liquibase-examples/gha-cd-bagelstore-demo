@@ -1,0 +1,215 @@
+version: '3.8'
+
+# Local Deployment Mode - All 4 Environments
+#
+# This Docker Compose configuration runs all 4 environments (dev, test, staging, prod)
+# locally without requiring AWS infrastructure.
+#
+# Quick Start:
+#   1. cp .env.example .env
+#   2. docker compose -f docker-compose-demo.yml up -d
+#   3. Access environments:
+#      - Dev:     http://localhost:5001
+#      - Test:    http://localhost:5002
+#      - Staging: http://localhost:5003
+#      - Prod:    http://localhost:5004
+#
+# Version Management:
+#   - Versions are controlled via .env file (VERSION_DEV, VERSION_TEST, etc.)
+#   - Harness pipeline updates .env and runs: docker compose up -d --no-deps app-<env>
+#   - State persists across restarts (docker compose down/up)
+#
+# Network:
+#   - All services communicate on 'bagel-network' bridge network
+#   - Liquibase runs via docker run --network harness-gha-bagelstore_bagel-network
+
+networks:
+  bagel-network:
+    driver: bridge
+
+volumes:
+  postgres-dev-data:
+  postgres-test-data:
+  postgres-staging-data:
+  postgres-prod-data:
+
+services:
+  # ===== PostgreSQL Databases (4 environments) =====
+
+  postgres-dev:
+    image: postgres:16
+    container_name: bagel-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bagel-network
+    restart: unless-stopped
+
+  postgres-test:
+    image: postgres:16
+    container_name: bagel-postgres-test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bagel-network
+    restart: unless-stopped
+
+  postgres-staging:
+    image: postgres:16
+    container_name: bagel-postgres-staging
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: staging
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-staging-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bagel-network
+    restart: unless-stopped
+
+  postgres-prod:
+    image: postgres:16
+    container_name: bagel-postgres-prod
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: prod
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-prod-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bagel-network
+    restart: unless-stopped
+
+  # ===== Application Services (4 environments) =====
+
+  app-dev:
+    image: ghcr.io/${GITHUB_ORG:-recampbell}/bagel-store:${VERSION_DEV:-latest}
+    container_name: bagel-app-dev
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres-dev:5432/dev
+      FLASK_ENV: development
+      APP_VERSION: ${VERSION_DEV:-latest}
+      DEMO_USERNAME: ${DEMO_USERNAME:-demo}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-password}
+    ports:
+      - "5001:5000"
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bagel-network
+    restart: unless-stopped
+
+  app-test:
+    image: ghcr.io/${GITHUB_ORG:-recampbell}/bagel-store:${VERSION_TEST:-latest}
+    container_name: bagel-app-test
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres-test:5432/test
+      FLASK_ENV: development
+      APP_VERSION: ${VERSION_TEST:-latest}
+      DEMO_USERNAME: ${DEMO_USERNAME:-demo}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-password}
+    ports:
+      - "5002:5000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bagel-network
+    restart: unless-stopped
+
+  app-staging:
+    image: ghcr.io/${GITHUB_ORG:-recampbell}/bagel-store:${VERSION_STAGING:-latest}
+    container_name: bagel-app-staging
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres-staging:5432/staging
+      FLASK_ENV: production
+      APP_VERSION: ${VERSION_STAGING:-latest}
+      DEMO_USERNAME: ${DEMO_USERNAME:-demo}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-password}
+    ports:
+      - "5003:5000"
+    depends_on:
+      postgres-staging:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bagel-network
+    restart: unless-stopped
+
+  app-prod:
+    image: ghcr.io/${GITHUB_ORG:-recampbell}/bagel-store:${VERSION_PROD:-latest}
+    container_name: bagel-app-prod
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres-prod:5432/prod
+      FLASK_ENV: production
+      APP_VERSION: ${VERSION_PROD:-latest}
+      DEMO_USERNAME: ${DEMO_USERNAME:-demo}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-password}
+    ports:
+      - "5004:5000"
+    depends_on:
+      postgres-prod:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bagel-network
+    restart: unless-stopped

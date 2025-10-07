@@ -125,25 +125,49 @@ pipeline:
 
                           echo "=== Updating Database with Liquibase ==="
                           echo "Environment: <+env.variables.environment>"
-                          echo "RDS Endpoint: <+env.variables.rds_endpoint>"
+                          echo "Deployment Target: ${DEPLOYMENT_TARGET:-aws}"
                           echo "Demo ID: <+env.variables.demo_id>"
 
-                          # Run Liquibase in Docker container
-                          docker run --rm \
-                            -v /tmp/changelog:/liquibase/changelog \
-                            -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
-                            -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                            -e AWS_REGION=<+env.variables.aws_region> \
-                            -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
-                            liquibase/liquibase-secure:5.0.1 \
-                            --url=<+env.variables.jdbc_url> \
-                            --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                            --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                            --changeLogFile=changelog-master.yaml \
-                            --log-level=INFO \
-                            update
+                          # Determine deployment target (default to 'aws' if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
 
-                          echo "Database update completed successfully"
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # ===== AWS MODE =====
+                            echo "Using AWS RDS endpoint: <+env.variables.rds_endpoint>"
+
+                            docker run --rm \
+                              -v /tmp/changelog:/liquibase/changelog \
+                              -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
+                              -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                              -e AWS_REGION=<+env.variables.aws_region> \
+                              -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              liquibase/liquibase-secure:5.0.1 \
+                              --url=<+env.variables.jdbc_url> \
+                              --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                              --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+                              --changeLogFile=changelog-master.yaml \
+                              --log-level=INFO \
+                              update
+
+                          else
+                            # ===== LOCAL MODE =====
+                            echo "Using local PostgreSQL container: postgres-<+env.variables.environment>"
+
+                            # Connect to Docker Compose network
+                            docker run --rm \
+                              --network harness-gha-bagelstore_bagel-network \
+                              -v /tmp/changelog:/liquibase/changelog \
+                              -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              liquibase/liquibase-secure:5.0.1 \
+                              --url=jdbc:postgresql://postgres-<+env.variables.environment>:5432/<+env.variables.environment> \
+                              --username=postgres \
+                              --password=postgres \
+                              --changeLogFile=changelog-master.yaml \
+                              --log-level=INFO \
+                              update
+                          fi
+
+                          echo "✅ Database update completed successfully"
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -163,41 +187,83 @@ pipeline:
                           #!/bin/bash
                           set -e
 
-                          echo "=== Deploying Application to App Runner ==="
+                          echo "=== Deploying Application ==="
                           echo "Environment: <+env.variables.environment>"
-                          echo "Image: ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>"
+                          echo "Version: <+pipeline.variables.VERSION>"
+                          echo "Deployment Target: ${DEPLOYMENT_TARGET:-aws}"
 
-                          # Configure AWS CLI
-                          export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
-                          export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                          export AWS_DEFAULT_REGION=<+env.variables.aws_region>
+                          # Determine deployment target (default to 'aws' if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
 
-                          # App Runner service ARN from environment variables (configured by Terraform)
-                          SERVICE_ARN="<+env.variables.app_runner_service_arn>"
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # ===== AWS MODE =====
+                            echo "Deploying to App Runner"
 
-                          echo "Service ARN: $SERVICE_ARN"
-                          echo "Service Name: <+env.variables.app_runner_service_name>"
+                            export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
+                            export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
+                            export AWS_DEFAULT_REGION=<+env.variables.aws_region>
 
-                          # Update App Runner service with new image
-                          aws apprunner update-service \
-                            --service-arn "$SERVICE_ARN" \
-                            --source-configuration "{
-                              \"ImageRepository\": {
-                                \"ImageIdentifier\": \"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",
-                                \"ImageRepositoryType\": \"ECR_PUBLIC\",
-                                \"ImageConfiguration\": {
-                                  \"Port\": \"5000\",
-                                  \"RuntimeEnvironmentVariables\": {
-                                    \"DATABASE_URL\": \"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@<+env.variables.rds_address>:<+env.variables.rds_port>/<+env.variables.database_name>\",
-                                    \"FLASK_ENV\": \"production\",
-                                    \"APP_VERSION\": \"<+pipeline.variables.VERSION>\"
+                            SERVICE_ARN="<+env.variables.app_runner_service_arn>"
+
+                            aws apprunner update-service \
+                              --service-arn "$SERVICE_ARN" \
+                              --source-configuration "{
+                                \"ImageRepository\": {
+                                  \"ImageIdentifier\": \"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",
+                                  \"ImageRepositoryType\": \"ECR_PUBLIC\",
+                                  \"ImageConfiguration\": {
+                                    \"Port\": \"5000\",
+                                    \"RuntimeEnvironmentVariables\": {
+                                      \"DATABASE_URL\": \"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@<+env.variables.rds_address>:<+env.variables.rds_port>/<+env.variables.database_name>\",
+                                      \"FLASK_ENV\": \"production\",
+                                      \"APP_VERSION\": \"<+pipeline.variables.VERSION>\"
+                                    }
                                   }
                                 }
-                              }
-                            }" \
-                            --region <+env.variables.aws_region>
+                              }" \
+                              --region <+env.variables.aws_region>
 
-                          echo "App Runner service update initiated"
+                          else
+                            # ===== LOCAL MODE =====
+                            echo "Deploying to Docker Compose"
+
+                            # Navigate to repository root
+                            cd $HOME/workspace/harness-gha-bagelstore
+
+                            # Ensure .env file exists
+                            if [ ! -f .env ]; then
+                              echo "Creating .env from template"
+                              cp .env.example .env
+                            fi
+
+                            # Update version in .env file
+                            ENV_UPPER=$(echo "<+env.variables.environment>" | tr '[:lower:]' '[:upper:]')
+                            ENV_VAR="VERSION_${ENV_UPPER}"
+                            NEW_VERSION="<+pipeline.variables.VERSION>"
+
+                            echo "Updating ${ENV_VAR}=${NEW_VERSION} in .env"
+
+                            if grep -q "^${ENV_VAR}=" .env; then
+                              # Update existing line (macOS compatible)
+                              sed -i.bak "s/^${ENV_VAR}=.*/${ENV_VAR}=${NEW_VERSION}/" .env
+                              rm -f .env.bak
+                            else
+                              # Add new line
+                              echo "${ENV_VAR}=${NEW_VERSION}" >> .env
+                            fi
+
+                            # Show current .env state
+                            echo "Current .env configuration:"
+                            grep "^VERSION_" .env || echo "No VERSION variables found"
+
+                            # Pull new image version
+                            docker compose -f docker-compose-demo.yml pull app-<+env.variables.environment>
+
+                            # Restart specific service with new version
+                            docker compose -f docker-compose-demo.yml up -d --no-deps app-<+env.variables.environment>
+                          fi
+
+                          echo "✅ Application deployment completed"
                     environmentVariables: []
                     outputVariables:
                       - name: SERVICE_URL
@@ -221,18 +287,28 @@ pipeline:
                           set -e
 
                           echo "=== Performing Health Check ==="
+                          echo "Deployment Target: ${DEPLOYMENT_TARGET:-aws}"
 
-                          # Get service URL
-                          SERVICE_NAME="bagel-store-<+pipeline.variables.DEMO_ID>-dev"
-                          SERVICE_URL=$(aws apprunner describe-service \
-                            --service-arn $(aws apprunner list-services \
-                              --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" \
-                              --output text) \
-                            --query "Service.ServiceUrl" \
-                            --output text \
-                            --region <+pipeline.variables.AWS_REGION>)
+                          # Determine deployment target (default to 'aws' if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
 
-                          HEALTH_URL="https://$SERVICE_URL/health"
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # ===== AWS MODE =====
+                            SERVICE_URL="<+env.variables.app_runner_service_url>"
+                            HEALTH_URL="https://${SERVICE_URL}/health"
+                            VERSION_URL="https://${SERVICE_URL}/version"
+                          else
+                            # ===== LOCAL MODE =====
+                            case "<+env.variables.environment>" in
+                              dev)     PORT=5001 ;;
+                              test)    PORT=5002 ;;
+                              staging) PORT=5003 ;;
+                              prod)    PORT=5004 ;;
+                            esac
+                            HEALTH_URL="http://localhost:${PORT}/health"
+                            VERSION_URL="http://localhost:${PORT}/version"
+                          fi
+
                           echo "Health check URL: $HEALTH_URL"
 
                           # Wait for service to be ready (max 5 minutes)
@@ -247,9 +323,18 @@ pipeline:
                             if [ "$HTTP_CODE" = "200" ]; then
                               echo "✅ Health check passed!"
 
-                              # Also check version endpoint
-                              VERSION_RESPONSE=$(curl -s "https://$SERVICE_URL/version")
+                              # Verify version
+                              VERSION_RESPONSE=$(curl -s "$VERSION_URL" || echo "{}")
                               echo "Version info: $VERSION_RESPONSE"
+
+                              DEPLOYED_VERSION=$(echo "$VERSION_RESPONSE" | jq -r '.version // "unknown"')
+                              EXPECTED_VERSION="<+pipeline.variables.VERSION>"
+
+                              if [ "$DEPLOYED_VERSION" = "$EXPECTED_VERSION" ]; then
+                                echo "✅ Version verified: $DEPLOYED_VERSION"
+                              else
+                                echo "⚠️  Version mismatch: expected $EXPECTED_VERSION, got $DEPLOYED_VERSION"
+                              fi
 
                               exit 0
                             fi
@@ -358,21 +443,45 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
                           echo "=== Updating Database with Liquibase ==="
                           echo "Environment: test"
-                          docker run --rm \
-                            -v /tmp/changelog:/liquibase/changelog \
-                            -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
-                            -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                            -e AWS_REGION=<+env.variables.aws_region> \
-                            -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
-                            liquibase/liquibase-secure:5.0.1 \
-                            --url=<+env.variables.jdbc_url> \
-                            --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                            --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                            --changeLogFile=changelog-master.yaml \
-                            --log-level=INFO \
-                            update
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Use RDS via Secrets Manager
+                            docker run --rm \
+                              -v /tmp/changelog:/liquibase/changelog \
+                              -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
+                              -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                              -e AWS_REGION=<+env.variables.aws_region> \
+                              -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              liquibase/liquibase-secure:5.0.1 \
+                              --url=<+env.variables.jdbc_url> \
+                              --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                              --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+                              --changeLogFile=changelog-master.yaml \
+                              --log-level=INFO \
+                              update
+                          else
+                            # LOCAL MODE - Use Docker Compose postgres containers
+                            echo "Running Liquibase against local postgres-<+env.variables.environment> container"
+                            docker run --rm \
+                              --network harness-gha-bagelstore_bagel-network \
+                              -v /tmp/changelog:/liquibase/changelog \
+                              -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              liquibase/liquibase-secure:5.0.1 \
+                              --url=jdbc:postgresql://postgres-<+env.variables.environment>:5432/<+env.variables.environment> \
+                              --username=postgres \
+                              --password=postgres \
+                              --changeLogFile=changelog-master.yaml \
+                              --log-level=INFO \
+                              update
+                          fi
+
                           echo "Database update completed successfully"
                     environmentVariables: []
                     outputVariables: []
@@ -391,22 +500,62 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
-                          echo "=== Deploying Application to App Runner ==="
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
+                          echo "=== Deploying Application ==="
                           echo "Environment: test"
-                          export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
-                          export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                          export AWS_DEFAULT_REGION=<+env.variables.aws_region>
-                          SERVICE_ARN="<+env.variables.app_runner_service_arn>"
-                          # Extract host and port from jdbc_url for DATABASE_URL construction
-                          JDBC_URL="<+env.variables.jdbc_url>"
-                          DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
-                          DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
-                          DB_NAME="<+env.variables.database_name>"
-                          aws apprunner update-service \
-                            --service-arn "$SERVICE_ARN" \
-                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
-                            --region <+env.variables.aws_region>
-                          echo "App Runner service update initiated"
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+                          echo "New Version: <+pipeline.variables.VERSION>"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Deploy to App Runner
+                            echo "Deploying to App Runner"
+                            export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
+                            export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
+                            export AWS_DEFAULT_REGION=<+env.variables.aws_region>
+                            SERVICE_ARN="<+env.variables.app_runner_service_arn>"
+
+                            # Extract host and port from jdbc_url for DATABASE_URL construction
+                            JDBC_URL="<+env.variables.jdbc_url>"
+                            DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
+                            DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
+                            DB_NAME="<+env.variables.database_name>"
+
+                            aws apprunner update-service \
+                              --service-arn "$SERVICE_ARN" \
+                              --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                              --region <+env.variables.aws_region>
+
+                            echo "App Runner service update initiated"
+                          else
+                            # LOCAL MODE - Update .env and restart Docker Compose service
+                            echo "Deploying to local Docker Compose"
+
+                            # Determine environment variable name
+                            ENV_NAME="<+env.variables.environment>"
+                            ENV_VAR="VERSION_$(echo $ENV_NAME | tr '[:lower:]' '[:upper:]')"
+                            NEW_VERSION="<+pipeline.variables.VERSION>"
+
+                            # Navigate to repository root
+                            cd $HOME/workspace/harness-gha-bagelstore
+
+                            # Update .env file
+                            echo "Updating .env: $ENV_VAR=$NEW_VERSION"
+                            sed -i.bak "s/^${ENV_VAR}=.*/${ENV_VAR}=${NEW_VERSION}/" .env
+                            rm -f .env.bak
+
+                            # Pull new image
+                            echo "Pulling new image: ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:$NEW_VERSION"
+                            docker compose -f docker-compose-demo.yml pull app-<+env.variables.environment>
+
+                            # Restart service
+                            echo "Restarting app-<+env.variables.environment>"
+                            docker compose -f docker-compose-demo.yml up -d --no-deps app-<+env.variables.environment>
+
+                            echo "Local deployment completed"
+                          fi
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -424,23 +573,54 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
                           echo "=== Performing Health Check ==="
-                          # Use App Runner service URL from environment variables
-                          SERVICE_URL="<+env.variables.app_runner_service_url>"
-                          HEALTH_URL="https://$SERVICE_URL/health"
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Use App Runner service URL
+                            SERVICE_URL="<+env.variables.app_runner_service_url>"
+                            HEALTH_URL="https://${SERVICE_URL}/health"
+                          else
+                            # LOCAL MODE - Use localhost port mapping
+                            case "<+env.variables.environment>" in
+                              dev)     PORT=5001 ;;
+                              test)    PORT=5002 ;;
+                              staging) PORT=5003 ;;
+                              prod)    PORT=5004 ;;
+                              *)       echo "Unknown environment"; exit 1 ;;
+                            esac
+                            HEALTH_URL="http://localhost:${PORT}/health"
+                          fi
+
+                          echo "Health check URL: $HEALTH_URL"
+
                           MAX_ATTEMPTS=30
                           ATTEMPT=0
+
                           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
                             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+
                             if [ "$HTTP_CODE" = "200" ]; then
                               echo "✅ Health check passed!"
+
+                              # Verify version endpoint
+                              VERSION_INFO=$(curl -s "${HEALTH_URL/health/version}" || echo "")
+                              echo "Version info: $VERSION_INFO"
+
                               exit 0
                             fi
+
+                            echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS - HTTP $HTTP_CODE"
                             echo "Retrying in 10s..."
                             sleep 10
                             ATTEMPT=$((ATTEMPT + 1))
                           done
-                          echo "❌ Health check failed"
+
+                          echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
                           exit 1
                     environmentVariables: []
                     outputVariables: []
@@ -533,21 +713,46 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
                           echo "=== Updating Database with Liquibase ==="
                           echo "Environment: staging"
-                          docker run --rm \
-                            -v /tmp/changelog:/liquibase/changelog \
-                            -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
-                            -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                            -e AWS_REGION=<+env.variables.aws_region> \
-                            -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
-                            liquibase/liquibase-secure:5.0.1 \
-                            --url=<+env.variables.jdbc_url> \
-                            --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                            --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                            --changeLogFile=changelog-master.yaml \
-                            --log-level=INFO \
-                            update
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Use RDS via Secrets Manager
+                            docker run --rm \
+                              -v /tmp/changelog:/liquibase/changelog \
+                              -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
+                              -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                              -e AWS_REGION=<+env.variables.aws_region> \
+                              -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              liquibase/liquibase-secure:5.0.1 \
+                              --url=<+env.variables.jdbc_url> \
+                              --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                              --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+                              --changeLogFile=changelog-master.yaml \
+                              --log-level=INFO \
+                              update
+                          else
+                            # LOCAL MODE - Use Docker Compose postgres containers
+                            echo "Running Liquibase against local postgres-<+env.variables.environment> container"
+                            docker run --rm \
+                              --network harness-gha-bagelstore_bagel-network \
+                              -v /tmp/changelog:/liquibase/changelog \
+                              -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              liquibase/liquibase-secure:5.0.1 \
+                              --url=jdbc:postgresql://postgres-<+env.variables.environment>:5432/<+env.variables.environment> \
+                              --username=postgres \
+                              --password=postgres \
+                              --changeLogFile=changelog-master.yaml \
+                              --log-level=INFO \
+                              update
+                          fi
+
+                          echo "Database update completed successfully"
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -565,21 +770,62 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
-                          echo "=== Deploying Application to App Runner ==="
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
+                          echo "=== Deploying Application ==="
                           echo "Environment: staging"
-                          export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
-                          export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                          export AWS_DEFAULT_REGION=<+env.variables.aws_region>
-                          SERVICE_ARN="<+env.variables.app_runner_service_arn>"
-                          # Extract host and port from jdbc_url for DATABASE_URL construction
-                          JDBC_URL="<+env.variables.jdbc_url>"
-                          DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
-                          DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
-                          DB_NAME="<+env.variables.database_name>"
-                          aws apprunner update-service \
-                            --service-arn "$SERVICE_ARN" \
-                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
-                            --region <+env.variables.aws_region>
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+                          echo "New Version: <+pipeline.variables.VERSION>"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Deploy to App Runner
+                            echo "Deploying to App Runner"
+                            export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
+                            export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
+                            export AWS_DEFAULT_REGION=<+env.variables.aws_region>
+                            SERVICE_ARN="<+env.variables.app_runner_service_arn>"
+
+                            # Extract host and port from jdbc_url for DATABASE_URL construction
+                            JDBC_URL="<+env.variables.jdbc_url>"
+                            DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
+                            DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
+                            DB_NAME="<+env.variables.database_name>"
+
+                            aws apprunner update-service \
+                              --service-arn "$SERVICE_ARN" \
+                              --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                              --region <+env.variables.aws_region>
+
+                            echo "App Runner service update initiated"
+                          else
+                            # LOCAL MODE - Update .env and restart Docker Compose service
+                            echo "Deploying to local Docker Compose"
+
+                            # Determine environment variable name
+                            ENV_NAME="<+env.variables.environment>"
+                            ENV_VAR="VERSION_$(echo $ENV_NAME | tr '[:lower:]' '[:upper:]')"
+                            NEW_VERSION="<+pipeline.variables.VERSION>"
+
+                            # Navigate to repository root
+                            cd $HOME/workspace/harness-gha-bagelstore
+
+                            # Update .env file
+                            echo "Updating .env: $ENV_VAR=$NEW_VERSION"
+                            sed -i.bak "s/^${ENV_VAR}=.*/${ENV_VAR}=${NEW_VERSION}/" .env
+                            rm -f .env.bak
+
+                            # Pull new image
+                            echo "Pulling new image: ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:$NEW_VERSION"
+                            docker compose -f docker-compose-demo.yml pull app-<+env.variables.environment>
+
+                            # Restart service
+                            echo "Restarting app-<+env.variables.environment>"
+                            docker compose -f docker-compose-demo.yml up -d --no-deps app-<+env.variables.environment>
+
+                            echo "Local deployment completed"
+                          fi
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -597,23 +843,54 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
                           echo "=== Performing Health Check ==="
-                          # Use App Runner service URL from environment variables
-                          SERVICE_URL="<+env.variables.app_runner_service_url>"
-                          HEALTH_URL="https://$SERVICE_URL/health"
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Use App Runner service URL
+                            SERVICE_URL="<+env.variables.app_runner_service_url>"
+                            HEALTH_URL="https://${SERVICE_URL}/health"
+                          else
+                            # LOCAL MODE - Use localhost port mapping
+                            case "<+env.variables.environment>" in
+                              dev)     PORT=5001 ;;
+                              test)    PORT=5002 ;;
+                              staging) PORT=5003 ;;
+                              prod)    PORT=5004 ;;
+                              *)       echo "Unknown environment"; exit 1 ;;
+                            esac
+                            HEALTH_URL="http://localhost:${PORT}/health"
+                          fi
+
+                          echo "Health check URL: $HEALTH_URL"
+
                           MAX_ATTEMPTS=30
                           ATTEMPT=0
+
                           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
                             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+
                             if [ "$HTTP_CODE" = "200" ]; then
                               echo "✅ Health check passed!"
+
+                              # Verify version endpoint
+                              VERSION_INFO=$(curl -s "${HEALTH_URL/health/version}" || echo "")
+                              echo "Version info: $VERSION_INFO"
+
                               exit 0
                             fi
+
+                            echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS - HTTP $HTTP_CODE"
                             echo "Retrying in 10s..."
                             sleep 10
                             ATTEMPT=$((ATTEMPT + 1))
                           done
-                          echo "❌ Health check failed"
+
+                          echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
                           exit 1
                     environmentVariables: []
                     outputVariables: []
@@ -706,21 +983,46 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
                           echo "=== Updating Database with Liquibase ==="
                           echo "Environment: prod"
-                          docker run --rm \
-                            -v /tmp/changelog:/liquibase/changelog \
-                            -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
-                            -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                            -e AWS_REGION=<+env.variables.aws_region> \
-                            -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
-                            liquibase/liquibase-secure:5.0.1 \
-                            --url=<+env.variables.jdbc_url> \
-                            --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                            --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                            --changeLogFile=changelog-master.yaml \
-                            --log-level=INFO \
-                            update
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Use RDS via Secrets Manager
+                            docker run --rm \
+                              -v /tmp/changelog:/liquibase/changelog \
+                              -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
+                              -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                              -e AWS_REGION=<+env.variables.aws_region> \
+                              -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              liquibase/liquibase-secure:5.0.1 \
+                              --url=<+env.variables.jdbc_url> \
+                              --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                              --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+                              --changeLogFile=changelog-master.yaml \
+                              --log-level=INFO \
+                              update
+                          else
+                            # LOCAL MODE - Use Docker Compose postgres containers
+                            echo "Running Liquibase against local postgres-<+env.variables.environment> container"
+                            docker run --rm \
+                              --network harness-gha-bagelstore_bagel-network \
+                              -v /tmp/changelog:/liquibase/changelog \
+                              -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              liquibase/liquibase-secure:5.0.1 \
+                              --url=jdbc:postgresql://postgres-<+env.variables.environment>:5432/<+env.variables.environment> \
+                              --username=postgres \
+                              --password=postgres \
+                              --changeLogFile=changelog-master.yaml \
+                              --log-level=INFO \
+                              update
+                          fi
+
+                          echo "Database update completed successfully"
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -738,21 +1040,62 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
-                          echo "=== Deploying Application to App Runner ==="
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
+                          echo "=== Deploying Application ==="
                           echo "Environment: prod"
-                          export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
-                          export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                          export AWS_DEFAULT_REGION=<+env.variables.aws_region>
-                          SERVICE_ARN="<+env.variables.app_runner_service_arn>"
-                          # Extract host and port from jdbc_url for DATABASE_URL construction
-                          JDBC_URL="<+env.variables.jdbc_url>"
-                          DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
-                          DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
-                          DB_NAME="<+env.variables.database_name>"
-                          aws apprunner update-service \
-                            --service-arn "$SERVICE_ARN" \
-                            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
-                            --region <+env.variables.aws_region>
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+                          echo "New Version: <+pipeline.variables.VERSION>"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Deploy to App Runner
+                            echo "Deploying to App Runner"
+                            export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
+                            export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
+                            export AWS_DEFAULT_REGION=<+env.variables.aws_region>
+                            SERVICE_ARN="<+env.variables.app_runner_service_arn>"
+
+                            # Extract host and port from jdbc_url for DATABASE_URL construction
+                            JDBC_URL="<+env.variables.jdbc_url>"
+                            DB_HOST=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://([^:]+):.*|\1|')
+                            DB_PORT=$(echo "$JDBC_URL" | sed -E 's|jdbc:postgresql://[^:]+:([0-9]+)/.*|\1|')
+                            DB_NAME="<+env.variables.database_name>"
+
+                            aws apprunner update-service \
+                              --service-arn "$SERVICE_ARN" \
+                              --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\",\"RuntimeEnvironmentVariables\":{\"DATABASE_URL\":\"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@$DB_HOST:$DB_PORT/$DB_NAME\",\"FLASK_ENV\":\"production\",\"APP_VERSION\":\"<+pipeline.variables.VERSION>\"}}}}" \
+                              --region <+env.variables.aws_region>
+
+                            echo "App Runner service update initiated"
+                          else
+                            # LOCAL MODE - Update .env and restart Docker Compose service
+                            echo "Deploying to local Docker Compose"
+
+                            # Determine environment variable name
+                            ENV_NAME="<+env.variables.environment>"
+                            ENV_VAR="VERSION_$(echo $ENV_NAME | tr '[:lower:]' '[:upper:]')"
+                            NEW_VERSION="<+pipeline.variables.VERSION>"
+
+                            # Navigate to repository root
+                            cd $HOME/workspace/harness-gha-bagelstore
+
+                            # Update .env file
+                            echo "Updating .env: $ENV_VAR=$NEW_VERSION"
+                            sed -i.bak "s/^${ENV_VAR}=.*/${ENV_VAR}=${NEW_VERSION}/" .env
+                            rm -f .env.bak
+
+                            # Pull new image
+                            echo "Pulling new image: ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:$NEW_VERSION"
+                            docker compose -f docker-compose-demo.yml pull app-<+env.variables.environment>
+
+                            # Restart service
+                            echo "Restarting app-<+env.variables.environment>"
+                            docker compose -f docker-compose-demo.yml up -d --no-deps app-<+env.variables.environment>
+
+                            echo "Local deployment completed"
+                          fi
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -770,24 +1113,55 @@ pipeline:
                         script: |-
                           #!/bin/bash
                           set -e
+
+                          # Determine deployment target (defaults to aws if not set)
+                          DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
                           echo "=== Performing Health Check ==="
-                          # Use App Runner service URL from environment variables
-                          SERVICE_URL="<+env.variables.app_runner_service_url>"
-                          HEALTH_URL="https://$SERVICE_URL/health"
+                          echo "Deployment Target: $DEPLOYMENT_TARGET"
+
+                          if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                            # AWS MODE - Use App Runner service URL
+                            SERVICE_URL="<+env.variables.app_runner_service_url>"
+                            HEALTH_URL="https://${SERVICE_URL}/health"
+                          else
+                            # LOCAL MODE - Use localhost port mapping
+                            case "<+env.variables.environment>" in
+                              dev)     PORT=5001 ;;
+                              test)    PORT=5002 ;;
+                              staging) PORT=5003 ;;
+                              prod)    PORT=5004 ;;
+                              *)       echo "Unknown environment"; exit 1 ;;
+                            esac
+                            HEALTH_URL="http://localhost:${PORT}/health"
+                          fi
+
+                          echo "Health check URL: $HEALTH_URL"
+
                           MAX_ATTEMPTS=30
                           ATTEMPT=0
+
                           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
                             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+
                             if [ "$HTTP_CODE" = "200" ]; then
                               echo "✅ Production deployment successful!"
+
+                              # Verify version endpoint
+                              VERSION_INFO=$(curl -s "${HEALTH_URL/health/version}" || echo "")
+                              echo "Version info: $VERSION_INFO"
+
                               echo "🎉 All environments now running version <+pipeline.variables.VERSION>"
                               exit 0
                             fi
+
+                            echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS - HTTP $HTTP_CODE"
                             echo "Retrying in 10s..."
                             sleep 10
                             ATTEMPT=$((ATTEMPT + 1))
                           done
-                          echo "❌ Health check failed"
+
+                          echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
                           exit 1
                     environmentVariables: []
                     outputVariables: []

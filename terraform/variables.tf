@@ -12,6 +12,17 @@ variable "demo_id" {
   }
 }
 
+variable "deployment_mode" {
+  description = "Deployment target mode: 'aws' for cloud infrastructure (RDS, App Runner), 'local' for Docker Compose"
+  type        = string
+  default     = "aws"
+
+  validation {
+    condition     = contains(["aws", "local"], var.deployment_mode)
+    error_message = "deployment_mode must be either 'aws' or 'local'"
+  }
+}
+
 variable "aws_region" {
   description = "AWS region for all resources"
   type        = string
@@ -60,6 +71,12 @@ variable "db_allocated_storage" {
 variable "github_org" {
   description = "GitHub organization name"
   type        = string
+}
+
+variable "github_repo" {
+  description = "GitHub repository name (will change if someone clones/forks the repo)"
+  type        = string
+  default     = "harness-gha-bagelstore"
 }
 
 variable "github_username" {

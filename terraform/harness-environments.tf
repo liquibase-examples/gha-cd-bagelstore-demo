@@ -23,14 +23,15 @@ locals {
       description = "${upper(env)} environment for ${var.demo_id} demo instance"
       type        = env == "prod" ? "Production" : "PreProduction"
 
-      # Environment variables from AWS outputs
-      variables = {
+      # Environment variables - conditional based on deployment_mode
+      variables = var.deployment_mode == "aws" ? {
+        # AWS MODE - Use RDS and App Runner
         # Database configuration
-        rds_endpoint     = aws_db_instance.postgres.endpoint
-        rds_address      = aws_db_instance.postgres.address
-        rds_port         = tostring(aws_db_instance.postgres.port)
+        rds_endpoint     = aws_db_instance.postgres[0].endpoint
+        rds_address      = aws_db_instance.postgres[0].address
+        rds_port         = tostring(aws_db_instance.postgres[0].port)
         database_name    = env
-        jdbc_url         = "jdbc:postgresql://${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/${env}"
+        jdbc_url         = "jdbc:postgresql://${aws_db_instance.postgres[0].address}:${aws_db_instance.postgres[0].port}/${env}"
 
         # App Runner configuration
         app_runner_service_arn  = aws_apprunner_service.bagel_store[env].arn
@@ -39,16 +40,42 @@ locals {
         app_runner_service_name = "bagel-store-${var.demo_id}-${env}"
 
         # S3 configuration
-        liquibase_flows_bucket    = aws_s3_bucket.liquibase_flows.id
-        operation_reports_bucket  = aws_s3_bucket.operation_reports.id
+        liquibase_flows_bucket   = aws_s3_bucket.liquibase_flows[0].id
+        operation_reports_bucket = aws_s3_bucket.operation_reports[0].id
 
         # Demo configuration
-        demo_id      = var.demo_id
-        aws_region   = var.aws_region
-        environment  = env
+        demo_id     = var.demo_id
+        aws_region  = var.aws_region
+        environment = env
 
         # DNS configuration (if Route53 enabled)
         dns_record = var.enable_route53 ? "${env}-${var.demo_id}.${var.domain_name}" : "not-configured"
+      } : {
+        # LOCAL MODE - Use Docker Compose (dummy AWS values)
+        # Database configuration
+        rds_endpoint     = "local-postgres-${env}:5432"
+        rds_address      = "local-postgres-${env}"
+        rds_port         = "5432"
+        database_name    = env
+        jdbc_url         = "jdbc:postgresql://postgres-${env}:5432/${env}"
+
+        # App Runner configuration (not used in local mode)
+        app_runner_service_arn  = "local-mode-not-applicable"
+        app_runner_service_url  = "localhost:${env == "dev" ? "5001" : env == "test" ? "5002" : env == "staging" ? "5003" : "5004"}"
+        app_runner_service_id   = "local-mode-not-applicable"
+        app_runner_service_name = "bagel-store-local-${env}"
+
+        # S3 configuration (not used in local mode)
+        liquibase_flows_bucket   = "local-mode-not-applicable"
+        operation_reports_bucket = "local-mode-not-applicable"
+
+        # Demo configuration
+        demo_id     = var.demo_id
+        aws_region  = var.aws_region
+        environment = env
+
+        # DNS configuration
+        dns_record = "localhost"
       }
     }
   }
@@ -162,15 +189,16 @@ resource "harness_platform_environment" "demo_environments" {
           type: String
           value: "${each.value.variables.dns_record}"
           description: "DNS record (if Route53 enabled)"
+
+        # Deployment Mode Configuration
+        - name: DEPLOYMENT_TARGET
+          type: String
+          value: "${var.deployment_mode}"
+          description: "Deployment mode: 'aws' for App Runner/RDS, 'local' for Docker Compose"
   EOT
 
-  # Ensure environments are created after AWS resources exist
-  depends_on = [
-    aws_db_instance.postgres,
-    aws_apprunner_service.bagel_store,
-    aws_s3_bucket.liquibase_flows,
-    aws_s3_bucket.operation_reports
-  ]
+  # Note: depends_on removed since AWS resources are now conditional
+  # Terraform automatically handles dependencies through resource references in locals
 }
 
 # Output environment identifiers for reference

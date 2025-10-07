@@ -3,6 +3,8 @@
 
 # Security group for RDS
 resource "aws_security_group" "rds" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   name        = "${local.name_prefix}-rds-sg"
   description = "Security group for RDS PostgreSQL instance - ${var.demo_id}"
 
@@ -44,6 +46,8 @@ data "aws_subnets" "default" {
 }
 
 resource "aws_db_subnet_group" "rds" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   name       = "${local.name_prefix}-rds-subnet-group"
   subnet_ids = data.aws_subnets.default.ids
 
@@ -57,6 +61,8 @@ resource "aws_db_subnet_group" "rds" {
 
 # RDS PostgreSQL instance
 resource "aws_db_instance" "postgres" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   identifier     = "${local.name_prefix}-rds"
   engine         = "postgres"
   engine_version = "16.6"
@@ -70,8 +76,8 @@ resource "aws_db_instance" "postgres" {
   password = var.db_password
 
   # Network configuration
-  db_subnet_group_name   = aws_db_subnet_group.rds.name
-  vpc_security_group_ids = [aws_security_group.rds.id]
+  db_subnet_group_name   = aws_db_subnet_group.rds[0].name
+  vpc_security_group_ids = [aws_security_group.rds[0].id]
   publicly_accessible    = true
 
   # Backup and maintenance
@@ -101,11 +107,13 @@ resource "aws_db_instance" "postgres" {
 # Create databases using null_resource and psql commands
 # Note: This requires psql to be installed on the machine running Terraform
 resource "null_resource" "create_databases" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   depends_on = [aws_db_instance.postgres]
 
   # Trigger recreation when RDS endpoint changes
   triggers = {
-    rds_endpoint = aws_db_instance.postgres.endpoint
+    rds_endpoint = aws_db_instance.postgres[0].endpoint
   }
 
   # Create dev, test, staging, prod databases
@@ -117,7 +125,7 @@ resource "null_resource" "create_databases" {
       # Create databases
       for db in dev test staging prod; do
         PGPASSWORD='${var.db_password}' psql \
-          -h ${aws_db_instance.postgres.address} \
+          -h ${aws_db_instance.postgres[0].address} \
           -U ${var.db_username} \
           -d postgres \
           -c "CREATE DATABASE $db;" || echo "Database $db may already exist"

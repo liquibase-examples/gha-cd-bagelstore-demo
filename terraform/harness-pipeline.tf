@@ -23,14 +23,14 @@ resource "harness_platform_pipeline" "deploy_bagel_store" {
     branch_name   = "main"
     file_path     = "harness/pipelines/deploy-pipeline.yaml"
     connector_ref = harness_platform_connector_github.github_bagel_store.identifier
-    repo_name     = "harness-gha-bagelstore"
+    repo_name     = var.github_repo
     store_type    = "REMOTE"
   }
 
-  tags = {
-    demo_id    = var.demo_id
-    managed_by = "terraform"
-  }
+  tags = [
+    "demo_id:${var.demo_id}",
+    "managed_by:terraform"
+  ]
 
   # Pipeline depends on service and GitHub connector
   depends_on = [

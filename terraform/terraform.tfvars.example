@@ -14,7 +14,15 @@
 # Examples: "demo1", "customer-abc", "eval-2025"
 demo_id = "demo1"
 
-# AWS region for all resources
+# Deployment mode: Controls where the application runs
+# - "aws"   = Deploy to AWS (RDS + App Runner) - Production-like demo (~$40/month)
+# - "local" = Deploy to Docker Compose on localhost - Zero cost, fast setup
+#
+# IMPORTANT: Set to "local" to skip ALL AWS resource creation (RDS, App Runner, S3, Secrets Manager)
+# The Harness pipeline will automatically use the correct deployment logic based on this setting.
+deployment_mode = "aws"  # Change to "local" for zero-cost local demos
+
+# AWS region for all resources (only used when deployment_mode = "aws")
 aws_region = "us-east-1"
 
 # AWS username for resource tagging (deployed_by tag)
@@ -44,6 +52,10 @@ db_password = "ChangeMe123!SecurePassword"
 
 # GitHub organization or username
 github_org = "your-github-org"
+
+# GitHub repository name (usually same as local folder name)
+# Important: This will change if someone clones/forks the repo
+github_repo = "harness-gha-bagelstore"
 
 # GitHub username for Harness connector authentication
 github_username = "your-github-username"

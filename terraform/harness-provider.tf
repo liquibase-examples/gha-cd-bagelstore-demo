@@ -13,15 +13,6 @@
 #
 # Authentication: Requires Harness API key (use environment variable or tfvars)
 
-terraform {
-  required_providers {
-    harness = {
-      source  = "harness/harness"
-      version = "~> 0.30" # Use latest stable version
-    }
-  }
-}
-
 # Harness Provider Configuration
 provider "harness" {
   # Harness API endpoint

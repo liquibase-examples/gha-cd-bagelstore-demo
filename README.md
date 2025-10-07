@@ -90,6 +90,89 @@ Before running the application, you must configure demo credentials:
 
 For detailed testing instructions, see [app/TESTING.md](app/TESTING.md).
 
+## Deployment Modes
+
+This demo supports **two deployment modes** to fit different use cases:
+
+### AWS Mode (Production-like) ☁️
+
+**Infrastructure**: RDS, App Runner, S3, Secrets Manager, Route53
+
+**Best for**:
+- Production demonstrations
+- AWS integration showcases
+- Realistic cloud deployment patterns
+
+**Setup**:
+```bash
+cd terraform
+terraform apply
+cd ../harness
+docker compose up -d  # Start Harness delegate
+# Run pipeline via Harness UI
+```
+
+**Cost**: ~$40/month running continuously
+**Setup time**: 15-30 minutes
+
+**Cleanup**: `terraform destroy` when done
+
+---
+
+### Local Mode (Fast & Free) 🚀 **NEW**
+
+**Infrastructure**: Docker Compose (8 containers on localhost)
+
+**Best for**:
+- Development and testing
+- Quick demos
+- Offline demonstrations
+- Learning Harness CD workflows
+
+**Setup**:
+```bash
+# 1. Start all 4 environments
+cp .env.example .env
+docker compose -f docker-compose-demo.yml up -d
+
+# 2. Access environments
+open http://localhost:5001  # dev
+open http://localhost:5002  # test
+open http://localhost:5003  # staging
+open http://localhost:5004  # prod
+
+# 3. Configure Harness environments (add variable to each)
+#    Variable: DEPLOYMENT_TARGET=local
+
+# 4. Start Harness delegate
+cd harness
+docker compose up -d
+
+# 5. Run deployment pipeline via Harness UI
+```
+
+**Cost**: $0
+**Setup time**: 2 minutes
+
+**View state**: `./scripts/show-deployment-state.sh`
+
+---
+
+### Comparison
+
+| Feature | AWS Mode | Local Mode |
+|---------|----------|------------|
+| **Database** | RDS PostgreSQL | 4 PostgreSQL containers |
+| **Application** | App Runner (4 services) | 4 Flask containers |
+| **URLs** | Custom DNS (Route53) | localhost:5001-5004 |
+| **Cost** | ~$40/month | $0 |
+| **Setup** | 15-30 min | 2 min |
+| **Harness Pipeline** | ✅ Same workflow | ✅ Same workflow |
+| **Policy Checks** | ✅ All 12 checks | ✅ All 12 checks |
+| **Promotions** | ✅ Manual approvals | ✅ Manual approvals |
+
+**Complete local mode guide**: [docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md)
+
 ## How It Works
 
 ### 1. Pull Request Workflow

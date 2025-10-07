@@ -63,7 +63,16 @@
       "WebSearch",
       "WebFetch(domain:registry.terraform.io)",
       "WebFetch(domain:developer.harness.io)",
-      "WebFetch(domain:revealjs.com)"
+      "WebFetch(domain:revealjs.com)",
+      "Bash(find:*)",
+      "mcp__atlassian__search",
+      "mcp__atlassian__getAccessibleAtlassianResources",
+      "mcp__atlassian__atlassianUserInfo",
+      "Bash(echo $AWS_PROFILE)",
+      "Bash(AWS_PROFILE=liquibase-csteam-operator aws s3 ls)",
+      "Bash(AWS_PROFILE=liquibase-csteam-operator aws dynamodb list-tables --region us-east-1)",
+      "Bash(gh issue list:*)",
+      "Bash(export AWS_PROFILE=liquibase-sandbox-admin)"
     ],
     "deny": [],
     "ask": []

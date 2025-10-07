@@ -179,6 +179,23 @@ Benefits: 10-100x faster than pip, reproducible builds via `uv.lock`
 - **Main CI:** Artifact creation only (no database deployment)
 - **Rationale:** Separation of concerns, parallel execution, clear failure points
 
+### Why Support Both AWS and Local Deployment Modes?
+- **Decision:** Support both AWS (App Runner) and local (Docker Compose) deployment targets
+- **Rationale:**
+  - AWS mode demonstrates production-like infrastructure and AWS integrations
+  - Local mode enables fast iteration, zero cost, and offline demos
+  - Same Harness pipeline works for both (conditional logic based on `DEPLOYMENT_TARGET` variable)
+  - Users choose based on their needs (demo vs. AWS showcase)
+- **Implementation:**
+  - Single Harness pipeline with `DEPLOYMENT_TARGET` environment variable
+  - Conditional shell scripts in pipeline steps (AWS vs. local logic)
+  - Both modes pull same artifacts from ghcr.io (consistent versioning)
+  - Version state persists in `.env` file for local mode
+- **Trade-offs:**
+  - Adds conditional complexity to pipeline YAML
+  - Local mode loses AWS-specific features (Secrets Manager, Route53)
+  - **Benefit:** Dramatically lowers barrier to entry for demos (2 min setup vs. 30 min)
+
 ## Quick Reference
 
 ### Local Development
@@ -213,7 +230,31 @@ docker compose ps             # Check status
 docker compose down           # Stop delegate
 ```
 
-See [docs/COMMANDS.md](docs/COMMANDS.md) for complete reference.
+### Local Deployment Mode (NEW)
+```bash
+# Start all 4 environments
+docker compose -f docker-compose-demo.yml up -d
+
+# View deployment state
+./scripts/show-deployment-state.sh
+
+# Deploy specific version to dev (manual)
+sed -i.bak 's/^VERSION_DEV=.*/VERSION_DEV=v1.1.0/' .env && rm -f .env.bak
+docker compose -f docker-compose-demo.yml pull app-dev
+docker compose -f docker-compose-demo.yml up -d --no-deps app-dev
+
+# View logs
+docker compose -f docker-compose-demo.yml logs -f app-dev
+docker compose -f docker-compose-demo.yml logs -f postgres-dev
+
+# Reset all to latest
+./scripts/reset-local-environments.sh latest
+
+# Stop all
+docker compose -f docker-compose-demo.yml down
+```
+
+See [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md) for complete reference.
 
 ## Documentation Index
 
@@ -232,6 +273,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for complete reference.
 ### Infrastructure & Operations
 - **[terraform/README.md](terraform/README.md)** - AWS infrastructure
 - **[docs/AWS_SETUP.md](docs/AWS_SETUP.md)** - AWS SSO, credentials, common issues
+- **[docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md)** - Local deployment mode (Docker Compose)
 - **[docs/WORKFLOWS.md](docs/WORKFLOWS.md)** - GitHub Actions workflows
 - **[docs/COMMANDS.md](docs/COMMANDS.md)** - Complete command reference
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Diagnostic scripts and solutions

@@ -4,6 +4,8 @@
 # ===== Liquibase Flows Bucket (Public Read) =====
 
 resource "aws_s3_bucket" "liquibase_flows" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   bucket = "${local.name_prefix}-liquibase-flows"
 
   tags = merge(
@@ -16,7 +18,9 @@ resource "aws_s3_bucket" "liquibase_flows" {
 }
 
 resource "aws_s3_bucket_versioning" "liquibase_flows" {
-  bucket = aws_s3_bucket.liquibase_flows.id
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.liquibase_flows[0].id
 
   versioning_configuration {
     status = "Enabled"
@@ -24,7 +28,9 @@ resource "aws_s3_bucket_versioning" "liquibase_flows" {
 }
 
 resource "aws_s3_bucket_public_access_block" "liquibase_flows" {
-  bucket = aws_s3_bucket.liquibase_flows.id
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.liquibase_flows[0].id
 
   block_public_acls       = false
   block_public_policy     = false
@@ -33,7 +39,9 @@ resource "aws_s3_bucket_public_access_block" "liquibase_flows" {
 }
 
 resource "aws_s3_bucket_policy" "liquibase_flows" {
-  bucket = aws_s3_bucket.liquibase_flows.id
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.liquibase_flows[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -43,7 +51,7 @@ resource "aws_s3_bucket_policy" "liquibase_flows" {
         Effect    = "Allow"
         Principal = "*"
         Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.liquibase_flows.arn}/*"
+        Resource  = "${aws_s3_bucket.liquibase_flows[0].arn}/*"
       }
     ]
   })
@@ -53,7 +61,9 @@ resource "aws_s3_bucket_policy" "liquibase_flows" {
 
 # Upload Liquibase flow files
 resource "aws_s3_object" "pr_validation_flow" {
-  bucket = aws_s3_bucket.liquibase_flows.id
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.liquibase_flows[0].id
   key    = "pr-validation-flow.yaml"
   source = "${path.module}/../liquibase-flows/pr-validation-flow.yaml"
   etag   = filemd5("${path.module}/../liquibase-flows/pr-validation-flow.yaml")
@@ -69,7 +79,9 @@ resource "aws_s3_object" "pr_validation_flow" {
 }
 
 resource "aws_s3_object" "main_deployment_flow" {
-  bucket = aws_s3_bucket.liquibase_flows.id
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.liquibase_flows[0].id
   key    = "main-deployment-flow.yaml"
   source = "${path.module}/../liquibase-flows/main-deployment-flow.yaml"
   etag   = filemd5("${path.module}/../liquibase-flows/main-deployment-flow.yaml")
@@ -85,7 +97,9 @@ resource "aws_s3_object" "main_deployment_flow" {
 }
 
 resource "aws_s3_object" "policy_checks_config" {
-  bucket = aws_s3_bucket.liquibase_flows.id
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.liquibase_flows[0].id
   key    = "liquibase.checks-settings.conf"
   source = "${path.module}/../liquibase-flows/liquibase.checks-settings.conf"
   etag   = filemd5("${path.module}/../liquibase-flows/liquibase.checks-settings.conf")
@@ -103,6 +117,8 @@ resource "aws_s3_object" "policy_checks_config" {
 # ===== Operation Reports Bucket (Private) =====
 
 resource "aws_s3_bucket" "operation_reports" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
   bucket = "${local.name_prefix}-operation-reports"
 
   tags = merge(
@@ -115,7 +131,9 @@ resource "aws_s3_bucket" "operation_reports" {
 }
 
 resource "aws_s3_bucket_public_access_block" "operation_reports" {
-  bucket = aws_s3_bucket.operation_reports.id
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.operation_reports[0].id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -125,11 +143,17 @@ resource "aws_s3_bucket_public_access_block" "operation_reports" {
 
 # Lifecycle policy to delete reports after 30 days
 resource "aws_s3_bucket_lifecycle_configuration" "operation_reports" {
-  bucket = aws_s3_bucket.operation_reports.id
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.operation_reports[0].id
 
   rule {
     id     = "delete-old-reports"
     status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
 
     expiration {
       days = 30
