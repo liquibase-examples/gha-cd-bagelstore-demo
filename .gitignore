@@ -6,7 +6,7 @@ terraform/terraform.tfstate.backup
 terraform/*.tfvars
 terraform/.terraform.tfstate.lock.info
 *.tfplan
-terraform/tfplan
+terraform/tfplan*
 
 # Liquibase
 liquibase*.lock
