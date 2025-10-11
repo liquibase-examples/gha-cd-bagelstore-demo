@@ -70,7 +70,7 @@ output "app_runner_services" {
       service_url = aws_apprunner_service.bagel_store[env].service_url
       service_id  = aws_apprunner_service.bagel_store[env].service_id
     }
-  } : {
+    } : {
     dev     = { service_url = "localhost:5001", service_arn = "local-mode", service_id = "local-mode" }
     test    = { service_url = "localhost:5002", service_arn = "local-mode", service_id = "local-mode" }
     staging = { service_url = "localhost:5003", service_arn = "local-mode", service_id = "local-mode" }
@@ -85,10 +85,10 @@ output "dns_records" {
   value = var.deployment_mode == "aws" && var.enable_route53 ? {
     for env in local.environments :
     env => "${env}-${var.demo_id}.${var.domain_name}"
-  } : var.deployment_mode == "aws" ? {
+    } : var.deployment_mode == "aws" ? {
     for env in local.environments :
     env => "Route53 disabled - use App Runner URL: https://${aws_apprunner_service.bagel_store[env].service_url}"
-  } : {
+    } : {
     for env in local.environments :
     env => "local-mode - use localhost URLs"
   }
@@ -101,7 +101,7 @@ output "jdbc_urls" {
   value = var.deployment_mode == "aws" ? {
     for env in local.environments :
     env => "jdbc:postgresql://${aws_db_instance.postgres[0].address}:${aws_db_instance.postgres[0].port}/${env}"
-  } : {
+    } : {
     for env in local.environments :
     env => "jdbc:postgresql://postgres-${env}:5432/${env}"
   }
@@ -146,7 +146,7 @@ output "deployment_summary" {
     app_runner_count  = length(local.environments)
     route53_enabled   = var.enable_route53
     dns_base          = var.enable_route53 ? "${var.demo_id}.${var.domain_name}" : "Route53 disabled - use App Runner URLs"
-  } : {
+    } : {
     demo_id         = var.demo_id
     deployment_mode = var.deployment_mode
     message         = "Local mode - Use docker-compose-demo.yml for deployment"

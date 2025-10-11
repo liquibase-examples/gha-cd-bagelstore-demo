@@ -27,11 +27,11 @@ locals {
       variables = var.deployment_mode == "aws" ? {
         # AWS MODE - Use RDS and App Runner
         # Database configuration
-        rds_endpoint     = aws_db_instance.postgres[0].endpoint
-        rds_address      = aws_db_instance.postgres[0].address
-        rds_port         = tostring(aws_db_instance.postgres[0].port)
-        database_name    = env
-        jdbc_url         = "jdbc:postgresql://${aws_db_instance.postgres[0].address}:${aws_db_instance.postgres[0].port}/${env}"
+        rds_endpoint  = aws_db_instance.postgres[0].endpoint
+        rds_address   = aws_db_instance.postgres[0].address
+        rds_port      = tostring(aws_db_instance.postgres[0].port)
+        database_name = env
+        jdbc_url      = "jdbc:postgresql://${aws_db_instance.postgres[0].address}:${aws_db_instance.postgres[0].port}/${env}"
 
         # App Runner configuration
         app_runner_service_arn  = aws_apprunner_service.bagel_store[env].arn
@@ -50,14 +50,14 @@ locals {
 
         # DNS configuration (if Route53 enabled)
         dns_record = var.enable_route53 ? "${env}-${var.demo_id}.${var.domain_name}" : "not-configured"
-      } : {
+        } : {
         # LOCAL MODE - Use Docker Compose (dummy AWS values)
         # Database configuration
-        rds_endpoint     = "local-postgres-${env}:5432"
-        rds_address      = "local-postgres-${env}"
-        rds_port         = "5432"
-        database_name    = env
-        jdbc_url         = "jdbc:postgresql://postgres-${env}:5432/${env}"
+        rds_endpoint  = "local-postgres-${env}:5432"
+        rds_address   = "local-postgres-${env}"
+        rds_port      = "5432"
+        database_name = env
+        jdbc_url      = "jdbc:postgresql://postgres-${env}:5432/${env}"
 
         # App Runner configuration (not used in local mode)
         app_runner_service_arn  = "local-mode-not-applicable"

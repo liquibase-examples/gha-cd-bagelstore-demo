@@ -65,7 +65,7 @@ resource "aws_apprunner_service" "bagel_store" {
       image_repository_type = "ECR_PUBLIC"
 
       image_configuration {
-        port = "80"  # NGINX default port
+        port = "80" # NGINX default port
 
         runtime_environment_variables = {
           FLASK_ENV    = each.key
@@ -91,7 +91,7 @@ resource "aws_apprunner_service" "bagel_store" {
 
   health_check_configuration {
     protocol            = "HTTP"
-    path                = "/"  # Use root path for NGINX placeholder (Harness will update to /health)
+    path                = "/" # Use root path for NGINX placeholder (Harness will update to /health)
     interval            = 10
     timeout             = 5
     healthy_threshold   = 1

@@ -15,7 +15,7 @@ locals {
     app_urls = var.deployment_mode == "aws" ? {
       for env in local.environments :
       env => "https://${aws_apprunner_service.bagel_store[env].service_url}"
-    } : {
+      } : {
       dev     = "http://localhost:5001"
       test    = "http://localhost:5002"
       staging = "http://localhost:5003"
@@ -25,11 +25,11 @@ locals {
     # RDS connection info
     rds_endpoint = var.deployment_mode == "aws" ? aws_db_instance.postgres[0].endpoint : "localhost:5432-5435"
     rds_username = var.db_username
-    jdbc_urls    = {
+    jdbc_urls = {
       for env in local.environments :
       env => var.deployment_mode == "aws" ?
-        "jdbc:postgresql://${aws_db_instance.postgres[0].address}:${aws_db_instance.postgres[0].port}/${env}" :
-        "jdbc:postgresql://localhost:${env == "dev" ? "5432" : env == "test" ? "5433" : env == "staging" ? "5434" : "5435"}/${env}"
+      "jdbc:postgresql://${aws_db_instance.postgres[0].address}:${aws_db_instance.postgres[0].port}/${env}" :
+      "jdbc:postgresql://localhost:${env == "dev" ? "5432" : env == "test" ? "5433" : env == "staging" ? "5434" : "5435"}/${env}"
     }
 
     # Harness info

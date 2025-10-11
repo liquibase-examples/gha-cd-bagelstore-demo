@@ -56,8 +56,8 @@ resource "harness_platform_connector_aws" "aws_bagel_store" {
     delegate_selectors = [var.demo_id]
     # The secret_key_ref is not needed for delegate-based credentials
     # But the provider requires it, so we reference the secret anyway
-    access_key         = harness_platform_secret_text.aws_access_key_id.identifier
-    secret_key_ref     = harness_platform_secret_text.aws_secret_access_key.identifier
+    access_key     = harness_platform_secret_text.aws_access_key_id.identifier
+    secret_key_ref = harness_platform_secret_text.aws_secret_access_key.identifier
   }
 
   tags = [

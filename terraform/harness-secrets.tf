@@ -89,10 +89,10 @@ resource "harness_platform_secret_text" "liquibase_license_key" {
 output "harness_secret_identifiers" {
   description = "Harness secret identifiers created"
   value = {
-    github_pat              = harness_platform_secret_text.github_pat.identifier
-    aws_access_key_id       = harness_platform_secret_text.aws_access_key_id.identifier
-    aws_secret_access_key   = harness_platform_secret_text.aws_secret_access_key.identifier
-    liquibase_license_key   = harness_platform_secret_text.liquibase_license_key.identifier
+    github_pat            = harness_platform_secret_text.github_pat.identifier
+    aws_access_key_id     = harness_platform_secret_text.aws_access_key_id.identifier
+    aws_secret_access_key = harness_platform_secret_text.aws_secret_access_key.identifier
+    liquibase_license_key = harness_platform_secret_text.liquibase_license_key.identifier
   }
 }
 
