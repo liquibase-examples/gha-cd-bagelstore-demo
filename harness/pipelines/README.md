@@ -30,6 +30,102 @@ This directory contains the Harness CD pipeline configuration for deploying the 
 **Pipeline Name:** Deploy Bagel Store
 **Pipeline File:** `deploy-pipeline.yaml` (Remote pipeline stored in Git)
 **Deployment Type:** Custom Deployment (coordinated database + application)
+**Template-Based Design:** Uses Step Group Template for deployment steps (DRY principle)
+
+## Pipeline Template Architecture
+
+This pipeline uses **Harness Step Group Templates** to eliminate code duplication and improve maintainability.
+
+### Design Pattern: Single Deployment Template
+
+**Template File:** `harness/templates/deployment-steps.yaml`
+
+Instead of duplicating deployment logic across all 4 stages, we define the deployment steps once in a reusable step group template:
+
+```yaml
+template:
+  name: Coordinated DB and App Deployment
+  identifier: Coordinated_DB_App_Deployment
+  versionLabel: v1.0
+  type: StepGroup
+
+  spec:
+    steps:
+      - Fetch Changelog Artifact
+      - Update Database
+      - Deploy Application
+      - Health Check
+```
+
+**Benefits:**
+- ✅ **77% code reduction** - Pipeline reduced from ~1200 lines to 271 lines
+- ✅ **Single source of truth** - Update deployment logic in one place
+- ✅ **Easy maintenance** - Changes propagate to all environments automatically
+- ✅ **No duplication** - Same deployment steps reused across dev, test, staging, prod
+- ✅ **Environment awareness** - Template automatically uses environment-specific variables
+
+### How Stages Use the Template
+
+Each deployment stage references the template with a simple declaration:
+
+```yaml
+stages:
+  - stage:
+      name: Deploy to Dev
+      environment:
+        environmentRef: dev
+      execution:
+        steps:
+          - stepGroup:
+              template:
+                templateRef: Coordinated_DB_App_Deployment
+                versionLabel: v1.0
+```
+
+**Environment-specific values** (like database URLs, service ARNs) are automatically resolved from `<+env.variables.*>` based on which environment the stage targets.
+
+### Modifying Deployment Steps
+
+To change deployment logic for all environments:
+
+1. **Edit the template file:** `harness/templates/deployment-steps.yaml`
+2. **Update version label:** Increment version (e.g., `v1.0` → `v1.1`)
+3. **Update pipeline references:** Change `versionLabel` in `deploy-pipeline.yaml` (or use "Always use stable version")
+4. **Commit and push:** Changes apply to all stages automatically
+
+**Example modifications:**
+- Add smoke tests after health check
+- Change Liquibase flow file
+- Modify health check timeout
+- Add notifications
+
+### Template Variables
+
+The step group template inherits context from the stage and uses:
+
+**From Environment (stage-specific):**
+- `<+env.variables.environment>` - Target environment (dev/test/staging/prod)
+- `<+env.variables.jdbc_url>` - Database connection URL
+- `<+env.variables.app_runner_service_arn>` - App Runner service ARN
+- All other environment variables from Terraform
+
+**From Pipeline:**
+- `<+pipeline.variables.VERSION>` - Git tag version to deploy
+- `<+pipeline.variables.GITHUB_ORG>` - GitHub organization name
+
+**From Secrets:**
+- `<+secrets.getValue('github_pat')>` - GitHub Packages authentication
+- `<+secrets.getValue('aws_access_key_id')>` - AWS credentials
+- `<+secrets.getValue('liquibase_license_key')>` - Liquibase license
+
+### Deployment Modes
+
+The template supports two deployment modes via the `DEPLOYMENT_TARGET` environment variable:
+
+- **AWS Mode** (default): Deploys to RDS + App Runner
+- **Local Mode**: Deploys to Docker Compose containers
+
+This is controlled by setting `DEPLOYMENT_TARGET=local` before pipeline execution.
 
 ## Pipeline Architecture
 
@@ -131,13 +227,16 @@ Each environment (dev, test, staging, prod) automatically gets 14 variables from
 
 ## Stage Details
 
+All stages use the **Coordinated DB and App Deployment** step group template (`harness/templates/deployment-steps.yaml`).
+
 ### Stage 1: Deploy to Dev (Automatic)
 
 **Trigger:** Webhook from GitHub Actions
 **Approval:** None (automatic deployment)
 **Environment:** `dev`
 
-**Steps:**
+**Deployment Steps:** Uses step group template with these steps:
+
 1. **Fetch Changelog Artifact**
    - Downloads changelog zip from GitHub Packages
    - URL: `https://maven.pkg.github.com/{org}/{repo}/bagel-store-changelog/{version}/...`
@@ -149,10 +248,11 @@ Each environment (dev, test, staging, prod) automatically gets 14 variables from
    - Mounts changelog directory
    - Connects to dev database using: `<+env.variables.jdbc_url>`
    - Credentials from AWS Secrets Manager: `${awsSecretsManager:<+env.variables.demo_id>/rds/username}`
-   - Executes: `liquibase update`
+   - Executes: `liquibase flow` (AWS mode) or `liquibase update` (Local mode)
 
 3. **Deploy Application**
-   - Updates App Runner service via AWS CLI
+   - **AWS Mode:** Updates App Runner service via AWS CLI
+   - **Local Mode:** Updates Docker Compose service
    - Service ARN from: `<+env.variables.app_runner_service_arn>`
    - Image: `ghcr.io/{org}/bagel-store:{version}`
    - Environment variables:
@@ -161,10 +261,10 @@ Each environment (dev, test, staging, prod) automatically gets 14 variables from
      - `APP_VERSION`: Pipeline version variable
 
 4. **Health Check**
-   - Polls App Runner service URL from: `<+env.variables.app_runner_service_url>`
+   - Polls service URL (App Runner or localhost depending on mode)
    - Waits for HTTP 200 response
    - Timeout: 5 minutes (30 attempts × 10 seconds)
-   - Also checks `/version` endpoint for verification
+   - Verifies deployed version matches expected version
 
 **Duration:** ~5-10 minutes
 
@@ -184,7 +284,7 @@ Demo ID: {demo_id}
 Changes will be applied to test database and application.
 ```
 
-**Steps:** Same as Stage 1, but targeting `test` database and App Runner service
+**Deployment Steps:** Uses the same step group template as Dev stage, automatically targeting `test` environment via `<+env.variables.*>`
 
 **Duration:** Depends on approval time + ~5-10 minutes execution
 
@@ -204,7 +304,7 @@ Demo ID: {demo_id}
 This is the final pre-production environment.
 ```
 
-**Steps:** Same as Stage 1, but targeting `staging` database and App Runner service
+**Deployment Steps:** Uses the same step group template as Dev stage, automatically targeting `staging` environment via `<+env.variables.*>`
 
 **Duration:** Depends on approval time + ~5-10 minutes execution
 
@@ -226,7 +326,7 @@ Demo ID: {demo_id}
 This will apply database changes and deploy to production environment.
 ```
 
-**Steps:** Same as Stage 1, but targeting `prod` database and App Runner service
+**Deployment Steps:** Uses the same step group template as Dev stage, automatically targeting `prod` environment via `<+env.variables.*>`
 
 **Duration:** Depends on approval time + ~5-10 minutes execution
 

@@ -32,9 +32,10 @@ resource "harness_platform_pipeline" "deploy_bagel_store" {
     "managed_by:terraform"
   ]
 
-  # Pipeline depends on service and GitHub connector
+  # Pipeline depends on service, template, GitHub connector, and environments
   depends_on = [
     harness_platform_service.bagel_store,
+    harness_platform_template.deployment_steps,
     harness_platform_connector_github.github_bagel_store,
     harness_platform_environment.demo_environments
   ]
