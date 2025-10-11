@@ -17,6 +17,7 @@ template:
     2. Update Database - Runs Liquibase update via Docker container
     3. Deploy Application - Updates App Runner (AWS) or Docker Compose (Local)
     4. Health Check - Verifies deployment success with version check
+    5. Fetch Instances - Reports instance information to Harness for tracking
 
     Environment variables used (automatically resolved from stage context):
     - env.variables.environment: Target environment (dev/test/staging/prod)
@@ -327,5 +328,45 @@ template:
             environmentVariables: []
             outputVariables: []
           timeout: 10m
+
+      # Step 5: Fetch Instance Script (required for CustomDeployment tracking)
+      - step:
+          type: FetchInstanceScript
+          name: Fetch Instances
+          identifier: Fetch_Instances
+          spec:
+            shell: Bash
+            source:
+              type: Inline
+              spec:
+                script: |-
+                  #!/bin/bash
+                  set -e
+
+                  echo "=== Fetching Instance Information ==="
+
+                  # Determine deployment target
+                  DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
+
+                  if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
+                    # AWS MODE - App Runner instance
+                    INSTANCE_NAME="<+env.variables.app_runner_service_name>"
+                    INSTANCE_URL="<+env.variables.app_runner_service_url>"
+
+                    # Output instance in Harness format
+                    echo "{\"instances\": [{\"instanceName\": \"${INSTANCE_NAME}\", \"instanceUrl\": \"${INSTANCE_URL}\"}]}"
+                  else
+                    # LOCAL MODE - Docker Compose container
+                    CONTAINER_NAME="app-<+env.variables.environment>"
+
+                    # Get container ID if running
+                    CONTAINER_ID=$(docker ps -q -f name=${CONTAINER_NAME} || echo "unknown")
+
+                    # Output instance in Harness format
+                    echo "{\"instances\": [{\"instanceName\": \"${CONTAINER_NAME}\", \"instanceId\": \"${CONTAINER_ID}\"}]}"
+                  fi
+            outputVariables: []
+            environmentVariables: []
+          timeout: 5m
 
     stageType: Deployment
