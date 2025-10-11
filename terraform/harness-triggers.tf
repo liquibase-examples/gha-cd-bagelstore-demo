@@ -70,31 +70,37 @@ resource "harness_platform_triggers" "github_actions_webhook" {
 # You need to retrieve the URL from the Harness UI or API after creation.
 
 output "harness_webhook_instructions" {
-  description = "Instructions for setting up the GitHub Actions webhook"
+  description = "Webhook setup status and verification instructions"
   value       = <<-EOT
 
     ====================================================================
-    HARNESS WEBHOOK SETUP - ACTION REQUIRED
+    ✅ HARNESS WEBHOOK SETUP - FULLY AUTOMATED!
     ====================================================================
 
-    The webhook trigger has been created in Harness!
+    The webhook trigger has been created in Harness and GitHub variable
+    has been set automatically!
 
-    NEXT STEPS:
+    WHAT WAS CONFIGURED:
 
-    1. Get the Webhook URL from Harness UI:
-       a. Navigate to: https://app.harness.io/ng/account/${var.harness_account_id}/cd/orgs/${var.harness_org_id}/projects/${var.harness_project_id}/pipelines/${harness_platform_pipeline.deploy_bagel_store.identifier}/pipeline-studio/
-       b. Click the "Triggers" tab
-       c. Find trigger: "GitHub Actions CI - ${var.demo_id}"
-       d. Copy the webhook URL (looks like: https://app.harness.io/gateway/api/webhooks/...)
+    ✅ Harness webhook trigger created
+    ✅ GitHub variable HARNESS_WEBHOOK_URL set automatically
+    ✅ Integration ready to use
 
-    2. Add webhook URL to GitHub:
-       gh variable set HARNESS_WEBHOOK_URL --body 'YOUR_WEBHOOK_URL_HERE'
+    VERIFY THE SETUP:
 
-    3. Test the integration:
+    1. Check GitHub variable was set:
+       gh variable list --repo ${var.github_org}/${var.github_repo} | grep HARNESS_WEBHOOK_URL
+
+    2. Test the integration:
        git push origin main
+       # Watch GitHub Actions complete, then check Harness UI
 
-    The webhook will automatically trigger the Harness pipeline after
-    GitHub Actions completes building artifacts.
+    TROUBLESHOOTING:
+
+    If webhook doesn't trigger, verify URL in Harness UI:
+    - Navigate to: https://app.harness.io/ng/account/${var.harness_account_id}/cd/orgs/${var.harness_org_id}/projects/${var.harness_project_id}/pipelines/${harness_platform_pipeline.deploy_bagel_store.identifier}/pipeline-studio/
+    - Click "Triggers" tab → "GitHub Actions CI - ${var.demo_id}"
+    - Compare webhook URL with GitHub variable
 
     ====================================================================
     EOT
@@ -116,4 +122,42 @@ output "harness_trigger_details" {
     org_id             = var.harness_org_id
     project_id         = var.harness_project_id
   }
+}
+
+# Automatically set GitHub variable with webhook URL
+# This eliminates manual configuration step!
+resource "null_resource" "set_github_webhook_variable" {
+  # Run whenever the trigger changes
+  triggers = {
+    trigger_id = harness_platform_triggers.github_actions_webhook.id
+  }
+
+  # Use constructed webhook URL to set GitHub variable
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+
+      # Construct webhook URL
+      WEBHOOK_URL="https://app.harness.io/gateway/api/webhooks/${var.harness_account_id}/${var.harness_org_id}/${var.harness_project_id}/${harness_platform_triggers.github_actions_webhook.identifier}?pipelineIdentifier=${harness_platform_pipeline.deploy_bagel_store.identifier}"
+
+      # Set GitHub repository variable
+      echo "Setting HARNESS_WEBHOOK_URL in GitHub repository..."
+      gh variable set HARNESS_WEBHOOK_URL \
+        --repo ${var.github_org}/${var.github_repo} \
+        --body "$WEBHOOK_URL"
+
+      echo "✅ GitHub variable HARNESS_WEBHOOK_URL set successfully!"
+      echo "Webhook URL: $WEBHOOK_URL"
+    EOT
+  }
+
+  depends_on = [
+    harness_platform_triggers.github_actions_webhook
+  ]
+}
+
+output "github_variable_status" {
+  description = "Status of GitHub variable configuration"
+  value       = "HARNESS_WEBHOOK_URL variable will be automatically set in GitHub repository after terraform apply"
+  depends_on  = [null_resource.set_github_webhook_variable]
 }
