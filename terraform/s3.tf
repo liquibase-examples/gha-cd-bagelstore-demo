@@ -1,7 +1,11 @@
 # S3 Bucket Configuration
-# Two buckets: liquibase-flows (public) and operation-reports (private)
+# Two buckets: liquibase-flows (private, IAM-authenticated) and operation-reports (private)
 
-# ===== Liquibase Flows Bucket (Public Read) =====
+# ===== Liquibase Flows Bucket (Private - IAM Access) =====
+#
+# Flow files stored in S3 for Liquibase to access via authenticated S3 URLs.
+# Access controlled via IAM credentials (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY).
+# Liquibase Secure 5.0.1+ natively supports: s3://bucket/path/flow.yaml
 
 resource "aws_s3_bucket" "liquibase_flows" {
   count = var.deployment_mode == "aws" ? 1 : 0
@@ -13,6 +17,7 @@ resource "aws_s3_bucket" "liquibase_flows" {
     {
       Name    = "${local.name_prefix}-liquibase-flows"
       Purpose = "Liquibase flow files and policy checks"
+      Access  = "Private - IAM authenticated"
     }
   )
 }
@@ -27,36 +32,16 @@ resource "aws_s3_bucket_versioning" "liquibase_flows" {
   }
 }
 
+# Block all public access - require IAM authentication
 resource "aws_s3_bucket_public_access_block" "liquibase_flows" {
   count = var.deployment_mode == "aws" ? 1 : 0
 
   bucket = aws_s3_bucket.liquibase_flows[0].id
 
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
-}
-
-resource "aws_s3_bucket_policy" "liquibase_flows" {
-  count = var.deployment_mode == "aws" ? 1 : 0
-
-  bucket = aws_s3_bucket.liquibase_flows[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "PublicReadGetObject"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.liquibase_flows[0].arn}/*"
-      }
-    ]
-  })
-
-  depends_on = [aws_s3_bucket_public_access_block.liquibase_flows]
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 # Upload Liquibase flow files

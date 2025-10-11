@@ -64,14 +64,17 @@ All 12 policy checks are configured with **BLOCKER severity** (exit code 4):
 
 ### Local Testing with Flow Files
 
+For local development, mount flow files from your workspace:
+
 ```bash
-# Test PR validation flow
+# Test PR validation flow (local mounts)
 docker run --rm \
   -v $(pwd)/db/changelog:/liquibase/changelog \
   -v $(pwd)/liquibase-flows:/liquibase/flows \
   -e LIQUIBASE_COMMAND_URL=jdbc:postgresql://localhost:5432/dev \
   -e LIQUIBASE_COMMAND_USERNAME=postgres \
   -e LIQUIBASE_COMMAND_PASSWORD=password \
+  -e LIQUIBASE_LICENSE_KEY=$LIQUIBASE_LICENSE_KEY \
   liquibase/liquibase-secure:5.0.1 \
   flow \
   --flow-file=/liquibase/flows/pr-validation-flow.yaml
@@ -79,38 +82,65 @@ docker run --rm \
 
 ### GitHub Actions Integration
 
-Flow files are uploaded to S3 by Terraform and referenced via S3 URLs:
+GitHub Actions uses local mounts for faster execution (no S3 access needed):
 
 ```yaml
-- name: Run PR Validation
+- name: Run Liquibase PR Validation Flow
   env:
-    LIQUIBASE_COMMAND_URL: jdbc:postgresql://${{ secrets.RDS_ENDPOINT }}/dev
-    LIQUIBASE_COMMAND_USERNAME: ${{ secrets.DB_USERNAME }}
-    LIQUIBASE_COMMAND_PASSWORD: ${{ secrets.DB_PASSWORD }}
     LIQUIBASE_LICENSE_KEY: ${{ secrets.LIQUIBASE_LICENSE_KEY }}
+    LIQUIBASE_COMMAND_URL: jdbc:postgresql://localhost:5432/dev
+    LIQUIBASE_COMMAND_USERNAME: postgres
+    LIQUIBASE_COMMAND_PASSWORD: postgres
+    LIQUIBASE_COMMAND_CHANGELOG_FILE: changelog-master.yaml
+    LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE: /liquibase/flows/liquibase.checks-settings.conf
   run: |
-    liquibase flow \
-      --flow-file=s3://bagel-store-${{ vars.DEMO_ID }}-liquibase-flows/pr-validation-flow.yaml
+    docker run --rm \
+      --network host \
+      -v ${{ github.workspace }}/db/changelog:/liquibase/changelog \
+      -v ${{ github.workspace }}/liquibase-flows:/liquibase/flows \
+      -e LIQUIBASE_LICENSE_KEY \
+      -e LIQUIBASE_COMMAND_URL \
+      -e LIQUIBASE_COMMAND_USERNAME \
+      -e LIQUIBASE_COMMAND_PASSWORD \
+      -e LIQUIBASE_COMMAND_CHANGELOG_FILE \
+      -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE \
+      -w /liquibase/changelog \
+      liquibase/liquibase-secure:5.0.1 \
+      flow \
+      --flow-file=/liquibase/flows/pr-validation-flow.yaml
 ```
 
-### Using AWS Secrets Manager
+### Harness CD Pipeline - S3 Flow Files (Private Bucket)
 
-Liquibase Secure 5.0.1 natively integrates with AWS Secrets Manager:
+**The S3 bucket is private and requires IAM authentication.**
+
+Harness CD pipelines access flow files from S3 using AWS credentials. Liquibase Secure 5.0.1+ natively supports S3 URLs with IAM authentication:
 
 ```bash
+# AWS MODE - Authenticated S3 access
 docker run --rm \
-  -v $(pwd)/db/changelog:/liquibase/changelog \
-  -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-  -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+  -v /tmp/changelog:/liquibase/changelog \
+  -e AWS_ACCESS_KEY_ID=<aws-access-key> \
+  -e AWS_SECRET_ACCESS_KEY=<aws-secret-key> \
   -e AWS_REGION=us-east-1 \
+  -e LIQUIBASE_LICENSE_KEY=<license-key> \
+  -e LIQUIBASE_COMMAND_URL=jdbc:postgresql://rds-endpoint:5432/dev \
+  -e LIQUIBASE_COMMAND_USERNAME='${awsSecretsManager:demo1/rds/username}' \
+  -e LIQUIBASE_COMMAND_PASSWORD='${awsSecretsManager:demo1/rds/password}' \
+  -e LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog-master.yaml \
+  -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE=s3://bagel-store-demo1-liquibase-flows/liquibase.checks-settings.conf \
+  -w /liquibase/changelog \
   liquibase/liquibase-secure:5.0.1 \
-  --url=jdbc:postgresql://rds-endpoint:5432/dev \
-  --username='${awsSecretsManager:demo1/rds/username}' \
-  --password='${awsSecretsManager:demo1/rds/password}' \
-  --changeLogFile=changelog-master.yaml \
   flow \
-  --flow-file=s3://bagel-store-demo1-liquibase-flows/pr-validation-flow.yaml
+  --flow-file=s3://bagel-store-demo1-liquibase-flows/main-deployment-flow.yaml
 ```
+
+**Key Points:**
+- S3 bucket is **private** - no public access
+- Requires `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables
+- Liquibase automatically authenticates to S3 using AWS SDK
+- Both flow files and checks-settings.conf can use S3 URLs
+- Demonstrates production-ready security pattern
 
 ## Operation Reports
 
@@ -133,15 +163,31 @@ Reports are automatically uploaded to S3:
 s3://bagel-store-<demo_id>-operation-reports/reports/<run-number>/
 ```
 
-## S3 Deployment
+## S3 Deployment (Private Bucket)
 
-Terraform automatically uploads these files to S3:
+Terraform automatically uploads these files to a **private S3 bucket**:
 
 ```hcl
+# S3 bucket is private with IAM-based access control
+resource "aws_s3_bucket_public_access_block" "liquibase_flows" {
+  bucket = aws_s3_bucket.liquibase_flows[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 resource "aws_s3_object" "pr_validation_flow" {
   bucket = aws_s3_bucket.liquibase_flows.id
   key    = "pr-validation-flow.yaml"
   source = "liquibase-flows/pr-validation-flow.yaml"
+}
+
+resource "aws_s3_object" "main_deployment_flow" {
+  bucket = aws_s3_bucket.liquibase_flows.id
+  key    = "main-deployment-flow.yaml"
+  source = "liquibase-flows/main-deployment-flow.yaml"
 }
 
 resource "aws_s3_object" "policy_checks_config" {
@@ -150,6 +196,11 @@ resource "aws_s3_object" "policy_checks_config" {
   source = "liquibase-flows/liquibase.checks-settings.conf"
 }
 ```
+
+**Access Control:**
+- Bucket is **private** - no public access allowed
+- Access requires valid AWS credentials (IAM user or role)
+- Liquibase Secure 5.0.1+ handles S3 authentication automatically via AWS SDK
 
 ## Global Variables
 

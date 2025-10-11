@@ -108,7 +108,7 @@ pipeline:
                     outputVariables: []
                   timeout: 5m
 
-              # Step 2: Update database with Liquibase
+              # Step 2: Update database with Liquibase using S3 Flow Files
               - step:
                   type: ShellScript
                   name: Update Database
@@ -123,7 +123,7 @@ pipeline:
                           #!/bin/bash
                           set -e
 
-                          echo "=== Updating Database with Liquibase ==="
+                          echo "=== Updating Database with Liquibase Flow ==="
                           echo "Environment: <+env.variables.environment>"
                           echo "Deployment Target: ${DEPLOYMENT_TARGET:-aws}"
                           echo "Demo ID: <+env.variables.demo_id>"
@@ -132,8 +132,9 @@ pipeline:
                           DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
 
                           if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
-                            # ===== AWS MODE =====
+                            # ===== AWS MODE - Use S3 Flow Files =====
                             echo "Using AWS RDS endpoint: <+env.variables.rds_endpoint>"
+                            echo "Flow file: s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml"
 
                             docker run --rm \
                               -v /tmp/changelog:/liquibase/changelog \
@@ -141,17 +142,20 @@ pipeline:
                               -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
                               -e AWS_REGION=<+env.variables.aws_region> \
                               -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              -e LIQUIBASE_COMMAND_URL=<+env.variables.jdbc_url> \
+                              -e LIQUIBASE_COMMAND_USERNAME='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                              -e LIQUIBASE_COMMAND_PASSWORD='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+                              -e LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog-master.yaml \
+                              -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE=s3://<+env.variables.liquibase_flows_bucket>/liquibase.checks-settings.conf \
+                              -w /liquibase/changelog \
                               liquibase/liquibase-secure:5.0.1 \
-                              --url=<+env.variables.jdbc_url> \
-                              --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                              --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                              --changeLogFile=changelog-master.yaml \
-                              --log-level=INFO \
-                              update
+                              flow \
+                              --flow-file=s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml
 
                           else
-                            # ===== LOCAL MODE =====
+                            # ===== LOCAL MODE - Use Local Flow Files =====
                             echo "Using local PostgreSQL container: postgres-<+env.variables.environment>"
+                            echo "Note: Local mode uses direct update, not flow files"
 
                             # Connect to Docker Compose network
                             docker run --rm \
@@ -447,25 +451,29 @@ pipeline:
                           # Determine deployment target (defaults to aws if not set)
                           DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
 
-                          echo "=== Updating Database with Liquibase ==="
+                          echo "=== Updating Database with Liquibase Flow ==="
                           echo "Environment: test"
                           echo "Deployment Target: $DEPLOYMENT_TARGET"
 
                           if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
-                            # AWS MODE - Use RDS via Secrets Manager
+                            # AWS MODE - Use S3 Flow Files
+                            echo "Flow file: s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml"
+
                             docker run --rm \
                               -v /tmp/changelog:/liquibase/changelog \
                               -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
                               -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
                               -e AWS_REGION=<+env.variables.aws_region> \
                               -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              -e LIQUIBASE_COMMAND_URL=<+env.variables.jdbc_url> \
+                              -e LIQUIBASE_COMMAND_USERNAME='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                              -e LIQUIBASE_COMMAND_PASSWORD='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+                              -e LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog-master.yaml \
+                              -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE=s3://<+env.variables.liquibase_flows_bucket>/liquibase.checks-settings.conf \
+                              -w /liquibase/changelog \
                               liquibase/liquibase-secure:5.0.1 \
-                              --url=<+env.variables.jdbc_url> \
-                              --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                              --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                              --changeLogFile=changelog-master.yaml \
-                              --log-level=INFO \
-                              update
+                              flow \
+                              --flow-file=s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml
                           else
                             # LOCAL MODE - Use Docker Compose postgres containers
                             echo "Running Liquibase against local postgres-<+env.variables.environment> container"
@@ -482,7 +490,7 @@ pipeline:
                               update
                           fi
 
-                          echo "Database update completed successfully"
+                          echo "✅ Database update completed successfully"
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -717,25 +725,29 @@ pipeline:
                           # Determine deployment target (defaults to aws if not set)
                           DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
 
-                          echo "=== Updating Database with Liquibase ==="
+                          echo "=== Updating Database with Liquibase Flow ==="
                           echo "Environment: staging"
                           echo "Deployment Target: $DEPLOYMENT_TARGET"
 
                           if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
-                            # AWS MODE - Use RDS via Secrets Manager
+                            # AWS MODE - Use S3 Flow Files
+                            echo "Flow file: s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml"
+
                             docker run --rm \
                               -v /tmp/changelog:/liquibase/changelog \
                               -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
                               -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
                               -e AWS_REGION=<+env.variables.aws_region> \
                               -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              -e LIQUIBASE_COMMAND_URL=<+env.variables.jdbc_url> \
+                              -e LIQUIBASE_COMMAND_USERNAME='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                              -e LIQUIBASE_COMMAND_PASSWORD='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+                              -e LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog-master.yaml \
+                              -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE=s3://<+env.variables.liquibase_flows_bucket>/liquibase.checks-settings.conf \
+                              -w /liquibase/changelog \
                               liquibase/liquibase-secure:5.0.1 \
-                              --url=<+env.variables.jdbc_url> \
-                              --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                              --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                              --changeLogFile=changelog-master.yaml \
-                              --log-level=INFO \
-                              update
+                              flow \
+                              --flow-file=s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml
                           else
                             # LOCAL MODE - Use Docker Compose postgres containers
                             echo "Running Liquibase against local postgres-<+env.variables.environment> container"
@@ -752,7 +764,7 @@ pipeline:
                               update
                           fi
 
-                          echo "Database update completed successfully"
+                          echo "✅ Database update completed successfully"
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m
@@ -987,25 +999,29 @@ pipeline:
                           # Determine deployment target (defaults to aws if not set)
                           DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
 
-                          echo "=== Updating Database with Liquibase ==="
+                          echo "=== Updating Database with Liquibase Flow ==="
                           echo "Environment: prod"
                           echo "Deployment Target: $DEPLOYMENT_TARGET"
 
                           if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
-                            # AWS MODE - Use RDS via Secrets Manager
+                            # AWS MODE - Use S3 Flow Files
+                            echo "Flow file: s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml"
+
                             docker run --rm \
                               -v /tmp/changelog:/liquibase/changelog \
                               -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
                               -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
                               -e AWS_REGION=<+env.variables.aws_region> \
                               -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
+                              -e LIQUIBASE_COMMAND_URL=<+env.variables.jdbc_url> \
+                              -e LIQUIBASE_COMMAND_USERNAME='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
+                              -e LIQUIBASE_COMMAND_PASSWORD='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
+                              -e LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog-master.yaml \
+                              -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE=s3://<+env.variables.liquibase_flows_bucket>/liquibase.checks-settings.conf \
+                              -w /liquibase/changelog \
                               liquibase/liquibase-secure:5.0.1 \
-                              --url=<+env.variables.jdbc_url> \
-                              --username='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                              --password='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                              --changeLogFile=changelog-master.yaml \
-                              --log-level=INFO \
-                              update
+                              flow \
+                              --flow-file=s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml
                           else
                             # LOCAL MODE - Use Docker Compose postgres containers
                             echo "Running Liquibase against local postgres-<+env.variables.environment> container"
@@ -1022,7 +1038,7 @@ pipeline:
                               update
                           fi
 
-                          echo "Database update completed successfully"
+                          echo "✅ Database update completed successfully"
                     environmentVariables: []
                     outputVariables: []
                   timeout: 10m

@@ -8,7 +8,7 @@ This Terraform configuration creates:
 
 - **RDS PostgreSQL Instance** - Single instance with 4 databases (dev, test, staging, prod)
 - **AWS Secrets Manager** - Database credentials
-- **S3 Buckets** - Liquibase flows (public) and operation reports (private)
+- **S3 Buckets** - Liquibase flows (private, IAM-authenticated) and operation reports (private)
 - **App Runner Services** - 4 services (one per environment) with fixed instance count
 - **Route53 DNS** (Optional) - Custom DNS records for all environments
 - **Harness Environments** - Automatically configured with AWS infrastructure outputs
@@ -150,8 +150,14 @@ After applying, Terraform provides:
 - `jdbc_urls` - JDBC connection strings for all environments
 
 ### S3 Buckets
-- `liquibase_flows_bucket` - Public bucket for flow files
+- `liquibase_flows_bucket` - **Private** bucket for flow files (IAM-authenticated access)
 - `operation_reports_bucket` - Private bucket for CI/CD reports
+
+**S3 Access Pattern:**
+- Both buckets are private and require AWS credentials
+- Harness pipeline accesses flow files via authenticated S3 URLs: `s3://bucket/file.yaml`
+- Liquibase Secure 5.0.1+ natively supports S3 authentication via AWS SDK
+- Example: `flow --flow-file=s3://bagel-store-demo1-liquibase-flows/main-deployment-flow.yaml`
 
 ### App Runner
 - `app_runner_services` - Service ARNs and URLs
