@@ -40,6 +40,22 @@ This is a demonstration repository showcasing coordinated application and databa
 - See [docs/AWS_SETUP.md](docs/AWS_SETUP.md) for AWS configuration
 - Type `/setup` at Claude Code prompt for AI-assisted guidance
 
+## Diagnostic Approach
+
+**CRITICAL: When encountering errors, follow this approach to avoid wasting time:**
+
+1. **Don't assume error logs = failure** - Services can be fully functional despite error logs
+2. **Verify external state FIRST** - Check UI dashboards, API responses, actual service connectivity
+3. **Check for environmental issues** - Wrong names, stale locks, timeouts, configuration mismatches
+4. **Read project-specific docs** - See "AI Documentation Reference Rules" below
+5. **Use diagnostic scripts** - `./scripts/diagnose-*.sh`
+
+**Example That Will Save You 10+ Minutes:**
+- ❌ **Wrong:** "Harness delegate logs show errors → delegate is broken → debug token format"
+- ✅ **Right:** "Check Harness UI first → delegate shows 'Connected' → errors are non-fatal → focus on actual problem"
+
+**Pattern:** Delegate showing `remote-stackdriver-log-submitter` errors or `DecoderException` in logs while showing "Connected" in Harness UI means it's **working fine** (errors are telemetry/logging issues, not core functionality).
+
 ## AI Documentation Reference Rules
 
 **IMPORTANT:** Before working on specific areas, automatically read the relevant documentation:
@@ -196,6 +212,33 @@ Benefits: 10-100x faster than pip, reproducible builds via `uv.lock`
   - Local mode loses AWS-specific features (Secrets Manager, Route53)
   - **Benefit:** Dramatically lowers barrier to entry for demos (2 min setup vs. 30 min)
 
+### Why Hybrid Harness Management (Terraform + Manual)?
+- **Decision:** Manage core Harness resources in Terraform, Git-based resources (template, pipeline, trigger) manually
+- **Rationale:**
+  - **Terraform is EXCELLENT for**: Environments (with AWS outputs), Secrets, Connectors, Service
+  - **Terraform is PROBLEMATIC for**: Remote templates/pipelines (require feature flags, timeouts, import issues)
+  - Templates and pipelines already in Git anyway (true GitOps)
+  - 10 minutes of one-time manual setup vs 2+ days waiting for Harness Support feature flags
+- **What's in Terraform (11 resources):**
+  - 4 Environments (auto-populated with 14 AWS infrastructure outputs) - **CRITICAL VALUE**
+  - 4 Secrets (GitHub PAT, AWS credentials, Liquibase license)
+  - 2 Connectors (GitHub, AWS)
+  - 1 Service definition
+- **What's Manual (3 resources):**
+  - 1 Step Group Template (remote, pointing to `harness/templates/deployment-steps.yaml`)
+  - 1 Pipeline (remote, pointing to `harness/pipelines/deploy-pipeline.yaml`)
+  - 1 Webhook Trigger (maps GitHub Actions to pipeline)
+- **Implementation:**
+  - Run `terraform apply` for infrastructure + core Harness resources (1 minute)
+  - Follow [docs/HARNESS_MANUAL_SETUP.md](docs/HARNESS_MANUAL_SETUP.md) for one-time GitOps setup (10 minutes)
+  - All future template/pipeline changes happen via Git commits (pull requests)
+- **Trade-offs:**
+  - ✅ Eliminates timeout/feature flag issues
+  - ✅ True GitOps workflow (changes via Git, not Terraform)
+  - ✅ Keeps high-value Terraform resources (AWS → Harness integration)
+  - ⚠️ One-time manual setup required
+  - ⚠️ Template/pipeline not in Terraform state (but version-controlled in Git)
+
 ## Quick Reference
 
 ### Local Development
@@ -225,8 +268,13 @@ gh run view $RUN_ID --log-failed
 ```bash
 cd harness
 docker compose up -d          # Start delegate
-docker compose logs -f        # View logs
-docker compose ps             # Check status
+docker compose logs -f        # View logs (ignore Stackdriver/logging errors)
+docker compose ps             # Check container status
+
+# IMPORTANT: Verify delegate connectivity in Harness UI (NOT just logs!)
+# Harness UI: Project Settings → Delegates → Look for "Connected" + recent heartbeat
+# Delegate can show error logs while being fully functional
+
 docker compose down           # Stop delegate
 ```
 
@@ -256,6 +304,67 @@ docker compose -f docker-compose-demo.yml down
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md) for complete reference.
 
+## Common Gotchas
+
+### Harness Delegate: Error Logs ≠ Failure
+
+**CRITICAL PATTERN TO RECOGNIZE:**
+
+1. **Delegate showing errors but actually working**:
+   - Error pattern: `DecoderException: Illegal hexadecimal character p` from `remote-stackdriver-log-submitter`
+   - Error pattern: `Failed to initialize token generator`
+   - Error pattern: `EncryptDecryptException` in logging/telemetry threads
+   - **These are non-fatal** - Stackdriver logging errors are cosmetic
+   - Delegate can be **fully functional** with these errors in logs
+
+2. **How to verify actual delegate status**:
+   - ✅ **Correct:** Check Harness UI → Project Settings → Delegates
+   - Look for: "Connected" status + recent heartbeat (< 1 min)
+   - ❌ **Wrong:** Assume delegate is broken because of error logs
+   - ❌ **Wrong:** Spend time debugging token format/encoding
+
+3. **Root cause of these errors**:
+   - Telemetry/logging system issues (remote-stackdriver-log-submitter thread)
+   - Does NOT affect core delegate functionality
+   - Delegate can communicate with Harness Manager perfectly fine
+
+### Terraform + Harness Integration
+
+1. **Repository renames impact Terraform**:
+   - Harness terraform provider fetches templates from GitHub
+   - If repo renamed, update `terraform.tfvars` (local, gitignored file)
+   - Change `github_repo` variable to match new repo name
+   - Terraform will **timeout** trying to fetch from old repo name
+   - Remember: `terraform.tfvars` is NOT committed (contains secrets)
+
+2. **Stale terraform locks after timeouts**:
+   - Timeouts (especially with Harness provider) leave lock files
+   - Location: `terraform/.terraform.tfstate.lock.info`
+   - Check lock: `cat terraform/.terraform.tfstate.lock.info`
+   - Safe to remove if no terraform process running: `rm terraform/.terraform.tfstate.lock.info`
+   - Or use: `terraform force-unlock <LOCK_ID>`
+
+3. **Debugging Harness resources in terraform**:
+   ```bash
+   # Check what Harness resources exist in state
+   cd terraform
+   terraform show -json | jq -r '.values.root_module.resources[] | select(.provider_name == "registry.terraform.io/harness/harness") | "\(.type): \(.values.name // .values.identifier)"'
+
+   # Verify delegate can connect before terraform apply
+   # Check Harness UI first!
+   ```
+
+### After GitHub Repository Rename
+
+**Checklist when renaming the GitHub repository:**
+
+1. Update `terraform/terraform.tfvars` - Change `github_repo` variable (NOT committed)
+2. Verify `github_org` if organization changed
+3. Clear any stale terraform locks: `rm terraform/.terraform.tfstate.lock.info`
+4. Run `terraform apply` to update Harness resources (remote templates, triggers)
+5. Check GitHub Actions workflows for hardcoded repo references
+6. Update any local documentation or scripts with repo name
+
 ## Documentation Index
 
 ### Core Documentation
@@ -284,6 +393,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/LOCAL_DEPLOYMENT.md](docs/LOC
 ### Harness CD
 - **[harness/README.md](harness/README.md)** - Delegate setup, connectors, secrets
 - **[harness/pipelines/README.md](harness/pipelines/README.md)** - Pipeline architecture and execution
+- **[docs/HARNESS_MANUAL_SETUP.md](docs/HARNESS_MANUAL_SETUP.md)** - Manual setup for template, pipeline, and trigger (one-time, 10 min)
 
 ## Security & Secrets
 

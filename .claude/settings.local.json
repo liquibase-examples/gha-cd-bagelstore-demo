@@ -72,7 +72,15 @@
       "Bash(AWS_PROFILE=liquibase-csteam-operator aws s3 ls)",
       "Bash(AWS_PROFILE=liquibase-csteam-operator aws dynamodb list-tables --region us-east-1)",
       "Bash(gh issue list:*)",
-      "Bash(export AWS_PROFILE=liquibase-sandbox-admin)"
+      "Bash(export AWS_PROFILE=liquibase-sandbox-admin)",
+      "mcp__context7__get-library-docs",
+      "Bash(git check-ignore:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(docker inspect:*)",
+      "Bash(mkdir:*)",
+      "Bash(git commit:*)",
+      "Bash(git show:*)"
     ],
     "deny": [],
     "ask": []

@@ -210,19 +210,13 @@ Click **"Create"** to save the trigger.
 
 After saving, you'll be back at the Trigger Listing page. Get the webhook URL:
 
-**Option 1: Click the Webhook Icon (Easiest)**
+**Click the Webhook Icon**
 
 1. Look in the **WEBHOOK** column next to your trigger
 2. Click the link icon (🔗)
 3. This will either:
    - Copy the webhook URL to your clipboard, OR
    - Display the webhook URL in a popup
-
-**Option 2: Open Trigger Details**
-
-1. Click on **"GitHub Actions CI"** (the trigger name)
-2. Find the **"Webhook URL"** field in the trigger details
-3. Copy the URL
 
 **Expected format:** `https://app.harness.io/gateway/pipeline/api/webhook/custom/...`
 
