@@ -237,6 +237,8 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{
               "version": "${{ steps.version.outputs.version }}",
+              "github_org": "${{ github.repository_owner }}",
+              "deployment_target": "${{ vars.DEPLOYMENT_TARGET || ''aws'' }}",
               "commit_sha": "${{ github.sha }}",
               "commit_message": "${{ github.event.head_commit.message }}",
               "triggered_by": "${{ github.actor }}",
