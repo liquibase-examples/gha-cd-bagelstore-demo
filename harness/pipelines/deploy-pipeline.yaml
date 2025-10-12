@@ -65,8 +65,6 @@ pipeline:
           environment:
             environmentRef: psr_dev
             deployToAll: false
-            infrastructureDefinitions:
-              - identifier: dev_infrastructure
 
           # Execution steps - Using Step Group Template
           execution:
@@ -112,8 +110,6 @@ pipeline:
           environment:
             environmentRef: psr_test
             deployToAll: false
-            infrastructureDefinitions:
-              - identifier: test_infrastructure
 
           execution:
             steps:
@@ -172,8 +168,6 @@ pipeline:
           environment:
             environmentRef: psr_staging
             deployToAll: false
-            infrastructureDefinitions:
-              - identifier: staging_infrastructure
 
           execution:
             steps:
@@ -232,8 +226,6 @@ pipeline:
           environment:
             environmentRef: psr_prod
             deployToAll: false
-            infrastructureDefinitions:
-              - identifier: prod_infrastructure
 
           execution:
             steps:
