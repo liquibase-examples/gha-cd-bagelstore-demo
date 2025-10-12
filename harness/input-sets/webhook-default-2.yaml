@@ -8,10 +8,10 @@ inputSet:
     variables:
       - name: VERSION
         type: String
-        value: <+input>
+        value: <+trigger.payload.version>
       - name: GITHUB_ORG
         type: String
-        value: <+input>
+        value: <+trigger.payload.github_org>
       - name: DEPLOYMENT_TARGET
         type: String
-        value: <+input>
+        value: <+trigger.payload.deployment_target>
