@@ -64,7 +64,7 @@ pipeline:
           # Environment configuration
           environment:
             environmentRef: psr_dev
-            deployToAll: false
+            deployToAll: true
 
           # Execution steps - Using Step Group Template
           execution:
@@ -109,7 +109,7 @@ pipeline:
 
           environment:
             environmentRef: psr_test
-            deployToAll: false
+            deployToAll: true
 
           execution:
             steps:
@@ -167,7 +167,7 @@ pipeline:
 
           environment:
             environmentRef: psr_staging
-            deployToAll: false
+            deployToAll: true
 
           execution:
             steps:
@@ -225,7 +225,7 @@ pipeline:
 
           environment:
             environmentRef: psr_prod
-            deployToAll: false
+            deployToAll: true
 
           execution:
             steps:
