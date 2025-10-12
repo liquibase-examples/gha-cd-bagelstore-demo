@@ -245,6 +245,7 @@ jobs:
               \"version\": \"${{ steps.version.outputs.version }}\",
               \"github_org\": \"${{ github.repository_owner }}\",
               \"deployment_target\": \"${DEPLOYMENT_TARGET}\",
+              \"branch\": \"${{ github.ref_name }}\",
               \"commit_sha\": \"${{ github.sha }}\",
               \"commit_message\": $(echo '${{ github.event.head_commit.message }}' | jq -Rs .),
               \"triggered_by\": \"${{ github.actor }}\",
