@@ -57,7 +57,7 @@ pipeline:
                         - identifier: docker_image
                           type: DockerRegistry
                           spec:
-                            connectorRef: github_container_registry
+                            connectorRef: github_bagel_store
                             imagePath: <+pipeline.variables.GITHUB_ORG>/bagel-store
                             tag: <+pipeline.variables.VERSION>
 
