@@ -21,7 +21,13 @@ pipeline:
       type: String
       description: GitHub organization name
       required: true
-      value: <+input>.execute-once
+      value: <+input>
+
+    - name: DEPLOYMENT_TARGET
+      type: String
+      description: Deployment target (aws or local)
+      required: false
+      value: aws
 
   # Deployment stages for all four environments
   stages:
