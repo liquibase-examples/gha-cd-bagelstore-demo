@@ -1,0 +1,14 @@
+infrastructureDefinition:
+  name: psr-staging Infrastructure
+  identifier: psr_staging_infra
+  orgIdentifier: default
+  projectIdentifier: bagel_store_demo
+  environmentRef: psr_staging
+  deploymentType: CustomDeployment
+  type: CustomDeployment
+  spec:
+    customDeploymentRef:
+      templateRef: Custom
+      versionLabel: "1.0"
+    variables: []
+  allowSimultaneousDeployments: false

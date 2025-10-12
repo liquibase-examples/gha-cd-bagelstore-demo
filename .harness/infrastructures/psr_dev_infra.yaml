@@ -1,0 +1,14 @@
+infrastructureDefinition:
+  name: psr-dev Infrastructure
+  identifier: psr_dev_infra
+  orgIdentifier: default
+  projectIdentifier: bagel_store_demo
+  environmentRef: psr_dev
+  deploymentType: CustomDeployment
+  type: CustomDeployment
+  spec:
+    customDeploymentRef:
+      templateRef: Custom
+      versionLabel: "1.0"
+    variables: []
+  allowSimultaneousDeployments: false
