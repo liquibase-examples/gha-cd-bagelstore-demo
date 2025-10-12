@@ -12,3 +12,6 @@ inputSet:
       - name: GITHUB_ORG
         type: String
         value: <+input>
+      - name: DEPLOYMENT_TARGET
+        type: String
+        value: <+input>
