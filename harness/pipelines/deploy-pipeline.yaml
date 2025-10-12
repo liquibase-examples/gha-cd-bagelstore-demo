@@ -26,8 +26,8 @@ pipeline:
     - name: DEPLOYMENT_TARGET
       type: String
       description: Deployment target (aws or local)
-      required: false
-      value: aws
+      required: true
+      value: <+input>
 
   # Deployment stages for all four environments
   stages:
