@@ -136,7 +136,7 @@ Fill in the form:
 | **Git Connector** | `github-bagel-store` |
 | **Repository** | `gha-cd-bagelstore-demo` |
 | **Git Branch** | `main` |
-| **YAML Path** | `harness/input-sets/webhook-default.yaml` |
+| **YAML Path** | `harness/input-sets/webhook-default-2.yaml` |
 
 ### 3.4 Pipeline Variables
 
@@ -200,7 +200,7 @@ Under **"Conditions"**, add:
    - `GITHUB_ORG`: `<+trigger.payload.github_org>` or hardcode `liquibase-examples`
    - `DEPLOYMENT_TARGET`: `<+trigger.payload.deployment_target>` or hardcode `aws`
 
-**Note:** The Input Set was created in Step 3 and is stored in Git at `harness/input-sets/webhook-default.yaml`.
+**Note:** The Input Set was created in Step 3 and is stored in Git at `harness/input-sets/webhook-default-2.yaml`.
 
 ### 4.5 Save and Copy Webhook URL
 
@@ -308,7 +308,7 @@ Should show: `HARNESS_WEBHOOK_URL  <webhook_url>  Updated YYYY-MM-DD`
 **Problem:** Trigger creation fails with error about missing Input Set
 
 **Solution:**
-1. Verify Input Set exists in Git: `harness/input-sets/webhook-default.yaml`
+1. Verify Input Set exists in Git: `harness/input-sets/webhook-default-2.yaml`
 2. Ensure Input Set is committed and pushed to `main` branch
 3. In trigger UI, go to "Pipeline Input" tab
 4. Click "+ Select Input Set(s)" and select `webhook_default`

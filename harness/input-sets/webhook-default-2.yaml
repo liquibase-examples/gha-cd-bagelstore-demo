@@ -1,6 +1,6 @@
 inputSet:
   name: Webhook Default
-  identifier: Webhook_Default
+  identifier: webhook_default
   orgIdentifier: default
   projectIdentifier: bagel_store_demo
   pipeline:
@@ -11,4 +11,7 @@ inputSet:
         value: <+input>
       - name: GITHUB_ORG
         type: String
-        value: <+input>.execute-once
+        value: <+input>
+      - name: DEPLOYMENT_TARGET
+        type: String
+        value: <+input>
