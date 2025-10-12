@@ -140,15 +140,22 @@ Fill in the form:
 
 ### 3.4 Pipeline Variables
 
-The form will show the pipeline variables defined in your pipeline. Set each variable to **"Runtime input"** (leave blank or set to `<+input>`):
+**IMPORTANT:** For webhook triggers, the Input Set file in Git already has the correct expressions that map webhook payload to pipeline variables.
 
-| Variable | Value |
-|----------|-------|
-| **VERSION** | Leave blank (Runtime input) |
-| **GITHUB_ORG** | Leave blank (Runtime input) |
-| **DEPLOYMENT_TARGET** | Leave blank (Runtime input) |
+The file at `harness/input-sets/webhook-default-2.yaml` contains:
+```yaml
+variables:
+  - name: VERSION
+    value: <+trigger.payload.version>
+  - name: GITHUB_ORG
+    value: <+trigger.payload.github_org>
+  - name: DEPLOYMENT_TARGET
+    value: <+trigger.payload.deployment_target>
+```
 
-**What this means:** These values will be provided at runtime by the webhook trigger, not hardcoded in the Input Set.
+**You do NOT need to manually edit these values in the Harness UI.** When you save the Input Set, Harness reads these expressions from Git.
+
+**Key Point:** These are NOT `<+input>` (which waits for manual user input), but `<+trigger.payload.*>` expressions (which automatically resolve from webhook payload data).
 
 ### 3.5 Save to Git
 
@@ -195,12 +202,13 @@ Under **"Conditions"**, add:
 1. Click the **"Pipeline Input"** tab in the trigger configuration
 2. Click **"+ Select Input Set(s)"** button
 3. Select **`webhook_default`** from the dropdown
-4. In the trigger configuration, map webhook payload to pipeline variables:
+4. **Scroll down** to see the "Pipeline Variables" section
+5. **Verify** the variables show the trigger payload expressions (in orange text):
    - `VERSION`: `<+trigger.payload.version>`
-   - `GITHUB_ORG`: `<+trigger.payload.github_org>` or hardcode `liquibase-examples`
-   - `DEPLOYMENT_TARGET`: `<+trigger.payload.deployment_target>` or hardcode `aws`
+   - `GITHUB_ORG`: `<+trigger.payload.github_org>`
+   - `DEPLOYMENT_TARGET`: `<+trigger.payload.deployment_target>`
 
-**Note:** The Input Set was created in Step 3 and is stored in Git at `harness/input-sets/webhook-default-2.yaml`.
+**Note:** These values come from the Input Set file in Git (`harness/input-sets/webhook-default-2.yaml`). You should NOT see `<+input>` values - if you do, the Input Set needs to be re-synced from Git (delete and re-add it).
 
 ### 4.5 Save Trigger
 
@@ -325,6 +333,30 @@ Should show: `HARNESS_WEBHOOK_URL  <webhook_url>  Updated YYYY-MM-DD`
 3. In trigger UI, go to "Pipeline Input" tab
 4. Click "+ Select Input Set(s)" and select `webhook_default`
 5. Do NOT try to manually enter pipeline variables - use Input Set instead
+
+### Trigger Stays QUEUED - Never Executes
+
+**Problem:** Webhook successfully posts to Harness, but pipeline execution stays in QUEUED state forever with `pipelineExecutionId: null`
+
+**Symptoms:**
+- GitHub Actions completes successfully
+- Webhook returns `"status":"SUCCESS"`
+- Harness API shows `"status":"QUEUED"` with `"message":"Trigger execution is queued"`
+- Pipeline never starts executing
+
+**Root Cause:** Input Set has `<+input>` values (manual runtime input) instead of `<+trigger.payload.*>` expressions (webhook payload data)
+
+**Solution:**
+1. Check Input Set file in Git: `harness/input-sets/webhook-default-2.yaml`
+2. Verify all variables use trigger payload expressions:
+   ```yaml
+   value: <+trigger.payload.version>          # ✅ CORRECT
+   # NOT:
+   value: <+input>                             # ❌ WRONG - waits forever for manual input
+   ```
+3. If values are wrong, update the file in Git and push
+4. In Harness UI, delete and recreate the Input Set to force re-sync from Git
+5. Update the trigger to use the refreshed Input Set
 
 ### Pipeline Fails on Dev Deployment
 
