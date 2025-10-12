@@ -1,0 +1,14 @@
+inputSet:
+  name: Webhook Default
+  identifier: webhook_default
+  orgIdentifier: default
+  projectIdentifier: bagel_store_demo
+  pipeline:
+    identifier: Deploy_Bagel_Store
+    variables:
+      - name: VERSION
+        type: String
+        value: <+input>
+      - name: GITHUB_ORG
+        type: String
+        value: <+input>
