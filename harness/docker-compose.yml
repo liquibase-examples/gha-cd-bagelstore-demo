@@ -57,6 +57,9 @@ services:
       # Mount Docker socket to run Liquibase containers
       - /var/run/docker.sock:/var/run/docker.sock
 
+      # Mount deployment scripts (read-only for security)
+      - ./scripts:/opt/harness-delegate/scripts:ro
+
       # Optional: Mount local directory for artifacts
       - ./artifacts:/artifacts
 

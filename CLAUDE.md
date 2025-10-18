@@ -188,6 +188,137 @@ bash scripts/get-pipeline-executions.sh  # Try explicit bash invocation
 
 **Time saved:** 10-15 minutes per query × multiple queries per session = significant productivity gain
 
+## Deployment Scripts Pattern (CRITICAL)
+
+**IMPORTANT:** Deployment logic lives in external scripts, NOT inline YAML.
+
+**Why:** Inline scripts in Harness templates require manual UI refresh after every change. External scripts update automatically on git push.
+
+### Architecture
+
+```
+harness/
+├── scripts/                          # Deployment scripts (bind mounted to delegate)
+│   ├── fetch-changelog-artifact.sh   # Download changelog from GitHub Actions
+│   ├── update-database.sh            # Run Liquibase (AWS or local mode)
+│   ├── deploy-application.sh         # Deploy to App Runner or Docker Compose
+│   ├── health-check.sh               # Verify deployment succeeded
+│   ├── fetch-instances.sh            # Report instances to Harness
+│   └── README.md                     # Script documentation
+├── docker-compose.yml                # Mounts scripts to delegate
+└── .env
+```
+
+**Mount configuration** (`harness/docker-compose.yml`):
+```yaml
+volumes:
+  - ./scripts:/opt/harness-delegate/scripts:ro
+```
+
+**Template calls script** (`.harness/.../Coordinated_DB_App_Deployment/v1_0.yaml`):
+```yaml
+- step:
+    type: ShellScript
+    name: Fetch Changelog Artifact
+    spec:
+      script: |-
+        /opt/harness-delegate/scripts/fetch-changelog-artifact.sh \
+          "<+pipeline.variables.VERSION>" \
+          "<+pipeline.variables.GITHUB_ORG>" \
+          "<+secrets.getValue('github_pat')>"
+```
+
+### Development Workflow
+
+**✅ FAST Iteration (No UI Interaction!):**
+```bash
+# 1. Edit script
+vim harness/scripts/fetch-changelog-artifact.sh
+
+# 2. Test locally (optional)
+./harness/scripts/fetch-changelog-artifact.sh "v1.0.0" "liquibase-examples" "$GITHUB_PAT"
+
+# 3. Commit and push
+git add harness/scripts/fetch-changelog-artifact.sh
+git commit -m "Fix: Improve artifact download error handling"
+git push
+
+# 4. Trigger deployment
+gh workflow run main-ci.yml
+
+# ✅ Script changes take effect IMMEDIATELY - no Harness UI refresh needed!
+```
+
+**❌ OLD Workflow (Manual UI Refresh Required):**
+```bash
+# 1. Edit inline YAML in template
+vim .harness/.../Coordinated_DB_App_Deployment/v1_0.yaml
+
+# 2. Commit and push
+git push
+
+# 3. Go to Harness UI
+# 4. Navigate to: Project Setup → Templates → Coordinated_DB_App_Deployment
+# 5. Click "Refresh" icon
+# 6. Wait for sync...
+# 7. Trigger deployment
+
+# ❌ Manual UI steps waste 5-10 minutes per iteration
+```
+
+### When to Refresh Template in Harness UI
+
+**ONLY refresh template when:**
+- ✅ Changing template YAML structure (adding/removing steps)
+- ✅ Changing step order or dependencies
+- ✅ Changing script arguments or Harness variable names
+- ✅ Adding NEW scripts to `harness/scripts/` (requires delegate restart too)
+
+**DO NOT refresh template for:**
+- ❌ Script logic changes (bug fixes, improvements)
+- ❌ Logging additions
+- ❌ Error handling improvements
+- ❌ JSON parameter structure changes within scripts
+
+### Available Deployment Scripts
+
+See **[harness/scripts/README.md](harness/scripts/README.md)** for complete documentation.
+
+**Quick reference:**
+1. `fetch-changelog-artifact.sh <VERSION> <GITHUB_ORG> <GITHUB_PAT>` - Downloads from GitHub Actions artifacts
+2. `update-database.sh <ENVIRONMENT> <DEMO_ID> <DEPLOYMENT_TARGET> <AWS_PARAMS_JSON> <SECRETS_JSON>` - Runs Liquibase
+3. `deploy-application.sh <ENVIRONMENT> <VERSION> <GITHUB_ORG> <DEPLOYMENT_TARGET> <AWS_PARAMS_JSON> <SECRETS_JSON>` - Deploys app
+4. `health-check.sh <ENVIRONMENT> <VERSION> <DEPLOYMENT_TARGET> <SERVICE_URL>` - Verifies deployment
+5. `fetch-instances.sh <ENVIRONMENT> <DEPLOYMENT_TARGET> <SERVICE_NAME> <SERVICE_URL>` - Reports instances
+
+### Testing Scripts Locally
+
+```bash
+# Test fetch-changelog-artifact.sh
+cd harness/scripts
+./fetch-changelog-artifact.sh "v1.0.0" "liquibase-examples" "$GITHUB_PAT"
+
+# Test health-check.sh (local mode)
+./health-check.sh "dev" "v1.0.0" "local" ""
+
+# Test on delegate container
+docker exec -it harness-delegate-demo1 bash
+ls -la /opt/harness-delegate/scripts/  # Verify mount
+/opt/harness-delegate/scripts/fetch-changelog-artifact.sh --help
+```
+
+### Debugging
+
+**View script output in Harness:**
+1. Go to pipeline execution
+2. Click step (e.g., "Fetch Changelog Artifact")
+3. View logs - script stdout/stderr appears
+
+**Common issues:**
+- **Scripts not found** → Restart delegate: `cd harness && docker compose restart`
+- **Permission denied** → Check scripts are executable: `chmod +x harness/scripts/*.sh`
+- **Argument errors** → Check template YAML passes correct variables
+
 ## API-First Pattern (CRITICAL)
 
 **ALWAYS use APIs before suggesting manual UI changes** - This is a hard requirement.

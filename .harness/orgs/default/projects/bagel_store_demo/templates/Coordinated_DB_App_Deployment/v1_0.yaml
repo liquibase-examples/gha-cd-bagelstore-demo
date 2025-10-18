@@ -40,7 +40,7 @@ template:
 
   spec:
     steps:
-      # Step 1: Fetch changelog artifact from GitHub Packages
+      # Step 1: Fetch changelog artifact from GitHub Actions
       - step:
           type: ShellScript
           name: Fetch Changelog Artifact
@@ -52,38 +52,15 @@ template:
               type: Inline
               spec:
                 script: |-
-                  #!/bin/bash
-                  set -e
-
-                  echo "=== Fetching Changelog Artifact ==="
-                  echo "Version: <+pipeline.variables.VERSION>"
-                  echo "GitHub Org: <+pipeline.variables.GITHUB_ORG>"
-
-                  # Create working directory
-                  mkdir -p /tmp/changelog
-                  cd /tmp/changelog
-
-                  # Download changelog zip from GitHub Packages
-                  # Note: GitHub Packages uses Maven format for generic packages
-                  PACKAGE_URL="https://maven.pkg.github.com/<+pipeline.variables.GITHUB_ORG>/harness-gha-bagelstore/bagel-store-changelog/<+pipeline.variables.VERSION>/bagel-store-changelog-<+pipeline.variables.VERSION>.zip"
-
-                  echo "Downloading from: $PACKAGE_URL"
-
-                  curl -L \
-                    -H "Authorization: token <+secrets.getValue('github_pat')>" \
-                    -o changelog.tar.gz \
-                    "$PACKAGE_URL"
-
-                  # Extract changelog
-                  tar -xzf changelog.tar.gz
-
-                  echo "Changelog extracted successfully"
-                  ls -la
+                  /opt/harness-delegate/scripts/fetch-changelog-artifact.sh \
+                    "<+pipeline.variables.VERSION>" \
+                    "<+pipeline.variables.GITHUB_ORG>" \
+                    "<+secrets.getValue('github_pat')>"
             environmentVariables: []
             outputVariables: []
           timeout: 5m
 
-      # Step 2: Update database with Liquibase using S3 Flow Files
+      # Step 2: Update database with Liquibase
       - step:
           type: ShellScript
           name: Update Database
@@ -95,63 +72,40 @@ template:
               type: Inline
               spec:
                 script: |-
-                  #!/bin/bash
-                  set -e
+                  # Build AWS parameters JSON
+                  AWS_PARAMS=$(cat <<'EOF'
+                  {
+                    "jdbc_url": "<+env.variables.jdbc_url>",
+                    "aws_region": "<+env.variables.aws_region>",
+                    "liquibase_flows_bucket": "<+env.variables.liquibase_flows_bucket>",
+                    "rds_endpoint": "<+env.variables.rds_endpoint>"
+                  }
+                  EOF
+                  )
 
-                  echo "=== Updating Database with Liquibase Flow ==="
-                  echo "Environment: <+env.variables.environment>"
-                  echo "Deployment Target: ${DEPLOYMENT_TARGET:-aws}"
-                  echo "Demo ID: <+env.variables.demo_id>"
+                  # Build secrets JSON
+                  SECRETS=$(cat <<'EOF'
+                  {
+                    "aws_access_key_id": "<+secrets.getValue('aws_access_key_id')>",
+                    "aws_secret_access_key": "<+secrets.getValue('aws_secret_access_key')>",
+                    "liquibase_license_key": "<+secrets.getValue('liquibase_license_key')>",
+                    "db_username": "${awsSecretsManager:<+env.variables.demo_id>/rds/username}",
+                    "db_password": "${awsSecretsManager:<+env.variables.demo_id>/rds/password}"
+                  }
+                  EOF
+                  )
 
-                  # Determine deployment target (default to 'aws' if not set)
-                  DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
-
-                  if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
-                    # ===== AWS MODE - Use S3 Flow Files =====
-                    echo "Using AWS RDS endpoint: <+env.variables.rds_endpoint>"
-                    echo "Flow file: s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml"
-
-                    docker run --rm \
-                      -v /tmp/changelog:/liquibase/changelog \
-                      -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
-                      -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
-                      -e AWS_REGION=<+env.variables.aws_region> \
-                      -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
-                      -e LIQUIBASE_COMMAND_URL=<+env.variables.jdbc_url> \
-                      -e LIQUIBASE_COMMAND_USERNAME='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
-                      -e LIQUIBASE_COMMAND_PASSWORD='${awsSecretsManager:<+env.variables.demo_id>/rds/password}' \
-                      -e LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog-master.yaml \
-                      -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE=s3://<+env.variables.liquibase_flows_bucket>/liquibase.checks-settings.conf \
-                      -w /liquibase/changelog \
-                      liquibase/liquibase-secure:5.0.1 \
-                      flow \
-                      --flow-file=s3://<+env.variables.liquibase_flows_bucket>/main-deployment-flow.yaml
-
-                  else
-                    # ===== LOCAL MODE - Use Local Flow Files =====
-                    echo "Using local PostgreSQL container: postgres-<+env.variables.environment>"
-                    echo "Note: Local mode uses direct update, not flow files"
-
-                    # Connect to Docker Compose network
-                    docker run --rm \
-                      --network harness-gha-bagelstore_bagel-network \
-                      -v /tmp/changelog:/liquibase/changelog \
-                      -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
-                      liquibase/liquibase-secure:5.0.1 \
-                      --url=jdbc:postgresql://postgres-<+env.variables.environment>:5432/<+env.variables.environment> \
-                      --username=postgres \
-                      --password=postgres \
-                      --changeLogFile=changelog-master.yaml \
-                      --log-level=INFO \
-                      update
-                  fi
-
-                  echo "✅ Database update completed successfully"
+                  /opt/harness-delegate/scripts/update-database.sh \
+                    "<+env.variables.environment>" \
+                    "<+env.variables.demo_id>" \
+                    "${DEPLOYMENT_TARGET:-aws}" \
+                    "$AWS_PARAMS" \
+                    "$SECRETS"
             environmentVariables: []
             outputVariables: []
           timeout: 10m
 
-      # Step 3: Deploy application to App Runner or Docker Compose
+      # Step 3: Deploy application
       - step:
           type: ShellScript
           name: Deploy Application
@@ -163,86 +117,35 @@ template:
               type: Inline
               spec:
                 script: |-
-                  #!/bin/bash
-                  set -e
+                  # Build AWS parameters JSON
+                  AWS_PARAMS=$(cat <<'EOF'
+                  {
+                    "app_runner_service_arn": "<+env.variables.app_runner_service_arn>",
+                    "aws_region": "<+env.variables.aws_region>",
+                    "demo_id": "<+env.variables.demo_id>",
+                    "rds_address": "<+env.variables.rds_address>",
+                    "rds_port": "<+env.variables.rds_port>",
+                    "database_name": "<+env.variables.database_name>"
+                  }
+                  EOF
+                  )
 
-                  echo "=== Deploying Application ==="
-                  echo "Environment: <+env.variables.environment>"
-                  echo "Version: <+pipeline.variables.VERSION>"
-                  echo "Deployment Target: ${DEPLOYMENT_TARGET:-aws}"
+                  # Build secrets JSON
+                  SECRETS=$(cat <<'EOF'
+                  {
+                    "aws_access_key_id": "<+secrets.getValue('aws_access_key_id')>",
+                    "aws_secret_access_key": "<+secrets.getValue('aws_secret_access_key')>"
+                  }
+                  EOF
+                  )
 
-                  # Determine deployment target (default to 'aws' if not set)
-                  DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
-
-                  if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
-                    # ===== AWS MODE =====
-                    echo "Deploying to App Runner"
-
-                    export AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')>
-                    export AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')>
-                    export AWS_DEFAULT_REGION=<+env.variables.aws_region>
-
-                    SERVICE_ARN="<+env.variables.app_runner_service_arn>"
-
-                    aws apprunner update-service \
-                      --service-arn "$SERVICE_ARN" \
-                      --source-configuration "{
-                        \"ImageRepository\": {
-                          \"ImageIdentifier\": \"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",
-                          \"ImageRepositoryType\": \"ECR_PUBLIC\",
-                          \"ImageConfiguration\": {
-                            \"Port\": \"5000\",
-                            \"RuntimeEnvironmentVariables\": {
-                              \"DATABASE_URL\": \"postgresql://\${awsSecretsManager:<+env.variables.demo_id>/rds/username}:\${awsSecretsManager:<+env.variables.demo_id>/rds/password}@<+env.variables.rds_address>:<+env.variables.rds_port>/<+env.variables.database_name>\",
-                              \"FLASK_ENV\": \"production\",
-                              \"APP_VERSION\": \"<+pipeline.variables.VERSION>\"
-                            }
-                          }
-                        }
-                      }" \
-                      --region <+env.variables.aws_region>
-
-                  else
-                    # ===== LOCAL MODE =====
-                    echo "Deploying to Docker Compose"
-
-                    # Navigate to repository root
-                    cd $HOME/workspace/harness-gha-bagelstore
-
-                    # Ensure .env file exists
-                    if [ ! -f .env ]; then
-                      echo "Creating .env from template"
-                      cp .env.example .env
-                    fi
-
-                    # Update version in .env file
-                    ENV_UPPER=$(echo "<+env.variables.environment>" | tr '[:lower:]' '[:upper:]')
-                    ENV_VAR="VERSION_${ENV_UPPER}"
-                    NEW_VERSION="<+pipeline.variables.VERSION>"
-
-                    echo "Updating ${ENV_VAR}=${NEW_VERSION} in .env"
-
-                    if grep -q "^${ENV_VAR}=" .env; then
-                      # Update existing line (macOS compatible)
-                      sed -i.bak "s/^${ENV_VAR}=.*/${ENV_VAR}=${NEW_VERSION}/" .env
-                      rm -f .env.bak
-                    else
-                      # Add new line
-                      echo "${ENV_VAR}=${NEW_VERSION}" >> .env
-                    fi
-
-                    # Show current .env state
-                    echo "Current .env configuration:"
-                    grep "^VERSION_" .env || echo "No VERSION variables found"
-
-                    # Pull new image version
-                    docker compose -f docker-compose-demo.yml pull app-<+env.variables.environment>
-
-                    # Restart specific service with new version
-                    docker compose -f docker-compose-demo.yml up -d --no-deps app-<+env.variables.environment>
-                  fi
-
-                  echo "✅ Application deployment completed"
+                  /opt/harness-delegate/scripts/deploy-application.sh \
+                    "<+env.variables.environment>" \
+                    "<+pipeline.variables.VERSION>" \
+                    "<+pipeline.variables.GITHUB_ORG>" \
+                    "${DEPLOYMENT_TARGET:-aws}" \
+                    "$AWS_PARAMS" \
+                    "$SECRETS"
             environmentVariables: []
             outputVariables:
               - name: SERVICE_URL
@@ -262,69 +165,11 @@ template:
               type: Inline
               spec:
                 script: |-
-                  #!/bin/bash
-                  set -e
-
-                  echo "=== Performing Health Check ==="
-                  echo "Deployment Target: ${DEPLOYMENT_TARGET:-aws}"
-
-                  # Determine deployment target (default to 'aws' if not set)
-                  DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
-
-                  if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
-                    # ===== AWS MODE =====
-                    SERVICE_URL="<+env.variables.app_runner_service_url>"
-                    HEALTH_URL="https://${SERVICE_URL}/health"
-                    VERSION_URL="https://${SERVICE_URL}/version"
-                  else
-                    # ===== LOCAL MODE =====
-                    case "<+env.variables.environment>" in
-                      dev)     PORT=5001 ;;
-                      test)    PORT=5002 ;;
-                      staging) PORT=5003 ;;
-                      prod)    PORT=5004 ;;
-                    esac
-                    HEALTH_URL="http://localhost:${PORT}/health"
-                    VERSION_URL="http://localhost:${PORT}/version"
-                  fi
-
-                  echo "Health check URL: $HEALTH_URL"
-
-                  # Wait for service to be ready (max 5 minutes)
-                  MAX_ATTEMPTS=30
-                  ATTEMPT=0
-
-                  while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-                    echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS..."
-
-                    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
-
-                    if [ "$HTTP_CODE" = "200" ]; then
-                      echo "✅ Health check passed!"
-
-                      # Verify version
-                      VERSION_RESPONSE=$(curl -s "$VERSION_URL" || echo "{}")
-                      echo "Version info: $VERSION_RESPONSE"
-
-                      DEPLOYED_VERSION=$(echo "$VERSION_RESPONSE" | jq -r '.version // "unknown"')
-                      EXPECTED_VERSION="<+pipeline.variables.VERSION>"
-
-                      if [ "$DEPLOYED_VERSION" = "$EXPECTED_VERSION" ]; then
-                        echo "✅ Version verified: $DEPLOYED_VERSION"
-                      else
-                        echo "⚠️  Version mismatch: expected $EXPECTED_VERSION, got $DEPLOYED_VERSION"
-                      fi
-
-                      exit 0
-                    fi
-
-                    echo "Health check returned HTTP $HTTP_CODE, retrying in 10s..."
-                    sleep 10
-                    ATTEMPT=$((ATTEMPT + 1))
-                  done
-
-                  echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
-                  exit 1
+                  /opt/harness-delegate/scripts/health-check.sh \
+                    "<+env.variables.environment>" \
+                    "<+pipeline.variables.VERSION>" \
+                    "${DEPLOYMENT_TARGET:-aws}" \
+                    "<+env.variables.app_runner_service_url>"
             environmentVariables: []
             outputVariables: []
           timeout: 10m
@@ -340,31 +185,11 @@ template:
               type: Inline
               spec:
                 script: |-
-                  #!/bin/bash
-                  set -e
-
-                  echo "=== Fetching Instance Information ==="
-
-                  # Determine deployment target
-                  DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-aws}"
-
-                  if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
-                    # AWS MODE - App Runner instance
-                    INSTANCE_NAME="<+env.variables.app_runner_service_name>"
-                    INSTANCE_URL="<+env.variables.app_runner_service_url>"
-
-                    # Output instance in Harness format
-                    echo "{\"instances\": [{\"instanceName\": \"${INSTANCE_NAME}\", \"instanceUrl\": \"${INSTANCE_URL}\"}]}"
-                  else
-                    # LOCAL MODE - Docker Compose container
-                    CONTAINER_NAME="app-<+env.variables.environment>"
-
-                    # Get container ID if running
-                    CONTAINER_ID=$(docker ps -q -f name=${CONTAINER_NAME} || echo "unknown")
-
-                    # Output instance in Harness format
-                    echo "{\"instances\": [{\"instanceName\": \"${CONTAINER_NAME}\", \"instanceId\": \"${CONTAINER_ID}\"}]}"
-                  fi
+                  /opt/harness-delegate/scripts/fetch-instances.sh \
+                    "<+env.variables.environment>" \
+                    "${DEPLOYMENT_TARGET:-aws}" \
+                    "<+env.variables.app_runner_service_name>" \
+                    "<+env.variables.app_runner_service_url>"
             outputVariables: []
             environmentVariables: []
           timeout: 5m

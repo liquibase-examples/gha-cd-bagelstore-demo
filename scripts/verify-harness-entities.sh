@@ -133,15 +133,24 @@ echo ""
 echo "========================================="
 echo "5. PIPELINES"
 echo "========================================="
-check_entity "Pipelines" \
-  "https://app.harness.io/pipeline/api/pipelines?accountIdentifier=${ACCOUNT_ID}&orgIdentifier=${ORG_ID}&projectIdentifier=${PROJECT_ID}&size=100" \
-  '.data.content | length'
+# IMPORTANT: Pipelines API requires POST method, not GET
+result=$(curl -s -X POST \
+  "https://app.harness.io/pipeline/api/pipelines/list?accountIdentifier=${ACCOUNT_ID}&orgIdentifier=${ORG_ID}&projectIdentifier=${PROJECT_ID}&page=0&size=100" \
+  -H "x-api-key: ${HARNESS_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"filterType":"PipelineSetup"}')
 
-echo "Pipeline Details:"
-curl -s \
-  "https://app.harness.io/pipeline/api/pipelines?accountIdentifier=${ACCOUNT_ID}&orgIdentifier=${ORG_ID}&projectIdentifier=${PROJECT_ID}&size=100" \
-  -H "x-api-key: ${HARNESS_API_KEY}" | \
-  jq -r '.data.content[] | "  - \(.name) (\(.identifier)) - \(.storeType)"' 2>/dev/null || echo "  Error retrieving pipeline details"
+count=$(echo "$result" | jq '.data.content | length' 2>/dev/null)
+
+if [ $? -ne 0 ] || [ -z "$count" ]; then
+  echo "  ⚠️  API Error"
+  echo "$result" | jq '.' 2>/dev/null || echo "$result"
+else
+  echo "  ✅ Found: ${count} pipelines"
+  echo ""
+  echo "Pipeline Details:"
+  echo "$result" | jq -r '.data.content[] | "  - \(.name) (\(.identifier)) - \(.storeType)"' 2>/dev/null
+fi
 echo ""
 
 # 6. Connectors
