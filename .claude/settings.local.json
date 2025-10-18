@@ -80,7 +80,21 @@
       "Bash(docker inspect:*)",
       "Bash(mkdir:*)",
       "Bash(git commit:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "mcp__atlassian__getJiraIssue",
+      "mcp__playwright__browser_navigate",
+      "Bash(awk '{print $NF}')",
+      "Bash(tree .harness/)",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore log --oneline --all -20)",
+      "Bash(source harness/.env)",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore log --oneline --all -10 -- '.harness/*infra*')",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show 5da20c1 --stat)",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:'.harness/orgs/default/projects/bagel_store_demo/infrastructure_definitions/psr_dev_infra.yaml')",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60 --name-status)",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_dev/infras/psr_dev_infra.yaml)",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_test/infras/psr_test_infra.yaml)",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_staging/infras/psr_staging_infra.yaml)",
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/Production/psr_prod/infras/psr_prod_infra.yaml)"
     ],
     "deny": [],
     "ask": []
