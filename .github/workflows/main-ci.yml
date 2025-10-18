@@ -9,6 +9,7 @@ on:
       - 'db/changelog/**'
       - 'liquibase-flows/**'
       - '.github/workflows/main-ci.yml'
+  workflow_dispatch:
 
 env:
   LIQUIBASE_VERSION: "5.0.1"
