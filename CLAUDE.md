@@ -477,6 +477,49 @@ curl -X GET \
   -H "x-api-key: ${HARNESS_API_KEY}"
 ```
 
+### Harness Git Experience - Manual Sync Required
+
+**IMPORTANT: No Webhook Configured**
+
+This project uses Harness Git Experience (remote templates, pipelines, infrastructure definitions stored in Git), but **webhook auto-sync is NOT configured** due to GitHub permissions limitations.
+
+**What This Means:**
+- Git changes (templates, pipelines, infrastructure definitions) **do NOT auto-sync** to Harness
+- After `git push`, you must **manually refresh** entities in Harness UI
+- Harness will not detect changes until you trigger a manual sync
+
+**Manual Sync Procedure After Git Push:**
+
+1. **Templates** (e.g., `Custom` deployment template, `Coordinated_DB_App_Deployment` step group):
+   - Navigate to: **Project Setup** → **Templates**
+   - Click on template name → Click **Refresh** icon (circular arrow)
+   - Or re-import from Git: **+ New Template** → **Import From Git** → Select repository/branch
+
+2. **Infrastructure Definitions** (4 files: `psr_dev_infra`, `psr_test_infra`, `psr_staging_infra`, `psr_prod_infra`):
+   - Navigate to: **Environments** → Select environment (e.g., `psr-dev`)
+   - Click **Infrastructure Definitions** tab
+   - Click infrastructure name → Click **Refresh** icon
+   - Or delete and re-import: **+ Infrastructure** → **YAML** → Paste updated YAML
+
+3. **Pipelines**:
+   - Navigate to: **Pipelines** → `Deploy_Bagel_Store`
+   - Click **Refresh** icon in top right corner
+
+**Verification:**
+```bash
+# After manual sync, verify changes applied
+./scripts/verify-harness-entities.sh
+
+# Check specific infrastructure definition
+source harness/.env
+curl -s "https://app.harness.io/gateway/ng/api/infrastructures/psr_dev_infra?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo&environmentIdentifier=psr_dev" \
+  -H "x-api-key: ${HARNESS_API_KEY}" | jq -r '.data.infrastructure.yaml'
+```
+
+**Why Webhook Not Configured:**
+- Requires GitHub Admin permissions to configure webhooks
+- Alternatively: Configure GitHub App integration (also requires admin permissions)
+
 ### Harness Delegate
 ```bash
 cd harness
