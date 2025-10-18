@@ -2,17 +2,40 @@
 
 **Date:** October 12, 2025
 **Repository:** https://github.com/liquibase-examples/gha-cd-bagelstore-demo
-**Status:** ✅ RESOLVED - Root cause identified and fixed
+**Status:** ✅ RESOLVED - Root cause identified and fixed (payload condition issue)
 
 ---
 
 ## Executive Summary
 
-**RESOLVED:** Harness webhook triggers were staying in `QUEUED` state because the custom webhook payload from GitHub Actions was **missing the `branch` field**, preventing Harness from resolving `<+trigger.branch>` and fetching the remote pipeline from Git.
+**✅ RESOLVED (October 12, 2025):** The QUEUED issue was caused by a **malformed payload condition** in the trigger configuration, not a missing branch field.
 
-**Root Cause:** The trigger configuration uses `pipelineBranchName: <+trigger.branch>` (required for Git Experience / remote pipelines), but the GitHub Actions workflow only sent `version`, `github_org`, `deployment_target`, and metadata - no `branch` field.
+**Root Cause:** The trigger had a payload condition that compared the `version` field to the literal string `<+trigger.payload.version>` instead of evaluating the expression:
 
-**Solution:** Added `"branch": "${{ github.ref_name }}"` to the webhook payload in `.github/workflows/main-ci.yml`. This allows Harness to resolve the branch and fetch the pipeline/Input Set definitions from Git.
+```yaml
+payloadConditions:
+  - key: version
+    operator: Equals
+    value: <+trigger.payload.version>  # ❌ This is treated as a literal string!
+```
+
+This condition **always failed** because the actual value was `"dev-7736958"`, not the text `"<+trigger.payload.version>"`.
+
+**Solution:**
+1. **Removed the malformed payload condition** (set to empty array: `payloadConditions: []`)
+2. **Switched from inline `inputYaml` to `inputSetRefs`** for cleaner configuration
+3. **Branch field in webhook payload** (added earlier) was needed for Git Experience
+
+**Final Test Results (Event ID: 68ebb7e7a03d443c9d53c1b8):**
+- ✅ GitHub Actions workflow completed successfully
+- ✅ Webhook payload includes all required fields including `"branch": "main"`
+- ✅ Harness received webhook (status: SUCCESS)
+- ✅ **Pipeline execution STARTED** (status: TARGET_EXECUTION_REQUESTED)
+- ✅ `pipelineExecutionId`: rnxCKmd0QP2q5RI0DQnFDg (NOT null!)
+- ✅ `runtimeInput`: Variables correctly populated
+- ⚠️ Pipeline aborted after ~2 seconds (separate issue - see "Pipeline Abort Issue" section)
+
+**Conclusion:** The QUEUED trigger issue is **RESOLVED**. Trigger now successfully creates pipeline executions. A new issue exists where pipeline aborts immediately after starting.
 
 ---
 
@@ -652,9 +675,13 @@ git log --oneline -- harness/pipelines/deploy-pipeline.yaml
 
 ---
 
-## RESOLUTION
+## TEST RESULTS & INVESTIGATION FINDINGS
 
-### Root Cause Analysis (October 12, 2025)
+### Test Execution (October 12, 2025 - 13:56 UTC)
+
+**Commit Tested:** `7736958` - "Fix: Add branch field to Harness webhook payload for Git Experience"
+
+### Root Cause Hypothesis (DISPROVEN)
 
 **Primary Issue:** Missing `branch` field in webhook payload prevents Harness from resolving remote pipeline location.
 
@@ -740,45 +767,55 @@ From Harness Developer Hub:
 - ✅ Future-proof (supports branch-specific deployments if needed)
 - ✅ Uses GitHub context variable (`${{ github.ref_name }}`) for accuracy
 
-### Testing Recommendations
+### Actual Test Results (October 12, 2025)
 
-**Test Plan:**
+**Test Execution:**
 
-1. **Commit and push this fix:**
-   ```bash
-   git add .github/workflows/main-ci.yml docs/HARNESS_TRIGGER_QUEUED_ISSUE.md
-   git commit -m "Fix: Add branch field to Harness webhook payload for Git Experience"
-   git push
-   ```
+1. ✅ **Committed and pushed changes:** Commit `7736958`
+2. ✅ **GitHub Actions workflow triggered:** Run ID `18444907420`
+3. ✅ **Workflow completed successfully:** All 3 jobs passed
+4. ✅ **Webhook sent with branch field:** Payload confirmed includes `"branch": "main"`
 
-2. **Trigger the workflow:**
-   - Option A: Wait for automatic trigger on main branch push
-   - Option B: Manually rerun latest workflow
-   ```bash
-   gh run rerun $(gh run list --workflow=main-ci.yml --limit 1 --json databaseId -q '.[0].databaseId')
-   ```
+**Harness Response:**
 
-3. **Monitor webhook response:**
-   ```bash
-   # After workflow completes, check Harness execution
-   # The trigger should now show:
-   # - status: "RUNNING" or "SUCCESS" (not QUEUED)
-   # - pipelineExecutionId: <actual-id> (not null)
-   # - runtimeInput: <resolved-values> (not null)
-   ```
+```json
+{
+  "status": "SUCCESS",
+  "data": {
+    "eventCorrelationId": "68ebb3da5a3afd7016e34ade",
+    "webhookProcessingDetails": {
+      "status": "QUEUED",
+      "pipelineExecutionId": null,
+      "runtimeInput": null,
+      "message": "Trigger execution is queued.",
+      "payload": "{...\"branch\": \"main\"...}",
+      "warningMsg": "There are multiple trigger events generated from this eventId"
+    }
+  }
+}
+```
 
-4. **Verify in Harness UI:**
-   - Go to: Pipelines → Deploy Bagel Store → Execution History
-   - Latest execution should show:
-     - ✅ Dev stage: Automatic deployment in progress
-     - ✅ Pipeline variables resolved: VERSION, GITHUB_ORG, DEPLOYMENT_TARGET
-     - ✅ Execution triggered by webhook (not manual)
+**Result: ❌ HYPOTHESIS DISPROVEN**
 
-5. **Validate full deployment:**
-   - Dev deployment completes successfully
-   - Application health check passes
-   - Version verification succeeds
-   - Database update completes
+- Webhook received successfully (✅)
+- Payload includes `branch` field (✅)
+- **Trigger STILL QUEUED** (❌)
+- `pipelineExecutionId`: still null (❌)
+- `runtimeInput`: still null (❌)
+
+**Additional Findings:**
+
+1. **Warning message:** "There are multiple trigger events generated from this eventId"
+   - Indicates potential trigger configuration issue
+   - May suggest duplicate/conflicting trigger definitions
+
+2. **No delegate activity:** Delegate logs show no trigger processing
+   - Issue occurs at Harness platform level, not delegate level
+   - Trigger validation/resolution failing before reaching delegate
+
+3. **Webhook communication works:** Harness receives and acknowledges payload
+   - Network/authentication working correctly
+   - Problem is in trigger→pipeline execution handoff
 
 ### Expected Behavior After Fix
 
@@ -811,27 +848,34 @@ SUCCESS
 
 ### Lessons Learned
 
-1. **Custom Webhooks Need Explicit Context:**
-   - Unlike GitHub/GitLab webhooks, custom webhooks don't automatically include branch info
-   - Always include `branch` field when using Git Experience with custom webhooks
-   - The `<+trigger.branch>` expression is REQUIRED for remote pipelines/Input Sets
+1. **Hypothesis Testing is Critical:**
+   - ❌ **WRONG APPROACH:** Research → Make changes → Assume fixed → Document success
+   - ✅ **RIGHT APPROACH:** Research → Form hypothesis → Test empirically → Analyze results → Iterate
+   - Adding `branch` field seemed logical based on docs but was insufficient
 
-2. **Diagnostic Approach:**
-   - Check webhook payload structure first (not just Harness configuration)
-   - Compare against Harness documentation for required fields
-   - Remote pipelines have additional requirements (branch resolution)
+2. **Documentation Research ≠ Root Cause:**
+   - Harness docs mention `pipelineBranchName: <+trigger.branch>` requirement
+   - This led to plausible hypothesis about missing branch field
+   - **BUT:** Hypothesis must be tested, not assumed correct
 
-3. **Documentation Importance:**
-   - Harness docs clearly state the default: `pipelineBranchName: <+trigger.branch>`
-   - This requirement was easy to miss without consulting Context7/docs
-   - Always research trigger requirements for Git Experience
+3. **Multiple Factors May Be Required:**
+   - Adding branch field alone didn't fix the issue
+   - Problem is likely combination of factors
+   - Need to verify ACTUAL trigger configuration (not just assume)
 
-4. **Testing Checklist for Custom Webhooks:**
-   - [ ] Payload includes all pipeline variable mappings
-   - [ ] Payload includes `branch` field (if using Git Experience)
-   - [ ] Trigger configuration references correct Input Set identifier
-   - [ ] Pipeline variables have `required: true` and `value: <+input>`
-   - [ ] Harness delegate is connected and healthy
+4. **Warning Messages Are Clues:**
+   - "There are multiple trigger events generated" → May indicate config issue
+   - Could mean duplicate triggers or conflicting definitions
+   - This was not investigated in initial hypothesis
+
+5. **Testing Checklist for Custom Webhooks:**
+   - [x] Payload includes all pipeline variable mappings
+   - [x] Payload includes `branch` field (tested - not sufficient)
+   - [ ] **Verify actual trigger configuration in Harness UI**
+   - [ ] **Confirm Input Set is synced and accessible**
+   - [ ] **Check for duplicate/conflicting trigger definitions**
+   - [ ] **Review Harness audit logs for hidden errors**
+   - [ ] **Test manual pipeline execution with same Input Set**
 
 ### Related Documentation Updates
 
@@ -844,9 +888,186 @@ SUCCESS
 2. `harness/README.md` - Add webhook payload requirements section
 3. `CLAUDE.md` - Add to "Common Gotchas" section
 
-### Success Criteria Verification
+## NEXT INVESTIGATION STEPS FOR ANOTHER AI
 
-Once tested, the issue is fully resolved when:
+### Priority 1: Verify Actual Trigger Configuration (HIGH PRIORITY)
+
+**Current Status:** We have NEVER looked at the actual trigger configuration in Harness UI. All assumptions are based on documentation patterns.
+
+**Actions Required:**
+
+1. **Access Harness UI and view trigger:**
+   - URL: https://app.harness.io/ng/#/account/_dYBmxlLQu61cFhvdkV4Jw/all/orgs/default/projects/bagel_store_demo/pipelines/Deploy_Bagel_Store/pipeline-studio/
+   - Navigate to: Triggers → "GitHub_Actions_CI"
+   - **Export trigger YAML** and compare with expectations
+
+2. **Check critical trigger fields:**
+   ```yaml
+   # What we EXPECT (but haven't verified):
+   trigger:
+     pipelineBranchName: <+trigger.branch>  # Is this actually set?
+     inputSetRefs:
+       - webhook_default  # Does this reference exist?
+     # OR
+     inputYaml: |
+       pipeline:
+         identifier: Deploy_Bagel_Store
+         variables: [...]
+   ```
+
+3. **Questions to answer:**
+   - Is `pipelineBranchName` set at all? Or is it hardcoded to `main`?
+   - Does trigger use `inputSetRefs` or inline `inputYaml`?
+   - Are there **multiple triggers** with the same identifier? (Warning message suggests this)
+   - Are there payload conditions that might be blocking execution?
+
+**Why This is Critical:**
+- We've been debugging based on assumptions, not reality
+- The warning "multiple trigger events generated" suggests config issues
+- Trigger might not even be using the branch field we added
+
+### Priority 2: Investigate "Multiple Trigger Events" Warning
+
+**Current Status:** Harness returned: `"warningMsg": "There are multiple trigger events generated from this eventId"`
+
+**This indicates:**
+- Potentially duplicate trigger definitions
+- Could be multiple triggers responding to same webhook
+- May cause race condition or conflict
+
+**Actions Required:**
+
+1. **List all triggers for the pipeline:**
+   ```bash
+   # Via Harness API
+   curl -X GET \
+     'https://app.harness.io/pipeline/api/triggers?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo&targetIdentifier=Deploy_Bagel_Store' \
+     -H 'x-api-key: YOUR_API_KEY'
+   ```
+
+2. **Check for duplicates:**
+   - Are there multiple triggers with same/similar names?
+   - Do they all point to same webhook URL?
+   - Could they be conflicting?
+
+3. **Review trigger history:**
+   - Check Harness audit logs for trigger create/update events
+   - Look for patterns of trigger recreation/duplication
+
+### Priority 3: Test Manual Pipeline Execution
+
+**Current Status:** We've never tested if manual execution works with the Input Set.
+
+**Why This Matters:**
+- If manual execution FAILS → Problem is with Input Set definition
+- If manual execution WORKS → Problem is trigger-specific
+
+**Actions Required:**
+
+1. **Manual execution test:**
+   - Go to Harness UI → Pipelines → Deploy Bagel Store
+   - Click "Run"
+   - Select Input Set: "webhook_default"
+   - Manually provide values:
+     - VERSION: "dev-test123"
+     - GITHUB_ORG: "liquibase-examples"
+     - DEPLOYMENT_TARGET: "aws"
+   - Click "Run Pipeline"
+
+2. **Observe results:**
+   - Does pipeline start? → Input Set definition is valid
+   - Does it stay queued? → Input Set has same issue as trigger
+   - Does it fail immediately? → Configuration/syntax error
+
+### Priority 4: Verify Input Set Git Sync
+
+**Current Status:** Input Set file exists in Git (`input-sets/webhook-default-2.yaml`) but we don't know if Harness can access it.
+
+**Actions Required:**
+
+1. **Check Input Set in Harness UI:**
+   - Navigate to: Project Settings → Input Sets
+   - Find: "Webhook Default" (identifier: `webhook_default`)
+   - Check: Is it marked as "Remote" or "Inline"?
+   - Check: Does it show as synced with Git?
+
+2. **Fetch Input Set via API:**
+   ```bash
+   curl -X GET \
+     'https://app.harness.io/pipeline/api/inputSets/webhook_default?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo&pipelineIdentifier=Deploy_Bagel_Store&branch=main' \
+     -H 'x-api-key: YOUR_API_KEY'
+   ```
+
+3. **Compare Git vs Harness:**
+   - Does API response match Git file content?
+   - Are trigger payload expressions preserved? (`<+trigger.payload.version>`)
+   - Is branch parameter in API URL correct?
+
+### Priority 5: Check Harness Audit Logs
+
+**Current Status:** We've only checked delegate logs, not Harness platform audit logs.
+
+**Actions Required:**
+
+1. **Access audit logs:**
+   - Harness UI → Account Settings → Audit Trail
+   - Filter by:
+     - Time: Last 2 hours
+     - Resource Type: Trigger, Pipeline, Input Set
+     - Action: Trigger Execution, Pipeline Execution
+
+2. **Look for:**
+   - Trigger execution attempts with QUEUED status
+   - Any error messages not surfaced in API
+   - Input Set fetch failures
+   - Pipeline validation errors
+
+### Priority 6: Verify Pipeline YAML Syntax
+
+**Current Status:** Pipeline is in Git (`pipelines/deploy-pipeline.yaml`) but may have issues.
+
+**Actions Required:**
+
+1. **Validate pipeline variables:**
+   ```yaml
+   # Check in pipelines/deploy-pipeline.yaml:
+   variables:
+     - name: VERSION
+       type: String
+       required: true  # Must be true
+       value: <+input>  # Must be <+input> for runtime
+   ```
+
+2. **Check for:**
+   - All 3 variables have `required: true`
+   - All 3 variables have `value: <+input>`
+   - No typos in variable names (case-sensitive)
+   - Pipeline identifier matches: `Deploy_Bagel_Store`
+
+### Priority 7: Alternative Hypothesis - Payload Conditions
+
+**New Hypothesis:** Trigger may have payload conditions that are failing validation.
+
+**Actions Required:**
+
+1. **Check trigger for payload conditions:**
+   ```yaml
+   # In trigger configuration:
+   spec:
+     payloadConditions:
+       - key: <+trigger.payload.something>
+         operator: Equals
+         value: expected_value
+   ```
+
+2. **Test theory:**
+   - If payload conditions exist and are failing, trigger won't execute
+   - Check if any conditions reference fields not in payload
+   - Verify condition logic matches actual payload values
+
+### Success Criteria (Updated)
+
+The issue is fully resolved when:
 
 1. ✅ GitHub Actions completes and sends webhook to Harness
 2. ✅ Harness receives webhook successfully
@@ -861,19 +1082,283 @@ Once tested, the issue is fully resolved when:
 8. ✅ Test/Staging/Prod stages wait for approval
 9. ✅ No manual intervention required
 
+**Current Status:**
+- ✅ Step 1: Complete
+- ✅ Step 2: Complete
+- ❌ Steps 3-9: BLOCKED by QUEUED status
+
 ### Time Investment Summary
 
-**Total debugging time:** ~4 hours (original investigation)
-**Resolution time:** ~30 minutes (after Context7 research)
-**Root cause:** Missing `branch` field in webhook payload
-**Complexity:** Simple (one-line fix)
-**Impact:** Critical (unblocked entire CI/CD integration)
+**Investigation Phases:**
+
+1. **Initial Investigation:** ~4 hours (original documentation of problem)
+2. **Hypothesis Development:** ~30 minutes (Context7 research, formed branch field hypothesis)
+3. **Implementation:** ~15 minutes (added branch field to payload)
+4. **Testing:** ~15 minutes (end-to-end test, hypothesis DISPROVEN)
+5. **Total Time:** ~5 hours
+
+**Root Cause:** Still unknown (hypothesis about branch field was incorrect)
+**Complexity:** Higher than initially assumed
+**Impact:** Critical (CI/CD integration still blocked)
 
 ---
 
-**Resolution Date:** October 12, 2025
-**Resolved By:** Claude Code AI Assistant with Context7 MCP integration
-**Status:** Ready for testing
+## SUMMARY FOR NEXT INVESTIGATOR
+
+### What We Know (Confirmed)
+
+1. ✅ **Webhook communication works:**
+   - GitHub Actions successfully sends payload
+   - Harness receives and acknowledges webhook
+   - Network/authentication functioning correctly
+
+2. ✅ **Payload is complete:**
+   - Includes all expected fields: `version`, `github_org`, `deployment_target`, `branch`
+   - Format is valid JSON
+   - No parsing errors
+
+3. ✅ **No delegate issues:**
+   - Delegate shows "unhealthy" but this is cosmetic (telemetry errors)
+   - No trigger processing in delegate logs
+   - Issue occurs before reaching delegate
+
+4. ❌ **Trigger stays QUEUED:**
+   - `pipelineExecutionId`: null
+   - `runtimeInput`: null
+   - No pipeline execution created
+
+### What We Don't Know (Requires Investigation)
+
+1. ❓ **Actual trigger configuration:**
+   - Have never viewed it in Harness UI
+   - Don't know if `pipelineBranchName` is set
+   - Don't know if it uses `inputSetRefs` or inline `inputYaml`
+
+2. ❓ **Input Set accessibility:**
+   - File exists in Git, but is Harness syncing it?
+   - Can Harness fetch it from the `main` branch?
+   - Are the trigger expressions valid?
+
+3. ❓ **"Multiple trigger events" meaning:**
+   - Warning suggests configuration issue
+   - Could be duplicate triggers
+   - Never investigated
+
+4. ❓ **Manual execution behavior:**
+   - Never tested if manual run works with Input Set
+   - This would isolate trigger vs Input Set issues
+
+### Recommended Starting Point
+
+**Start with Priority 1:** View actual trigger configuration in Harness UI. Everything else is speculation until we see the real configuration.
+
+**Most Likely Root Causes (Ranked):**
+
+1. **Trigger configuration issue** (70% probability)
+   - Wrong `pipelineBranchName` setting
+   - Incorrect Input Set reference
+   - Payload condition blocking execution
+
+2. **Input Set Git sync failure** (20% probability)
+   - Harness can't fetch from `main` branch
+   - File path or identifier mismatch
+   - Permission/connector issue
+
+3. **Duplicate/conflicting triggers** (10% probability)
+   - Warning message suggests this
+   - Multiple triggers responding to same webhook
+
+### Key Files & Resources
+
+**Local Files:**
+- Pipeline: `/harness/pipelines/deploy-pipeline.yaml`
+- Input Set: `/harness/input-sets/webhook-default-2.yaml`
+- Workflow: `/.github/workflows/main-ci.yml`
+
+**Harness Resources:**
+- Account: `_dYBmxlLQu61cFhvdkV4Jw`
+- Organization: `default`
+- Project: `bagel_store_demo`
+- Pipeline: `Deploy_Bagel_Store`
+- Trigger: `GitHub_Actions_CI`
+
+**Latest Test:**
+- Event ID: `68ebb3da5a3afd7016e34ade`
+- Workflow Run: `18444907420`
+- Commit: `7736958`
+
+**API Endpoints:**
+```bash
+# Trigger details
+curl "https://app.harness.io/gateway/pipeline/api/webhook/triggerExecutionDetailsV2/{eventId}?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw"
+
+# List triggers
+curl "https://app.harness.io/pipeline/api/triggers?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo&targetIdentifier=Deploy_Bagel_Store" \
+  -H 'x-api-key: YOUR_API_KEY'
+
+# Input Set
+curl "https://app.harness.io/pipeline/api/inputSets/webhook_default?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo&pipelineIdentifier=Deploy_Bagel_Store&branch=main" \
+  -H 'x-api-key: YOUR_API_KEY'
+```
+
+---
+
+## FINAL RESOLUTION (October 12, 2025)
+
+### Actual Root Cause (Confirmed)
+
+**The trigger had a malformed payload condition:**
+
+```yaml
+trigger:
+  source:
+    type: Webhook
+    spec:
+      type: Custom
+      spec:
+        payloadConditions:
+          - key: version
+            operator: Equals
+            value: <+trigger.payload.version>  # ❌ WRONG!
+```
+
+**Why This Failed:**
+- Harness treats the value as a **literal string**, not an expression
+- Compares: `payload.version == "<+trigger.payload.version>"` (the text)
+- Since actual value is `"dev-7736958"`, condition ALWAYS fails
+- Failed condition = trigger stays QUEUED, never executes
+
+### The Fix
+
+**Corrected trigger configuration:**
+
+```yaml
+trigger:
+  name: GitHub Actions CI
+  identifier: GitHub_Actions_CI
+  enabled: true
+  description: Triggered automatically when GitHub Actions completes artifact builds
+  tags: {}
+  orgIdentifier: default
+  projectIdentifier: bagel_store_demo
+  pipelineIdentifier: Deploy_Bagel_Store
+  source:
+    type: Webhook
+    spec:
+      type: Custom
+      spec:
+        payloadConditions: []  # ✅ REMOVED malformed condition
+        headerConditions: []
+  pipelineBranchName: <+trigger.branch>  # ✅ Needed for Git Experience
+  inputSetRefs:
+    - webhook_default  # ✅ Cleaner than inline inputYaml
+```
+
+**Key changes:**
+1. **Removed payload condition entirely** (no condition = always execute)
+2. **Kept `pipelineBranchName: <+trigger.branch>`** (required for remote pipelines)
+3. **Switched to `inputSetRefs`** instead of inline `inputYaml`
+4. **Branch field in webhook payload** (added earlier in commit 7736958)
+
+### Verification Test Results
+
+**Test Execution:** October 12, 2025, 14:15 UTC
+
+**GitHub Actions:**
+- Workflow Run: 18444907420
+- Status: Success (all 3 jobs passed)
+- Webhook sent with event ID: `68ebb7e7a03d443c9d53c1b8`
+
+**Harness Response:**
+```json
+{
+  "status": "TARGET_EXECUTION_REQUESTED",
+  "pipelineExecutionId": "rnxCKmd0QP2q5RI0DQnFDg",
+  "runtimeInput": "pipeline:\n  identifier: Deploy_Bagel_Store\n  variables:\n    - name: VERSION\n      value: <+trigger.payload.version>\n    - name: GITHUB_ORG\n      value: <+trigger.payload.github_org>\n    - name: DEPLOYMENT_TARGET\n      value: <+trigger.payload.deployment_target>",
+  "message": "Pipeline execution was requested successfully",
+  "warningMsg": null
+}
+```
+
+**Success Criteria Met:**
+- ✅ Webhook received and acknowledged
+- ✅ Pipeline execution created (NOT QUEUED!)
+- ✅ Pipeline execution ID assigned
+- ✅ Runtime input variables populated
+- ✅ No warning messages
+- ✅ Status changed from QUEUED to EXECUTION_REQUESTED
+
+**Execution URL:** https://app.harness.io/ng/#/account/_dYBmxlLQu61cFhvdkV4Jw/cd/orgs/default/projects/bagel_store_demo/pipelines/Deploy_Bagel_Store/executions/rnxCKmd0QP2q5RI0DQnFDg/pipeline
+
+### What We Learned
+
+1. **Always check actual configuration, not assumptions**
+   - Spent hours researching documentation and making hypotheses
+   - Actual problem was visible in 5 seconds once we viewed trigger config
+   - Lesson: View real configuration FIRST, then form hypotheses
+
+2. **Payload conditions are validation gates**
+   - Failed condition = execution blocked, stays QUEUED
+   - No error message indicates which condition failed
+   - Condition expressions must evaluate, not compare to literal strings
+
+3. **Branch field was needed (hypothesis partially correct)**
+   - Required for `pipelineBranchName: <+trigger.branch>` to work
+   - Enables Git Experience to fetch remote pipeline/Input Sets
+   - But wasn't the blocker - payload condition was
+
+4. **Testing is essential**
+   - First hypothesis (branch field) seemed logical but was insufficient
+   - Only empirical testing revealed the real problem
+   - Documentation research helps but must be validated
+
+### Files Changed
+
+**Commit 7736958 (Partial Fix):**
+- `.github/workflows/main-ci.yml` - Added `branch` field to webhook payload
+- `docs/HARNESS_TRIGGER_QUEUED_ISSUE.md` - Documentation (later updated)
+
+**Trigger Configuration Fix (Applied in Harness UI):**
+- Removed payload condition from trigger `GitHub_Actions_CI`
+- Changed from inline `inputYaml` to `inputSetRefs: [webhook_default]`
+
+### Known Issue: Pipeline Aborts Immediately
+
+**New Problem Discovered:** Pipeline starts but aborts after ~2 seconds.
+
+**Evidence:**
+- Pipeline status: "Aborted"
+- Dev stage status: "Aborted"
+- Duration: 1760278509 → 1760278511 (~2 seconds)
+- Aborted by: "systemUser"
+
+**This is a SEPARATE issue** from the QUEUED problem. See separate investigation document: `HARNESS_PIPELINE_ABORT_ISSUE.md`
+
+---
+
+## Time Investment Summary
+
+**Total Investigation Time:** ~6 hours
+
+**Phases:**
+1. Initial problem documentation: ~4 hours
+2. Hypothesis development (branch field): ~30 minutes
+3. Implementation and testing: ~30 minutes
+4. Hypothesis disproven, further research: ~15 minutes
+5. Viewing actual trigger config: ~5 minutes
+6. Identifying real root cause: ~5 minutes
+7. Applying fix and verification: ~15 minutes
+8. Final documentation: ~30 minutes
+
+**Key Insight:** 5 minutes of viewing actual configuration saved hours of speculation. Always verify assumptions against reality.
+
+---
+
+**Resolution Date:** October 12, 2025, 14:15 UTC
+**Resolved By:** Claude Code AI Assistant (Sonnet 4.5) with user collaboration
+**Root Cause:** Malformed payload condition in trigger configuration
+**Solution:** Removed payload condition, used inputSetRefs, added branch field to webhook
+**Status:** ✅ RESOLVED (QUEUED issue fixed, separate abort issue exists)
 
 ---
 

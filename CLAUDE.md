@@ -264,6 +264,63 @@ gh run watch $RUN_ID --exit-status
 gh run view $RUN_ID --log-failed
 ```
 
+### GitHub Actions Path Filters
+
+**IMPORTANT:** The `main-ci.yml` workflow has path filters and will NOT trigger on empty commits:
+
+```yaml
+paths:
+  - 'app/**'
+  - 'db/changelog/**'
+  - 'liquibase-flows/**'
+  - '.github/workflows/main-ci.yml'
+```
+
+**To trigger the workflow:**
+
+```bash
+# Option 1: Rerun last workflow
+gh run list --workflow=main-ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'
+gh run rerun <run_id>
+
+# Option 2: Touch a file in monitored path
+touch app/README.md && git add app/README.md && git commit -m "Test trigger" && git push
+```
+
+### Harness API Authentication
+
+**Harness CLI is installed** at `~/bin/harness` (version 0.0.29). However, CLI doesn't support inputset/trigger commands - use API instead.
+
+**HARNESS_API_KEY Location:**
+- Stored in `harness/.env` file (gitignored, local only)
+- Used for API calls and CLI authentication
+- Example: `HARNESS_API_KEY=pat.xxxxx.yyyyy.zzzzz`
+
+**All Harness API calls require authentication:**
+
+```bash
+# Load API key from harness/.env
+source harness/.env
+curl -X GET 'https://app.harness.io/...' -H "x-api-key: ${HARNESS_API_KEY}"
+```
+
+**To create an API token:**
+1. In Harness UI, click profile icon (top right) → **My Profile**
+2. Go to **"My API Keys"** section → **"+ API Key"**
+3. Name it (e.g., "debug-api-key") → **"Save"**
+4. Click **"+ Token"** → Name it → Set expiration (30 days recommended)
+5. Click **"Generate Token"**
+6. **IMPORTANT:** Copy token immediately (shown only once!)
+7. Add to `harness/.env`: `HARNESS_API_KEY=pat.xxxxx.yyyyy.zzzzz`
+
+**Example API call:**
+```bash
+source harness/.env
+curl -X GET \
+  'https://app.harness.io/pipeline/api/inputSets/webhook_default?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo&pipelineIdentifier=Deploy_Bagel_Store&branch=main' \
+  -H "x-api-key: ${HARNESS_API_KEY}"
+```
+
 ### Harness Delegate
 ```bash
 cd harness
