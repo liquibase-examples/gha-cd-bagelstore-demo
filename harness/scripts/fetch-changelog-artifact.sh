@@ -30,7 +30,7 @@ GITHUB_ORG="$2"
 GITHUB_PAT="$3"
 
 # ===== Configuration =====
-REPO="${GITHUB_ORG}/harness-gha-bagelstore"
+REPO="${GITHUB_ORG}/gha-cd-bagelstore-demo"
 ARTIFACT_NAME="changelog-${VERSION}"
 WORK_DIR="/tmp/changelog"
 
