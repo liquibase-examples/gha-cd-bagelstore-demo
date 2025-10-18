@@ -71,11 +71,11 @@ template:
 
                   curl -L \
                     -H "Authorization: token <+secrets.getValue('github_pat')>" \
-                    -o changelog.zip \
+                    -o changelog.tar.gz \
                     "$PACKAGE_URL"
 
                   # Extract changelog
-                  unzip -q changelog.zip -d .
+                  tar -xzf changelog.tar.gz
 
                   echo "Changelog extracted successfully"
                   ls -la

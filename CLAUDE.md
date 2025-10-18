@@ -56,6 +56,138 @@ This is a demonstration repository showcasing coordinated application and databa
 
 **Pattern:** Delegate showing `remote-stackdriver-log-submitter` errors or `DecoderException` in logs while showing "Connected" in Harness UI means it's **working fine** (errors are telemetry/logging issues, not core functionality).
 
+## Script-First Policy (CRITICAL)
+
+**BEFORE making ANY Harness API call or diagnostic query, you MUST check for existing scripts.**
+
+This is the #1 most common mistake: manually constructing curl commands when a working script already exists.
+
+### Discovery Checklist (Execute in Order)
+
+1. **Check scripts directory FIRST:**
+   ```bash
+   ls -la scripts/*.sh | grep -E "pipeline|execution|trigger|template|harness"
+   ```
+
+2. **Read "Available Harness Scripts" section** in this file (below)
+
+3. **Verify working directory:**
+   ```bash
+   pwd  # Should be /Users/recampbell/workspace/harness-gha-bagelstore
+   ```
+
+4. **Try the script:**
+   ```bash
+   ./scripts/get-pipeline-executions.sh
+   # or
+   bash scripts/get-pipeline-executions.sh  # If permissions issue
+   ```
+
+5. **If script fails, DEBUG before giving up:**
+   - Check working directory: `pwd`
+   - Check file exists: `ls -la scripts/<script-name>.sh`
+   - Check permissions: Should have `x` bit
+   - Try explicit bash: `bash scripts/<script-name>.sh`
+   - Read script to understand requirements
+   - **FIX the issue, don't skip to manual approach**
+
+6. **ONLY use manual curl/API if:**
+   - No script exists for this operation
+   - Script is confirmed broken and cannot be fixed
+   - You document WHY you're not using a script
+
+### Available Harness Scripts (Full Reference)
+
+**Pipeline Monitoring & Debugging:**
+- `get-pipeline-executions.sh` - **START HERE** for "what's the latest execution?" queries
+- `get-execution-details.sh <exec_id>` - Get detailed execution info and stage status
+- `get-stage-logs.sh <exec_id> <stage_name>` - Get logs for specific pipeline stage
+- `get-execution-graph.sh <exec_id>` - Get full execution graph with all nodes
+
+**Configuration & Setup:**
+- `verify-harness-entities.sh` - Verify all Harness resources exist (templates, pipelines, etc.)
+- `update-trigger.sh` - Update trigger configuration (Input Set + Pipeline Branch)
+- `get-webhook-url.sh` - Get webhook URL for GitHub Actions trigger
+- `get-inputset.sh` - Get input set configuration
+
+**Templates & Git Sync:**
+- `get-template.sh <template_name>` - Get template YAML from Harness
+- `compare-template-with-git.sh` - Compare Harness template with Git version
+- `refresh-template.sh` - Manually sync template from Git
+- `force-refresh-template.sh` - Force refresh template (bypass cache)
+- `validate-template.sh` - Validate template YAML syntax
+
+**Diagnostics:**
+- `check-harness-resources.sh` - Check status of all Harness resources
+- `test-git-connector.sh` - Test GitHub connector connectivity
+- `test-pipeline-import.sh` - Test pipeline import from Git
+- `diagnose-aws.sh` - AWS-specific diagnostic checks
+
+**Local Deployment:**
+- `show-deployment-state.sh` - Show current deployment state (all environments)
+- `reset-local-environments.sh` - Reset local Docker environments
+
+**AWS/Infrastructure:**
+- `create-harness-aws-user.sh` - Create AWS IAM user for Harness delegate
+- `check-dependencies.sh` - Verify all required tools installed
+
+### Example - WRONG Approach
+
+```bash
+# ❌ WRONG: Immediately jump to manual curl
+curl -s "https://app.harness.io/pipeline/api/..." -H "x-api-key: ${HARNESS_API_KEY}"
+# Fails with "blank argument" error
+# Waste 10 minutes debugging variable scoping
+# Never realize ./scripts/get-pipeline-executions.sh exists
+```
+
+### Example - CORRECT Approach
+
+```bash
+# ✅ CORRECT: Check for script first
+ls scripts/*execution*.sh
+# Found: get-pipeline-executions.sh, get-execution-details.sh, get-execution-graph.sh
+
+./scripts/get-pipeline-executions.sh
+# ✅ Works! Shows formatted table with all executions
+# ✅ Shows trigger configuration issues
+# ✅ Provides Harness UI link
+# ✅ Saved 10 minutes vs manual curl
+```
+
+### If Script Fails - Debug First!
+
+```bash
+# Script attempt
+./scripts/get-pipeline-executions.sh
+# Error: "no such file or directory"
+
+# ✅ DEBUG (don't skip this!):
+pwd  # Am I in the right directory?
+ls -la scripts/get-pipeline-executions.sh  # Does it exist? What permissions?
+bash scripts/get-pipeline-executions.sh  # Try explicit bash invocation
+
+# Only after debugging can you determine if script is truly unusable
+```
+
+### Why This Matters - Historical Pattern
+
+**What keeps happening:**
+1. ❌ Need pipeline execution status
+2. ❌ Immediately start writing curl command
+3. ❌ Hit "blank argument" error (variable scoping issue)
+4. ❌ Try 5+ different curl variations
+5. ❌ Waste 10-15 minutes debugging
+6. ❌ Never realize `get-pipeline-executions.sh` already exists and works
+
+**What should happen:**
+1. ✅ Need pipeline execution status
+2. ✅ Check `ls scripts/*execution*.sh`
+3. ✅ Find and run `./scripts/get-pipeline-executions.sh`
+4. ✅ Get answer in 5 seconds
+
+**Time saved:** 10-15 minutes per query × multiple queries per session = significant productivity gain
+
 ## API-First Pattern (CRITICAL)
 
 **ALWAYS use APIs before suggesting manual UI changes** - This is a hard requirement.
@@ -152,9 +284,11 @@ Why this matters:
 ### Why This Matters
 
 **Historical mistakes to avoid:**
-1. ❌ Telling user to manually fix trigger in UI when `scripts/update-trigger.sh` exists
-2. ❌ Parsing `.data.inputSetRefs` JSON field instead of `.data.yaml` YAML field
-3. ❌ Not checking https://apidocs.harness.io/ before suggesting manual changes
+1. ❌ Not checking `scripts/` directory before manually constructing API calls
+2. ❌ Giving up on scripts after one failure instead of debugging the issue (pwd, permissions, bash invocation)
+3. ❌ Telling user to manually fix trigger in UI when `scripts/update-trigger.sh` exists
+4. ❌ Parsing `.data.inputSetRefs` JSON field instead of `.data.yaml` YAML field
+5. ❌ Not checking https://apidocs.harness.io/ before suggesting manual changes
 
 **Correct workflow:**
 1. ✅ Problem: "Trigger needs Input Set configured"
