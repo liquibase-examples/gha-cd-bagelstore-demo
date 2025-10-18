@@ -33,10 +33,9 @@ resource "harness_platform_service" "bagel_store" {
         managed_by: terraform
       serviceDefinition:
         type: CustomDeployment
-        spec:
-          customDeploymentRef:
-            templateRef: Custom
-            versionLabel: "1.0"
+        spec: {}
+        # No customDeploymentRef needed - deployment logic is in Step Group Template
+        # (Coordinated_DB_App_Deployment) which contains FetchInstanceScript
       gitOpsEnabled: false
   EOT
 }

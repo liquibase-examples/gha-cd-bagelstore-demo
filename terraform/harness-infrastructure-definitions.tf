@@ -38,10 +38,9 @@ resource "harness_platform_infrastructure" "demo_infrastructures" {
       deploymentType: CustomDeployment
       type: CustomDeployment
       spec:
-        customDeploymentRef:
-          templateRef: Custom
-          versionLabel: "1.0"
         variables: []
+        # No customDeploymentRef needed - FetchInstanceScript is in Step Group Template
+        # (Coordinated_DB_App_Deployment) which handles instance discovery
       allowSimultaneousDeployments: false
   EOT
 
@@ -71,5 +70,6 @@ output "harness_infrastructure_identifiers" {
 #   infrastructureDefinitions:
 #     - identifier: psr_dev_infra
 #
-# The infrastructure definition references the Custom deployment template (version 1.0)
-# which is defined in the service (harness-service.tf) and contains the deployment steps.
+# Infrastructure definitions are minimal - no deployment template reference needed.
+# FetchInstanceScript in Step Group Template (Coordinated_DB_App_Deployment) handles
+# instance discovery and deployment logic.
