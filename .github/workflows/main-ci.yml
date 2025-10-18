@@ -162,6 +162,15 @@ jobs:
           echo "demo_id=$DEMO_ID" >> $GITHUB_OUTPUT
           echo "Using demo_id: $DEMO_ID"
 
+      - name: Set ECR registry alias
+        id: ecr_alias
+        run: |
+          # ECR registry alias from Terraform output (static value)
+          # Can also be retrieved from: terraform output ecr_public_registry_alias
+          ALIAS="l1v5b6d6"
+          echo "alias=$ALIAS" >> $GITHUB_OUTPUT
+          echo "Using ECR registry alias: $ALIAS"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -173,13 +182,6 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: public.ecr.aws
-
-      - name: Get ECR registry alias
-        id: ecr_alias
-        run: |
-          ALIAS=$(aws ecr-public describe-registries --region us-east-1 --query 'registries[0].registryAlias' --output text)
-          echo "alias=$ALIAS" >> $GITHUB_OUTPUT
-          echo "Retrieved ECR registry alias: $ALIAS"
 
       - name: Extract metadata for Docker
         id: meta

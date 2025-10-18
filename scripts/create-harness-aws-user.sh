@@ -72,6 +72,17 @@ if aws iam get-user --user-name "${USER_NAME}" &>/dev/null; then
 fi
 
 # Create IAM policy with exact permissions needed
+#
+# Permission Groups Documentation:
+#
+# 1. RDSManagement: Manage PostgreSQL RDS instances for 4 environments (dev/test/staging/prod)
+# 2. SecretsManager: Store/retrieve database credentials securely
+# 3. S3Management: Store Liquibase flow files and operation reports
+# 4. AppRunnerManagement: Deploy Flask application containers to AWS App Runner
+# 5. Route53Management: Configure DNS records for custom domains (optional)
+# 6. ECRPublicManagement: Push/pull Docker images to/from AWS Public ECR
+# 7. STSTokenManagement: Required by aws-actions/configure-aws-credentials@v4 for ECR auth
+#
 echo ""
 echo "Creating IAM policy..."
 
@@ -218,6 +229,7 @@ POLICY_DOCUMENT=$(cat <<EOF
         "ecr-public:CreateRepository",
         "ecr-public:DeleteRepository",
         "ecr-public:DescribeRepositories",
+        "ecr-public:DescribeRegistries",
         "ecr-public:DescribeImages",
         "ecr-public:BatchCheckLayerAvailability",
         "ecr-public:GetAuthorizationToken",
@@ -228,6 +240,14 @@ POLICY_DOCUMENT=$(cat <<EOF
         "ecr-public:TagResource",
         "ecr-public:UntagResource",
         "ecr-public:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "STSTokenManagement",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetServiceBearerToken"
       ],
       "Resource": "*"
     }
