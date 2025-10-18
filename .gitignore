@@ -74,3 +74,6 @@ harness/backup-*/  # Keep migration backups out of Git
 # GitHub
 .github/secrets/
 .playwright-mcp/
+
+# AI Session Handoffs (local only, not for version control)
+HANDOFF_NEXT_SESSION.md
