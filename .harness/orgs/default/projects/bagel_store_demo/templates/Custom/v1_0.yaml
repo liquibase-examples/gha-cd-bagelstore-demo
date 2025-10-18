@@ -48,3 +48,18 @@ template:
 
               # Return empty instances - Step Group Template handles real logic
               echo '{"instances": []}'
+
+      # Instance attributes mapping (required by Harness)
+      # CRITICAL: "instancename" is MANDATORY field name (cannot use "hostname" or other names)
+      instanceAttributes:
+        - name: instancename
+          jsonPath: instance
+          description: ""
+
+      # JSON path to instances array in script output (required)
+      instancesListPath: instances
+
+    # Execution section (required for CustomDeployment templates)
+    # Empty because actual deployment steps are in Step Group Template
+    execution:
+      stepTemplateRefs: []
