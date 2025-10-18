@@ -62,11 +62,21 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   echo "Using AWS RDS endpoint: ${RDS_ENDPOINT}"
   echo "Flow file: s3://${FLOWS_BUCKET}/main-deployment-flow.yaml"
 
+  # Create temporary AWS config directory
+  AWS_CONFIG_DIR=$(mktemp -d)
+  mkdir -p "${AWS_CONFIG_DIR}"
+  cat > "${AWS_CONFIG_DIR}/config" <<EOF
+[default]
+region = ${AWS_REGION}
+EOF
+
   docker run --rm \
     -v "${CHANGELOG_DIR}:/liquibase/changelog" \
+    -v "${AWS_CONFIG_DIR}:/root/.aws:ro" \
     -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
     -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
     -e AWS_REGION="${AWS_REGION}" \
+    -e AWS_DEFAULT_REGION="${AWS_REGION}" \
     -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
     -e LIQUIBASE_COMMAND_URL="${JDBC_URL}" \
     -e LIQUIBASE_COMMAND_USERNAME="${DB_USERNAME}" \
@@ -77,6 +87,9 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
     "liquibase/liquibase-secure:${LIQUIBASE_VERSION}" \
     flow \
     --flow-file="s3://${FLOWS_BUCKET}/main-deployment-flow.yaml"
+
+  # Cleanup
+  rm -rf "${AWS_CONFIG_DIR}"
 
 else
   # ===== LOCAL MODE - Direct Update =====

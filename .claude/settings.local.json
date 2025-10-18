@@ -94,7 +94,8 @@
       "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_dev/infras/psr_dev_infra.yaml)",
       "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_test/infras/psr_test_infra.yaml)",
       "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_staging/infras/psr_staging_infra.yaml)",
-      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/Production/psr_prod/infras/psr_prod_infra.yaml)"
+      "Bash(git -C /Users/recampbell/workspace/harness-gha-bagelstore show f18fc60:.harness/orgs/default/projects/bagel_store_demo/envs/Production/psr_prod/infras/psr_prod_infra.yaml)",
+      "Bash(xargs -I {} basename {})"
     ],
     "deny": [],
     "ask": []

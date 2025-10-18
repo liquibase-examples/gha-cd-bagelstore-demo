@@ -16,7 +16,24 @@ RUN microdnf update -y && \
     microdnf install -y \
     jq \
     unzip \
+    tar \
+    gzip \
+    python3 \
+    python3-pip \
     && microdnf clean all
+
+# Install Docker CLI (for running Liquibase containers from scripts)
+# Download static binary since base image doesn't have docker repos
+RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz -o docker.tgz && \
+    tar -xzf docker.tgz --strip-components=1 -C /usr/local/bin docker/docker && \
+    rm docker.tgz && \
+    chmod +x /usr/local/bin/docker
+
+# Install AWS CLI v2
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip" && \
+    unzip -q awscliv2.zip && \
+    ./aws/install && \
+    rm -rf aws awscliv2.zip
 
 # Switch back to harness user for security
 USER harness
