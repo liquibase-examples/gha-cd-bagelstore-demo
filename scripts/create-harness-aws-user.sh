@@ -210,6 +210,26 @@ POLICY_DOCUMENT=$(cat <<EOF
         "route53:ListResourceRecordSets"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "ECRPublicManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ecr-public:CreateRepository",
+        "ecr-public:DeleteRepository",
+        "ecr-public:DescribeRepositories",
+        "ecr-public:DescribeImages",
+        "ecr-public:BatchCheckLayerAvailability",
+        "ecr-public:GetAuthorizationToken",
+        "ecr-public:InitiateLayerUpload",
+        "ecr-public:UploadLayerPart",
+        "ecr-public:CompleteLayerUpload",
+        "ecr-public:PutImage",
+        "ecr-public:TagResource",
+        "ecr-public:UntagResource",
+        "ecr-public:ListTagsForResource"
+      ],
+      "Resource": "*"
     }
   ]
 }

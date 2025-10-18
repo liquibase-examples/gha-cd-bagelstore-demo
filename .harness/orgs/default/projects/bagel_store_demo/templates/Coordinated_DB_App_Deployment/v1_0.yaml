@@ -123,6 +123,7 @@ template:
                     "app_runner_service_arn": "<+env.variables.app_runner_service_arn>",
                     "aws_region": "<+env.variables.aws_region>",
                     "demo_id": "<+env.variables.demo_id>",
+                    "ecr_public_alias": "<+env.variables.ecr_public_alias>",
                     "rds_address": "<+env.variables.rds_address>",
                     "rds_port": "<+env.variables.rds_port>",
                     "database_name": "<+env.variables.database_name>"

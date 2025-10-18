@@ -79,6 +79,13 @@ locals {
       }
     }
   }
+
+  # ECR Public registry alias - extracted from repository URI
+  ecr_public_alias = var.deployment_mode == "aws" ? (
+    length(aws_ecrpublic_repository.bagel_store) > 0 ?
+    split("/", aws_ecrpublic_repository.bagel_store[0].repository_uri)[1] :
+    "pending-creation"
+  ) : "local-mode"
 }
 
 # Create Harness Platform Environments
@@ -195,6 +202,12 @@ resource "harness_platform_environment" "demo_environments" {
           type: String
           value: "${var.deployment_mode}"
           description: "Deployment mode: 'aws' for App Runner/RDS, 'local' for Docker Compose"
+
+        # ECR Configuration
+        - name: ecr_public_alias
+          type: String
+          value: "${local.ecr_public_alias}"
+          description: "AWS Public ECR registry alias for Docker images"
   EOT
 
   # Note: depends_on removed since AWS resources are now conditional

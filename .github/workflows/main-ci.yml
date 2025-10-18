@@ -13,8 +13,6 @@ on:
 
 env:
   LIQUIBASE_VERSION: "5.0.1"
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-database-artifact:
@@ -164,18 +162,30 @@ jobs:
           echo "demo_id=$DEMO_ID" >> $GITHUB_OUTPUT
           echo "Using demo_id: $DEMO_ID"
 
-      - name: Log in to GitHub Container Registry
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Log in to AWS Public ECR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: public.ecr.aws
+
+      - name: Get ECR registry alias
+        id: ecr_alias
+        run: |
+          ALIAS=$(aws ecr-public describe-registries --region us-east-1 --query 'registries[0].registryAlias' --output text)
+          echo "alias=$ALIAS" >> $GITHUB_OUTPUT
+          echo "Retrieved ECR registry alias: $ALIAS"
 
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.demo.outputs.demo_id }}-bagel-store
+          images: public.ecr.aws/${{ steps.ecr_alias.outputs.alias }}/${{ steps.demo.outputs.demo_id }}-bagel-store
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=latest
@@ -196,6 +206,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Demo ID:** ${{ steps.demo.outputs.demo_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**ECR Alias:** ${{ steps.ecr_alias.outputs.alias }}" >> $GITHUB_STEP_SUMMARY
           echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Published Images" >> $GITHUB_STEP_SUMMARY
@@ -205,7 +216,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Pull Command" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.demo.outputs.demo_id }}-bagel-store:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull public.ecr.aws/${{ steps.ecr_alias.outputs.alias }}/${{ steps.demo.outputs.demo_id }}-bagel-store:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
   trigger-harness-deployment:

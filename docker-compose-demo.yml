@@ -119,7 +119,7 @@ services:
   # ===== Application Services (4 environments) =====
 
   app-dev:
-    image: ghcr.io/${GITHUB_ORG:-recampbell}/bagel-store:${VERSION_DEV:-latest}
+    image: public.ecr.aws/${ECR_PUBLIC_ALIAS:-l1v5b6d6}/${DEMO_ID:-psr}-bagel-store:${VERSION_DEV:-latest}
     container_name: bagel-app-dev
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres-dev:5432/dev
@@ -143,7 +143,7 @@ services:
     restart: unless-stopped
 
   app-test:
-    image: ghcr.io/${GITHUB_ORG:-recampbell}/bagel-store:${VERSION_TEST:-latest}
+    image: public.ecr.aws/${ECR_PUBLIC_ALIAS:-l1v5b6d6}/${DEMO_ID:-psr}-bagel-store:${VERSION_TEST:-latest}
     container_name: bagel-app-test
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres-test:5432/test
@@ -167,7 +167,7 @@ services:
     restart: unless-stopped
 
   app-staging:
-    image: ghcr.io/${GITHUB_ORG:-recampbell}/bagel-store:${VERSION_STAGING:-latest}
+    image: public.ecr.aws/${ECR_PUBLIC_ALIAS:-l1v5b6d6}/${DEMO_ID:-psr}-bagel-store:${VERSION_STAGING:-latest}
     container_name: bagel-app-staging
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres-staging:5432/staging
@@ -191,7 +191,7 @@ services:
     restart: unless-stopped
 
   app-prod:
-    image: ghcr.io/${GITHUB_ORG:-recampbell}/bagel-store:${VERSION_PROD:-latest}
+    image: public.ecr.aws/${ECR_PUBLIC_ALIAS:-l1v5b6d6}/${DEMO_ID:-psr}-bagel-store:${VERSION_PROD:-latest}
     container_name: bagel-app-prod
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres-prod:5432/prod

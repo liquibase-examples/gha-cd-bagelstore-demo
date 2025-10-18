@@ -65,11 +65,17 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   # Build database URL with Secrets Manager references
   DB_URL="postgresql://\${awsSecretsManager:${DEMO_ID}/rds/username}:\${awsSecretsManager:${DEMO_ID}/rds/password}@${RDS_ADDRESS}:${RDS_PORT}/${DATABASE_NAME}"
 
+  # Extract ECR alias from AWS parameters
+  ECR_ALIAS=$(echo "$AWS_PARAMS_JSON" | jq -r '.ecr_public_alias')
+  IMAGE_URL="public.ecr.aws/${ECR_ALIAS}/${DEMO_ID}-bagel-store:${VERSION}"
+
+  echo "Deploying Docker image: ${IMAGE_URL}"
+
   aws apprunner update-service \
     --service-arn "${SERVICE_ARN}" \
     --source-configuration "{
       \"ImageRepository\": {
-        \"ImageIdentifier\": \"ghcr.io/${GITHUB_ORG}/bagel-store:${VERSION}\",
+        \"ImageIdentifier\": \"${IMAGE_URL}\",
         \"ImageRepositoryType\": \"ECR_PUBLIC\",
         \"ImageConfiguration\": {
           \"Port\": \"5000\",

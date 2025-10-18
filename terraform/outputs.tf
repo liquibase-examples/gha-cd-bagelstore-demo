@@ -154,3 +154,24 @@ output "deployment_summary" {
     db_ports        = "dev:5432, test:5433, staging:5434, prod:5435"
   }
 }
+
+# ===== ECR Public Outputs (AWS mode only) =====
+
+output "ecr_public_repository_uri" {
+  description = "Public ECR repository URI for Docker images"
+  value       = var.deployment_mode == "aws" ? aws_ecrpublic_repository.bagel_store[0].repository_uri : "local-mode-not-applicable"
+}
+
+output "ecr_public_registry_alias" {
+  description = "Public ECR registry alias (extracted from repository URI)"
+  value = var.deployment_mode == "aws" ? (
+    length(aws_ecrpublic_repository.bagel_store) > 0 ?
+    split("/", aws_ecrpublic_repository.bagel_store[0].repository_uri)[1] :
+    "not-created"
+  ) : "local-mode"
+}
+
+output "ecr_public_image_example" {
+  description = "Example Docker image URI for deployment"
+  value       = var.deployment_mode == "aws" ? "${aws_ecrpublic_repository.bagel_store[0].repository_uri}:latest" : "local-mode-not-applicable"
+}

@@ -1,295 +1,412 @@
-# AI Handoff: Complete Harness Deployment Testing
+# AI Handoff: GitHub Actions ECR Migration - Phase 2
 
-**Date:** 2025-10-18
-**Status:** 🟡 Fixes committed, deployment testing required
-**Previous Session:** Fixed unzip→tar bug, created diagnostic scripts, updated CLAUDE.md
+## Current Status: ✅ Phase 1 Complete - Infrastructure & Scripts Updated
 
----
-
-## What Was Just Fixed (Commit a50fb12)
-
-### ✅ Created Diagnostic Scripts
-1. **`scripts/get-trigger.sh`** - Verify trigger Input Set configuration
-2. **`scripts/get-delegate-logs.sh <task-id> [minutes]`** - Get delegate execution logs
-
-### ✅ Fixed Script Parsing Bugs
-- `scripts/get-pipeline-executions.sh` - Now correctly detects Input Set (was false negative)
-- Fixed YAML parsing: `^ *- ` handles variable indentation
-
-### ✅ Fixed Critical Deployment Bug
-- **`.harness/.../Coordinated_DB_App_Deployment/v1_0.yaml` line 78**
-- Changed: `unzip -q changelog.zip` → `tar -xzf changelog.tar.gz`
-- **Why:** Delegate container doesn't have `unzip`, artifacts are `.tar.gz` format
-
-### ✅ Documentation Updates
-- **CLAUDE.md** - Added comprehensive Script-First Policy (saves 10-15 min per query)
-- **CLAUDE.md** - Updated Historical Mistakes section
+**Last Updated:** 2025-10-18
+**Working Directory:** `/Users/recampbell/workspace/harness-gha-bagelstore`
+**Branch:** `main`
 
 ---
 
-## Current State
+## What Was Completed (Phase 1)
 
-### Delegate
-- ✅ **Running and connected** (container: `harness-delegate-psr`)
-- ✅ Receiving tasks from Harness
-- ✅ Executing shell scripts
+### 1. IAM Policy Updated ✅
+- Updated `scripts/create-harness-aws-user.sh` with ECR Public permissions
+- IAM policy version: v1 → v2
+- Policy now includes `ECRPublicManagement` statement
+- Tested and verified: IAM user can access ECR Public API
 
-### Trigger Configuration
-- ✅ **Input Set configured:** `webhook_default`
-- ✅ **Pipeline Reference Branch:** `<+trigger.branch>`
-- ✅ **Webhook URL** set in GitHub variable `HARNESS_WEBHOOK_URL`
+### 2. Terraform Infrastructure Created ✅
+**New Resources:**
+- ECR Public repository: `public.ecr.aws/l1v5b6d6/psr-bagel-store`
+- Registry alias: `l1v5b6d6`
+- GitHub secrets (automated via Terraform):
+  - `AWS_ACCESS_KEY_ID`
+  - `AWS_SECRET_ACCESS_KEY`
+  - `AWS_REGION` (us-east-1)
+- GitHub variables:
+  - `DEMO_ID` (psr)
+  - `DEPLOYMENT_TARGET` (aws)
 
-### Known Remaining Issue
-**Line 68 in deployment template** still references GitHub Packages:
-```bash
-PACKAGE_URL="https://maven.pkg.github.com/.../bagel-store-changelog/.../changelog-....zip"
+**Files Created:**
+- `terraform/ecr-public.tf`
+- `terraform/github-secrets.tf`
+
+**Files Modified:**
+- `terraform/main.tf` - Added GitHub provider + us-east-1 AWS provider
+- `terraform/outputs.tf` - Added ECR outputs
+- `terraform/harness-environments.tf` - Added `ecr_public_alias` variable to all 4 environments
+
+### 3. Deployment Scripts Updated ✅
+**Files Modified:**
+- `harness/scripts/deploy-application.sh` - Uses ECR Public images from AWS_PARAMS
+- `docker-compose-demo.yml` - All 4 environments reference ECR Public
+- `.env.example` - Added `ECR_PUBLIC_ALIAS` and `DEMO_ID` variables
+- `.harness/.../Coordinated_DB_App_Deployment/v1_0.yaml` - Passes `ecr_public_alias` in AWS_PARAMS
+
+### 4. Testing Completed ✅
+- ✅ Manual ECR push test (nginx:latest → test-push) succeeded
+- ✅ Image verified in repository
+- ✅ GitHub secrets/variables verified
+- ✅ Terraform outputs verified
+
+---
+
+## What Needs To Be Done (Phase 2) - YOUR TASK
+
+### Task: Update GitHub Actions Workflow to Push to ECR (NOT GHCR)
+
+**File:** `.github/workflows/main-ci.yml`
+
+**Goal:** Replace GHCR publishing with ECR Public publishing
+
+---
+
+## Step-by-Step Plan for GitHub Actions Update
+
+### Step 1: Remove GHCR Login (~line 167-172)
+
+**DELETE this block:**
+```yaml
+- name: Log in to GitHub Container Registry
+  uses: docker/login-action@v3
+  with:
+    registry: ${{ env.REGISTRY }}
+    username: ${{ github.actor }}
+    password: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-But actual artifact is in **GitHub Actions artifact storage** (not Packages).
+### Step 2: Add ECR Public Login
 
-**Impact:** Artifact download will likely fail with 404 or authentication error.
+**ADD this block (after checkout, before metadata extraction):**
+```yaml
+- name: Log in to AWS Public ECR
+  uses: docker/login-action@v3
+  with:
+    registry: public.ecr.aws
+  env:
+    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    AWS_REGION: us-east-1
+```
+
+### Step 3: Get ECR Registry Alias
+
+**ADD this step (before metadata extraction):**
+```yaml
+- name: Get ECR registry alias
+  id: ecr_alias
+  run: |
+    ALIAS=$(aws ecr-public describe-registries --region us-east-1 --query 'registries[0].registryAlias' --output text)
+    echo "alias=$ALIAS" >> $GITHUB_OUTPUT
+  env:
+    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+### Step 4: Update Metadata Extraction (~line 174-182)
+
+**CHANGE from:**
+```yaml
+- name: Extract metadata for Docker
+  id: meta
+  uses: docker/metadata-action@v5
+  with:
+    images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.demo.outputs.demo_id }}-bagel-store
+    tags: |
+      type=raw,value=${{ steps.version.outputs.version }}
+      type=raw,value=latest
+      type=sha,prefix=
+```
+
+**TO:**
+```yaml
+- name: Extract metadata for Docker
+  id: meta
+  uses: docker/metadata-action@v5
+  with:
+    images: public.ecr.aws/${{ steps.ecr_alias.outputs.alias }}/${{ steps.demo.outputs.demo_id }}-bagel-store
+    tags: |
+      type=raw,value=${{ steps.version.outputs.version }}
+      type=raw,value=latest
+      type=sha,prefix=
+```
+
+### Step 5: Update Image Summary (~line 206-209)
+
+**CHANGE the pull command in summary from:**
+```yaml
+echo "docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.demo.outputs.demo_id }}-bagel-store:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+```
+
+**TO:**
+```yaml
+echo "docker pull public.ecr.aws/${{ steps.ecr_alias.outputs.alias }}/${{ steps.demo.outputs.demo_id }}-bagel-store:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+```
 
 ---
 
-## Your Mission: Test & Fix Deployment
+## Testing Plan (After Workflow Update)
 
-### Step 1: Refresh Template in Harness UI (CRITICAL!)
-
-**Why:** Git Experience has no webhook configured (manual sync required)
-
-1. Go to Harness UI: **Project Setup** → **Templates**
-2. Click template: `Coordinated_DB_App_Deployment`
-3. Click **Refresh** icon (circular arrow in top right)
-4. Verify version shows recent timestamp
-5. Check YAML shows `tar -xzf changelog.tar.gz` (line 78)
-
-**Verification:**
-```bash
-./scripts/get-template.sh Coordinated_DB_App_Deployment | grep "tar -xzf"
-```
-
-### Step 2: Trigger New Deployment
+### Test 1: Trigger GitHub Actions Workflow
 
 ```bash
-# Option A: Trigger GitHub Actions workflow
+# Trigger workflow manually
 gh workflow run main-ci.yml
 
-# Option B: Rerun latest workflow
-gh run rerun $(gh run list --workflow=main-ci.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+# Monitor execution
+gh run watch
+
+# View logs
+gh run view --log
 ```
 
-### Step 3: Monitor Pipeline Execution
+**Expected Results:**
+- ✅ Workflow logs in to AWS Public ECR successfully
+- ✅ ECR alias retrieved (`l1v5b6d6`)
+- ✅ Image pushed to `public.ecr.aws/l1v5b6d6/psr-bagel-store:VERSION`
+- ✅ Image tagged with: version, latest, commit SHA
+
+### Test 2: Verify Image in ECR
 
 ```bash
+export AWS_PROFILE=liquibase-sandbox-admin
+
+aws ecr-public describe-images \
+  --repository-name psr-bagel-store \
+  --region us-east-1 \
+  --query 'imageDetails[*].[imageTags[0],imagePushedAt]' \
+  --output table
+```
+
+**Expected:** Image with workflow version tag visible
+
+### Test 3: Trigger Full Harness Deployment
+
+```bash
+# Push a commit to trigger main-ci.yml
+git add .
+git commit -m "Feat: Migrate from GHCR to AWS Public ECR"
+git push
+
 # Watch GitHub Actions
-gh run watch $(gh run list --workflow=main-ci.yml --limit 1 --json databaseId --jq '.[0].databaseId') --exit-status
+gh run watch
 
-# Check Harness pipeline (after GHA completes)
+# Monitor Harness deployment
+# Go to: https://app.harness.io/ng/account/_dYBmxlLQu61cFhvdkV4Jw/cd/orgs/default/projects/bagel_store_demo/pipelines/Deploy_Bagel_Store/deployments
+```
+
+**Expected Results:**
+- ✅ GitHub Actions pushes to ECR
+- ✅ Harness webhook triggered
+- ✅ "Deploy Application" step uses ECR image: `public.ecr.aws/l1v5b6d6/psr-bagel-store:VERSION`
+- ✅ App Runner successfully pulls from ECR
+- ✅ Deployment succeeds for all 4 environments
+
+### Test 4: Verify App Runner Image
+
+```bash
+# Check App Runner service configuration
+SERVICE_ARN=$(cd terraform && terraform output -json app_runner_services | jq -r '.dev.service_arn')
+
+aws apprunner describe-service \
+  --service-arn "$SERVICE_ARN" \
+  --region us-east-1 \
+  --query 'Service.SourceConfiguration.ImageRepository.ImageIdentifier' \
+  --output text
+```
+
+**Expected:** Shows `public.ecr.aws/l1v5b6d6/psr-bagel-store:VERSION`
+
+---
+
+## Important Notes & Context
+
+### ECR Public Details
+- **Repository URI:** `public.ecr.aws/l1v5b6d6/psr-bagel-store`
+- **Registry Alias:** `l1v5b6d6` (account-specific, discoverable via API)
+- **Region:** us-east-1 (Public ECR only available in us-east-1)
+- **Cost:** $0 (free storage and bandwidth for public repositories)
+
+### GitHub Secrets Already Configured
+- `AWS_ACCESS_KEY_ID` - Harness deployer IAM user credentials
+- `AWS_SECRET_ACCESS_KEY` - Harness deployer IAM user credentials
+- `AWS_REGION` - us-east-1
+- `LIQUIBASE_LICENSE_KEY` - Already exists (don't touch)
+
+### GitHub Variables Already Configured
+- `DEMO_ID` - psr
+- `DEPLOYMENT_TARGET` - aws
+- `HARNESS_WEBHOOK_URL` - Already exists (don't touch)
+
+### Harness Template Changes
+**IMPORTANT:** After modifying `.harness/.../Coordinated_DB_App_Deployment/v1_0.yaml`, you MUST refresh the template in Harness UI:
+1. Go to: Project Setup → Templates → Coordinated_DB_App_Deployment
+2. Click the **Refresh** icon (circular arrow)
+3. Verify changes synced from Git
+
+**Why?** No webhook configured for auto-sync. Manual refresh required after Git push.
+
+### Deployment Script Logic
+The `deploy-application.sh` script now:
+1. Extracts `ecr_public_alias` from `AWS_PARAMS_JSON`
+2. Constructs image URL: `public.ecr.aws/${ECR_ALIAS}/${DEMO_ID}-bagel-store:${VERSION}`
+3. Logs the image URL before deploying
+4. Passes URL to App Runner API
+
+---
+
+## Validation Checklist
+
+Before marking Phase 2 complete, verify:
+
+- [ ] `.github/workflows/main-ci.yml` updated (no GHCR references)
+- [ ] GitHub Actions workflow runs successfully
+- [ ] Image pushed to ECR Public (visible in AWS console or via CLI)
+- [ ] Image tagged with version, latest, and commit SHA
+- [ ] Harness template refreshed in UI
+- [ ] Full Harness deployment triggered and successful
+- [ ] App Runner pulling from ECR (not GHCR)
+- [ ] All 4 environments deployed successfully
+- [ ] Health checks passing
+
+---
+
+## Rollback Plan (If Issues Occur)
+
+### Revert GitHub Actions Workflow
+```bash
+git log --oneline -5
+git revert <commit-hash-of-ecr-changes>
+git push
+```
+
+### Revert Harness Template
+```bash
+cd .harness/orgs/default/projects/bagel_store_demo/templates/Coordinated_DB_App_Deployment
+git diff v1_0.yaml  # Review changes
+git checkout HEAD~1 -- v1_0.yaml  # Revert to previous version
+git commit -m "Rollback: Revert ECR changes in template"
+git push
+# Then refresh template in Harness UI
+```
+
+### Revert Deployment Script
+```bash
+git checkout HEAD~1 -- harness/scripts/deploy-application.sh
+git commit -m "Rollback: Revert deploy script to GHCR"
+git push
+```
+
+---
+
+## Quick Reference Commands
+
+### View ECR Images
+```bash
+export AWS_PROFILE=liquibase-sandbox-admin
+aws ecr-public describe-images --repository-name psr-bagel-store --region us-east-1
+```
+
+### Get ECR Alias
+```bash
+aws ecr-public describe-registries --region us-east-1 --query 'registries[0].registryAlias' --output text
+```
+
+### Terraform Outputs
+```bash
+cd terraform
+terraform output ecr_public_repository_uri
+terraform output ecr_public_registry_alias
+terraform output github_secrets_configured
+```
+
+### GitHub Secrets
+```bash
+gh secret list
+gh variable list
+```
+
+### Harness Deployment Logs
+```bash
+# Get latest execution
 ./scripts/get-pipeline-executions.sh
 
-# Get latest execution ID
-EXEC_ID=$(./scripts/get-pipeline-executions.sh | grep "Execution ID:" | awk '{print $3}')
-```
+# Get specific execution details
+./scripts/get-execution-details.sh <execution_id>
 
-### Step 4: Diagnose Failures
-
-**If pipeline aborts again:**
-
-```bash
-# Get delegate logs for latest task
-./scripts/get-delegate-logs.sh
-
-# Get detailed execution info
-./scripts/get-execution-details.sh $EXEC_ID
-
-# Check trigger configuration
-./scripts/get-trigger.sh
-```
-
-**Common failure points to check:**
-1. ❌ **Artifact download fails (404)** → GitHub Packages vs Actions artifacts issue
-2. ❌ **Authentication fails** → Check GitHub PAT in Harness secrets
-3. ❌ **tar extraction fails** → Check file format mismatch
-4. ❌ **Liquibase fails** → Check database connectivity, license key
-
----
-
-## Expected Outcomes
-
-### Success Path
-1. ✅ GitHub Actions completes (builds changelog artifact + Docker image)
-2. ✅ Harness webhook triggered
-3. ✅ Pipeline execution starts
-4. ✅ Fetch Changelog Artifact step succeeds (downloads + extracts)
-5. ✅ Update Database step succeeds (Liquibase runs)
-6. ✅ Deploy Application step succeeds (AWS App Runner or local Docker)
-7. ✅ Health Check passes
-8. ✅ Deployment completes with "Success" status
-
-### Likely Failure: Artifact Download (Line 68 Issue)
-
-**Error will show:**
-```
-curl: (22) The requested URL returned error: 404 Not Found
-```
-
-**Root cause:** Template tries to download from GitHub Packages but artifact is in Actions artifacts storage.
-
-**Fix options:**
-
-**Option A: Download from GitHub Actions API**
-```bash
-# Get artifact download URL
-ARTIFACT_URL=$(gh api repos/{owner}/{repo}/actions/runs/{run_id}/artifacts \
-  --jq '.artifacts[] | select(.name | startswith("changelog-")) | .archive_download_url')
-
-# Download artifact
-curl -L -H "Authorization: Bearer $GITHUB_TOKEN" -o changelog.tar.gz "$ARTIFACT_URL"
-```
-
-**Option B: Publish to GitHub Packages (add step to workflow)**
-```yaml
-- name: Publish changelog to GitHub Packages
-  run: |
-    # Upload to maven.pkg.github.com
-    # (requires additional configuration)
-```
-
-**Option C: Use S3 instead**
-```bash
-# Upload to S3 in GitHub Actions
-aws s3 cp artifacts/changelog.tar.gz s3://bucket/changelog-$VERSION.tar.gz
-
-# Download from S3 in Harness
-aws s3 cp s3://bucket/changelog-$VERSION.tar.gz changelog.tar.gz
+# Get stage logs
+./scripts/get-stage-logs.sh <execution_id> "Deploy Application"
 ```
 
 ---
 
-## Diagnostic Scripts Reference
+## Files Modified Summary
 
-All scripts use Script-First Policy (see CLAUDE.md line 59)
+### Phase 1 (Already Complete):
+1. ✅ `scripts/create-harness-aws-user.sh` - ECR permissions
+2. ✅ `terraform/main.tf` - GitHub provider + us-east-1
+3. ✅ `terraform/ecr-public.tf` - NEW
+4. ✅ `terraform/github-secrets.tf` - NEW
+5. ✅ `terraform/outputs.tf` - ECR outputs
+6. ✅ `terraform/harness-environments.tf` - ecr_public_alias variable
+7. ✅ `harness/scripts/deploy-application.sh` - ECR image logic
+8. ✅ `docker-compose-demo.yml` - ECR references
+9. ✅ `.env.example` - ECR variables
+10. ✅ `.harness/.../Coordinated_DB_App_Deployment/v1_0.yaml` - Pass ECR alias
 
-### Quick Diagnostics
-```bash
-./scripts/get-pipeline-executions.sh         # Latest pipeline runs + trigger status
-./scripts/get-trigger.sh                     # Verify trigger Input Set configuration
-./scripts/get-delegate-logs.sh               # Recent delegate tasks and errors
-./scripts/verify-harness-entities.sh         # Verify all Harness resources exist
-```
-
-### Detailed Diagnostics
-```bash
-./scripts/get-execution-details.sh <exec-id>   # Full execution JSON
-./scripts/get-stage-logs.sh <exec-id> <stage>  # Logs for specific stage
-./scripts/get-delegate-logs.sh <task-id> 30    # Delegate logs for specific task
-```
-
-### Example Workflow
-```bash
-# 1. Check latest execution
-./scripts/get-pipeline-executions.sh
-# Output shows: Execution ID: ABC123, Status: Aborted
-
-# 2. Get execution details
-./scripts/get-execution-details.sh ABC123
-
-# 3. Get delegate logs for debugging
-./scripts/get-delegate-logs.sh
-
-# 4. Find task ID from logs, get detailed task logs
-./scripts/get-delegate-logs.sh xMOm-CUNQ8mjduw5wQkn3w-DEL 30
-```
-
----
-
-## Critical Context: Script-First Policy
-
-**BEFORE making ANY API call or diagnostic query:**
-1. Check `ls scripts/*.sh` for existing script
-2. Read CLAUDE.md "Available Harness Scripts" section (line 99)
-3. Try the script FIRST
-4. If script fails, DEBUG (pwd, permissions, bash invocation)
-5. ONLY use manual curl if no script exists
-
-**Why this matters:**
-- Saves 10-15 minutes per query
-- Avoids variable scoping issues with curl
-- Scripts handle authentication, parsing, formatting automatically
-
----
-
-## Next Steps (Your Tasks)
-
-### Immediate (Required)
-1. ✅ **Refresh template in Harness UI** (Git sync required)
-2. ✅ **Trigger new deployment** (GitHub Actions workflow)
-3. ✅ **Monitor execution** (use diagnostic scripts)
-4. ✅ **Diagnose failure point** (likely artifact download)
-
-### After Identifying Failure
-5. ⚠️ **Fix artifact download** (choose Option A, B, or C above)
-6. ⚠️ **Update deployment template** (line 68 PACKAGE_URL)
-7. ⚠️ **Test full deployment** (dev → test → staging → prod)
-8. ⚠️ **Verify application health** (check endpoints, database)
-
-### Documentation
-9. ⚠️ **Document fix** (update HANDOFF or create new doc)
-10. ⚠️ **Update CLAUDE.md** if new patterns discovered
-11. ⚠️ **Create script** if manual process needs automation
+### Phase 2 (YOUR TASK):
+1. ⏳ `.github/workflows/main-ci.yml` - Replace GHCR with ECR
 
 ---
 
 ## Success Criteria
 
-✅ **Deployment completes successfully** (Status: Success in Harness)
-✅ **All 4 stages pass** (Deploy to Dev, Test, Staging, Production)
-✅ **Application accessible** (health check passes)
-✅ **Database updated** (Liquibase changesets applied)
-✅ **Docker image deployed** (correct version from ghcr.io)
+**Phase 2 is complete when:**
+1. ✅ No GHCR references in `.github/workflows/main-ci.yml`
+2. ✅ GitHub Actions pushes to ECR Public successfully
+3. ✅ Harness deploys from ECR Public successfully
+4. ✅ App Runner services running ECR images
+5. ✅ All tests passing
+6. ✅ Documentation updated (if needed)
 
 ---
 
-## If You Get Stuck
+## Next AI Session: Start Here
 
-1. **Read CLAUDE.md** - Project conventions, diagnostic approach
-2. **Check docs/TROUBLESHOOTING.md** - Common errors and solutions
-3. **Use diagnostic scripts** - Don't manually construct curl commands!
-4. **Check delegate logs** - Real-time execution details
-5. **Verify Harness UI** - Sometimes API lags behind UI state
+```bash
+# 1. Verify current state
+cd /Users/recampbell/workspace/harness-gha-bagelstore
+git status
+terraform output ecr_public_repository_uri
+gh secret list
 
----
+# 2. Update GitHub Actions workflow
+# Follow Step 1-5 above to modify .github/workflows/main-ci.yml
 
-## Quick Reference
+# 3. Test the changes
+gh workflow run main-ci.yml
+gh run watch
 
-### Repository
-```
-/Users/recampbell/workspace/harness-gha-bagelstore
-```
+# 4. Verify ECR image pushed
+export AWS_PROFILE=liquibase-sandbox-admin
+aws ecr-public describe-images --repository-name psr-bagel-store --region us-east-1
 
-### Key Identifiers
-- **Account:** `_dYBmxlLQu61cFhvdkV4Jw`
-- **Organization:** `default`
-- **Project:** `bagel_store_demo`
-- **Pipeline:** `Deploy_Bagel_Store`
-- **Trigger:** `GitHub_Actions_CI`
-- **Input Set:** `webhook_default`
-- **Delegate:** `harness-delegate-psr`
+# 5. Trigger full deployment
+git add .
+git commit -m "Feat: Migrate from GHCR to AWS Public ECR"
+git push
 
-### Environment
-- **Deployment Mode:** AWS App Runner (not local Docker)
-- **Target Environment:** `psr-dev` (first in pipeline)
-- **Delegate Location:** Docker container on local machine
-- **Artifacts:** GitHub Actions artifact storage + ghcr.io Docker registry
-
----
-
-## Recent Commits
-```
-a50fb12 - Fix: Harness deployment issues and add diagnostic tools
-cd6477b - (previous commits)
+# 6. Monitor Harness deployment
+# (Use Harness UI or scripts/get-pipeline-executions.sh)
 ```
 
 ---
 
-Good luck! The hardest debugging is done (found the unzip bug). Now it's just artifact download configuration. Use the diagnostic scripts liberally - they'll save you tons of time! 🚀
+**Repository:** `/Users/recampbell/workspace/harness-gha-bagelstore`
+**Branch:** `main`
+**AWS Profile:** `liquibase-sandbox-admin`
+**Demo ID:** `psr`
+**ECR Alias:** `l1v5b6d6`
+
+**Take it from here! 🚀**
