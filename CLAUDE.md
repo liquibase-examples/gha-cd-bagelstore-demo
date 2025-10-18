@@ -133,63 +133,21 @@ Why this matters:
 
 ### CustomDeployment Infrastructure Pattern
 
-**CRITICAL: Minimal Deployment Template for Validation**
+**Quick Summary:**
+- This repo uses a minimal CustomDeployment template (`Custom` v1.0) for validation only
+- Actual deployment logic lives in Step Group Template (`Coordinated_DB_App_Deployment`)
+- Infrastructure definitions reference `Custom` template to satisfy Harness requirements
 
-This repository uses a **non-standard but validated pattern** for CustomDeployment infrastructure definitions:
+**Critical Requirements:**
+- ❌ **DO NOT** set `templateRef: ""` (empty string) - causes `INVALID_REQUEST` at Infrastructure step
+- ✅ **DO** reference the `Custom` v1.0 template
+- ⚠️ **CustomDeployment templates CANNOT be stored in Git** - must create manually in Harness UI
 
-**The Pattern:**
-- Minimal deployment template (`Custom` v1.0) exists **only for Harness validation**
-- Template location: `.harness/orgs/default/projects/bagel_store_demo/templates/Custom/v1_0.yaml`
-- Actual deployment logic lives in **Step Group Template** (`Coordinated_DB_App_Deployment`)
-
-**Why This Exists:**
-
-Harness CustomDeployment type **requires** infrastructure definitions to reference a deployment template via `customDeploymentRef.templateRef`. Empty string `""` causes `INVALID_REQUEST` error at Infrastructure step.
-
-**Historical Context:**
-1. Originally tried `templateRef: ""` (empty string) ❌
-2. Pipeline failed at Infrastructure step with `INVALID_REQUEST`
-3. Research showed: CustomDeployment always requires valid templateRef
-4. Solution: Created minimal template to satisfy validation
-
-**Architecture Trade-offs:**
-
-✅ **Traditional Harness Pattern:**
-- Deployment Template contains: infrastructure variables + FetchInstanceScript + deployment steps
-- Infrastructure Definition references template
-- Pipeline uses infrastructure definition
-
-✅ **This Repo's Pattern:**
-- Minimal Deployment Template: Empty variables + placeholder FetchInstanceScript (for validation only)
-- Step Group Template: Actual deployment logic + real FetchInstanceScript
-- Infrastructure Definition: References minimal template (satisfies validation)
-- Pipeline: Uses Step Group Template (actual deployment)
-
-**Why We Use This Pattern:**
-- ✅ Single source of truth: All deployment logic in Step Group Template
-- ✅ Terraform-friendly: Infrastructure definitions are simple, static
-- ✅ Environment variables from Terraform (not template variables)
-- ✅ Satisfies Harness validation requirements
-- ⚠️ Non-standard: Not in official Harness documentation
-
-**Files Involved:**
-```
-.harness/orgs/default/projects/bagel_store_demo/templates/
-  ├── Custom/v1_0.yaml                          # Minimal (validation only)
-  └── Coordinated_DB_App_Deployment/v1_0.yaml  # Actual deployment logic
-
-.harness/orgs/default/projects/bagel_store_demo/envs/
-  ├── PreProduction/psr_dev/infras/psr_dev_infra.yaml      # References: templateRef: Custom
-  ├── PreProduction/psr_test/infras/psr_test_infra.yaml
-  ├── PreProduction/psr_staging/infras/psr_staging_infra.yaml
-  └── Production/psr_prod/infras/psr_prod_infra.yaml
-
-terraform/harness-infrastructure-definitions.tf  # Creates infras with templateRef: Custom
-```
-
-**Common Mistake to Avoid:**
-❌ **DO NOT** set `templateRef: ""` (empty string) - causes pipeline validation failure
-✅ **DO** reference the `Custom` v1.0 template
+**When working with CustomDeployment templates, read:** [docs/HARNESS_CUSTOMDEPLOYMENT_GUIDE.md](docs/HARNESS_CUSTOMDEPLOYMENT_GUIDE.md)
+- Required fields: `instancename`, `instancesListPath`, `execution`
+- Manual creation process
+- Complete template structure
+- Common errors and solutions
 
 ### Why This Matters
 
@@ -239,6 +197,18 @@ terraform/harness-infrastructure-definitions.tf  # Creates infras with templateR
   - Webhook trigger configuration with Pipeline Reference Branch
   - GitHub variable vs secret setup
   - Common import errors and solutions
+
+- **Harness CustomDeployment templates** → Reference [docs/HARNESS_CUSTOMDEPLOYMENT_GUIDE.md](docs/HARNESS_CUSTOMDEPLOYMENT_GUIDE.md)
+  - When creating/debugging CustomDeployment templates
+  - Required fields (`instancename`, `instancesListPath`, `execution`)
+  - Why templates cannot be stored in Git (manual creation required)
+  - `INVALID_REQUEST` errors at Infrastructure step
+
+- **Harness pipeline monitoring/debugging** → Consult [docs/HARNESS_API_WORKFLOWS.md](docs/HARNESS_API_WORKFLOWS.md)
+  - Getting pipeline execution details via API
+  - Finding failed steps and error messages
+  - Infrastructure definition verification
+  - Common error patterns and diagnostics
 
 - **Any errors or issues** → Start with [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
   - Diagnostic scripts, common errors, solutions
