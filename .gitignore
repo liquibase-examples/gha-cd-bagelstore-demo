@@ -67,9 +67,9 @@ logs/
 .aws/
 
 # Harness
-harness/.harness/
 harness/.env
 harness/artifacts/
+harness/backup-*/  # Keep migration backups out of Git
 
 # GitHub
 .github/secrets/

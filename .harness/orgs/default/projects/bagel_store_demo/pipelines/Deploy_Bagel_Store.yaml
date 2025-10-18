@@ -1,0 +1,269 @@
+pipeline:
+  name: Deploy Bagel Store
+  identifier: Deploy_Bagel_Store
+  projectIdentifier: bagel_store_demo
+  orgIdentifier: default
+  tags:
+    demo_id: <+env.variables.demo_id>
+    deployment_type: coordinated_db_app
+
+  # Pipeline-level variables
+  # Note: Infrastructure-specific values (RDS endpoint, App Runner ARNs, etc.)
+  # are now provided via Harness Environment Variables (configured by Terraform)
+  variables:
+    - name: VERSION
+      type: String
+      description: Git tag version (e.g., v1.0.0)
+      required: true
+      value: <+input>
+
+    - name: GITHUB_ORG
+      type: String
+      description: GitHub organization name
+      required: true
+      value: <+input>
+
+    - name: DEPLOYMENT_TARGET
+      type: String
+      description: Deployment target (aws or local)
+      required: true
+      value: <+input>
+
+  # Deployment stages for all four environments
+  stages:
+    # ===== STAGE 1: Deploy to Dev (Automatic) =====
+    - stage:
+        name: Deploy to Dev
+        identifier: Deploy_to_Dev
+        description: Automatically deploy database and application to dev environment
+        type: Deployment
+        tags:
+          environment: dev
+
+        spec:
+          deploymentType: CustomDeployment
+
+          # Service definition
+          service:
+            serviceRef: bagel_store
+            serviceInputs:
+              serviceDefinition:
+                type: CustomDeployment
+                spec:
+                  artifacts:
+                    primary:
+                      primaryArtifactRef: docker_image
+                      sources:
+                        - identifier: docker_image
+                          type: DockerRegistry
+                          spec:
+                            connectorRef: github_bagel_store
+                            imagePath: <+pipeline.variables.GITHUB_ORG>/bagel-store
+                            tag: <+pipeline.variables.VERSION>
+
+          # Environment configuration
+          environment:
+            environmentRef: psr_dev
+            deployToAll: true
+
+          # Execution steps - Using Step Group Template
+          execution:
+            steps:
+              - stepGroup:
+                  name: Coordinated DB and App Deployment
+                  identifier: Coordinated_Deployment
+                  template:
+                    templateRef: Coordinated_DB_App_Deployment
+                    versionLabel: v1.0
+
+            # Rollback steps (if deployment fails)
+            rollbackSteps: []
+
+        # Failure strategy
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Abort
+
+        # Execute when
+        when:
+          pipelineStatus: Success
+
+    # ===== STAGE 2: Deploy to Test (Manual Approval Required) =====
+    - stage:
+        name: Deploy to Test
+        identifier: Deploy_to_Test
+        description: Deploy database and application to test environment (requires approval)
+        type: Deployment
+        tags:
+          environment: test
+
+        spec:
+          deploymentType: CustomDeployment
+
+          service:
+            useFromStage:
+              stage: Deploy_to_Dev
+
+          environment:
+            environmentRef: psr_test
+            deployToAll: true
+
+          execution:
+            steps:
+              # Manual approval gate
+              - step:
+                  type: HarnessApproval
+                  name: Approve Test Deployment
+                  identifier: Approve_Test_Deployment
+                  spec:
+                    approvalMessage: "Please review and approve deployment to TEST environment.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+env.variables.demo_id>\n\nChanges will be applied to test database and application."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+                    approverInputs: []
+                  timeout: 1d
+
+              # Deployment steps using template
+              - stepGroup:
+                  name: Coordinated DB and App Deployment
+                  identifier: Coordinated_Deployment
+                  template:
+                    templateRef: Coordinated_DB_App_Deployment
+                    versionLabel: v1.0
+
+            rollbackSteps: []
+
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Abort
+
+        when:
+          pipelineStatus: Success
+
+    # ===== STAGE 3: Deploy to Staging (Manual Approval Required) =====
+    - stage:
+        name: Deploy to Staging
+        identifier: Deploy_to_Staging
+        description: Deploy database and application to staging environment (requires approval)
+        type: Deployment
+        tags:
+          environment: staging
+
+        spec:
+          deploymentType: CustomDeployment
+
+          service:
+            useFromStage:
+              stage: Deploy_to_Dev
+
+          environment:
+            environmentRef: psr_staging
+            deployToAll: true
+
+          execution:
+            steps:
+              # Manual approval gate
+              - step:
+                  type: HarnessApproval
+                  name: Approve Staging Deployment
+                  identifier: Approve_Staging_Deployment
+                  spec:
+                    approvalMessage: "Please review and approve deployment to STAGING environment.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+env.variables.demo_id>\n\nThis is the final pre-production environment."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+                    approverInputs: []
+                  timeout: 1d
+
+              # Deployment steps using template
+              - stepGroup:
+                  name: Coordinated DB and App Deployment
+                  identifier: Coordinated_Deployment
+                  template:
+                    templateRef: Coordinated_DB_App_Deployment
+                    versionLabel: v1.0
+
+            rollbackSteps: []
+
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Abort
+
+        when:
+          pipelineStatus: Success
+
+    # ===== STAGE 4: Deploy to Production (Manual Approval Required) =====
+    - stage:
+        name: Deploy to Production
+        identifier: Deploy_to_Production
+        description: Deploy database and application to production environment (requires approval)
+        type: Deployment
+        tags:
+          environment: prod
+
+        spec:
+          deploymentType: CustomDeployment
+
+          service:
+            useFromStage:
+              stage: Deploy_to_Dev
+
+          environment:
+            environmentRef: psr_prod
+            deployToAll: true
+
+          execution:
+            steps:
+              # Manual approval gate
+              - step:
+                  type: HarnessApproval
+                  name: Approve Production Deployment
+                  identifier: Approve_Production_Deployment
+                  spec:
+                    approvalMessage: "⚠️ PRODUCTION DEPLOYMENT\n\nPlease carefully review before approving deployment to PRODUCTION.\n\nVersion: <+pipeline.variables.VERSION>\nDemo ID: <+env.variables.demo_id>\n\nThis will apply database changes and deploy to production environment."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+                    approverInputs: []
+                  timeout: 1d
+
+              # Deployment steps using template
+              - stepGroup:
+                  name: Coordinated DB and App Deployment
+                  identifier: Coordinated_Deployment
+                  template:
+                    templateRef: Coordinated_DB_App_Deployment
+                    versionLabel: v1.0
+
+            rollbackSteps: []
+
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Abort
+
+        when:
+          pipelineStatus: Success
+
+  # Allow individual stage execution
+  allowStageExecutions: true
