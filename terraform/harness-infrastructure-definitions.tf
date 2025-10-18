@@ -42,7 +42,7 @@ resource "harness_platform_infrastructure" "demo_infrastructures" {
           templateRef: Custom
           versionLabel: "1.0"
         variables: []
-        # Minimal deployment template (harness/templates/custom-deployment-template.yaml)
+        # Minimal deployment template (.harness/.../templates/Custom/v1_0.yaml)
         # exists to satisfy Harness validation requirements for CustomDeployment type.
         # Actual deployment logic is in Step Group Template (Coordinated_DB_App_Deployment)
       allowSimultaneousDeployments: false
@@ -75,6 +75,6 @@ output "harness_infrastructure_identifiers" {
 #     - identifier: psr_dev_infra
 #
 # Infrastructure definitions reference minimal deployment template (Custom v1.0) for validation.
-# Template exists at: harness/templates/custom-deployment-template.yaml
+# Template location: .harness/orgs/default/projects/bagel_store_demo/templates/Custom/v1_0.yaml
 # Actual deployment logic: Step Group Template (Coordinated_DB_App_Deployment) handles
 # all deployment steps including instance discovery via FetchInstanceScript.

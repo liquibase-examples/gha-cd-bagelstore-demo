@@ -16,7 +16,7 @@ template:
 
     Actual deployment logic is in the Step Group Template:
     - Template: Coordinated_DB_App_Deployment (v1.0)
-    - Location: harness/templates/deployment-steps.yaml
+    - Location: .harness/orgs/default/projects/bagel_store_demo/templates/Coordinated_DB_App_Deployment/v1_0.yaml
     - Contains: Fetch artifacts, database update, app deployment, health check, fetch instances
 
     This template provides only:
@@ -44,7 +44,7 @@ template:
               #!/bin/bash
               # Minimal placeholder script for template validation
               # Actual instance fetching logic is in Step Group Template:
-              # harness/templates/deployment-steps.yaml (Fetch Instances step)
+              # .harness/orgs/default/projects/bagel_store_demo/templates/Coordinated_DB_App_Deployment/v1_0.yaml
 
               # Return empty instances - Step Group Template handles real logic
               echo '{"instances": []}'

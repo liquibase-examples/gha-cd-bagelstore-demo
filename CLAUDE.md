@@ -139,7 +139,7 @@ This repository uses a **non-standard but validated pattern** for CustomDeployme
 
 **The Pattern:**
 - Minimal deployment template (`Custom` v1.0) exists **only for Harness validation**
-- Template location: `harness/templates/custom-deployment-template.yaml`
+- Template location: `.harness/orgs/default/projects/bagel_store_demo/templates/Custom/v1_0.yaml`
 - Actual deployment logic lives in **Step Group Template** (`Coordinated_DB_App_Deployment`)
 
 **Why This Exists:**
@@ -174,15 +174,15 @@ Harness CustomDeployment type **requires** infrastructure definitions to referen
 
 **Files Involved:**
 ```
-harness/templates/
-  ├── custom-deployment-template.yaml  # Minimal (validation only)
-  └── deployment-steps.yaml            # Actual deployment logic
+.harness/orgs/default/projects/bagel_store_demo/templates/
+  ├── Custom/v1_0.yaml                          # Minimal (validation only)
+  └── Coordinated_DB_App_Deployment/v1_0.yaml  # Actual deployment logic
 
-.harness/.../envs/.../infras/
-  ├── psr_dev_infra.yaml              # References: templateRef: Custom
-  ├── psr_test_infra.yaml
-  ├── psr_staging_infra.yaml
-  └── psr_prod_infra.yaml
+.harness/orgs/default/projects/bagel_store_demo/envs/
+  ├── PreProduction/psr_dev/infras/psr_dev_infra.yaml      # References: templateRef: Custom
+  ├── PreProduction/psr_test/infras/psr_test_infra.yaml
+  ├── PreProduction/psr_staging/infras/psr_staging_infra.yaml
+  └── Production/psr_prod/infras/psr_prod_infra.yaml
 
 terraform/harness-infrastructure-definitions.tf  # Creates infras with templateRef: Custom
 ```
@@ -493,7 +493,7 @@ This project uses Harness Git Experience (remote templates, pipelines, infrastru
 1. **Templates** (e.g., `Custom` deployment template, `Coordinated_DB_App_Deployment` step group):
    - Navigate to: **Project Setup** → **Templates**
    - Click on template name → Click **Refresh** icon (circular arrow)
-   - Or re-import from Git: **+ New Template** → **Import From Git** → Select repository/branch
+   - Harness auto-syncs templates from `.harness/orgs/default/projects/bagel_store_demo/templates/`
 
 2. **Infrastructure Definitions** (4 files: `psr_dev_infra`, `psr_test_infra`, `psr_staging_infra`, `psr_prod_infra`):
    - Navigate to: **Environments** → Select environment (e.g., `psr-dev`)
