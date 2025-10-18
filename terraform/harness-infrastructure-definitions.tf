@@ -38,8 +38,10 @@ resource "harness_platform_infrastructure" "demo_infrastructures" {
       deploymentType: CustomDeployment
       type: CustomDeployment
       spec:
+        customDeploymentRef:
+          templateRef: ""
         variables: []
-        # No customDeploymentRef needed - FetchInstanceScript is in Step Group Template
+        # Empty templateRef - FetchInstanceScript is in Step Group Template
         # (Coordinated_DB_App_Deployment) which handles instance discovery
       allowSimultaneousDeployments: false
   EOT
