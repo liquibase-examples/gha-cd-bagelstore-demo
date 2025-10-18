@@ -16,8 +16,13 @@ version: '3.7'
 
 services:
   harness-delegate:
-    # Use the exact image version from Harness
-    image: us-docker.pkg.dev/gar-prod-setup/harness-public/harness/delegate:25.09.86800
+    # Use custom image with additional tools (jq, unzip, etc.)
+    build:
+      context: .
+      dockerfile: Dockerfile.delegate
+      args:
+        DELEGATE_VERSION: 25.09.86800
+    image: harness-delegate-custom:25.09.86800
     container_name: harness-delegate-${DEMO_ID:-demo1}
     restart: unless-stopped
 

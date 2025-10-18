@@ -71,13 +71,10 @@ curl -L \
   -o artifact.zip \
   "${ARTIFACT_URL}"
 
-# Unzip using Docker (delegate container doesn't have unzip)
+# Unzip the artifact
 echo "Extracting artifact..."
-docker run --rm \
-  -v "${WORK_DIR}:/data" \
-  -w /data \
-  alpine:latest \
-  sh -c "apk add --no-cache unzip > /dev/null 2>&1 && unzip -q artifact.zip && rm artifact.zip"
+unzip -q artifact.zip
+rm artifact.zip
 
 # Extract the tar.gz changelog
 tar -xzf "bagel-store-changelog-${VERSION}.tar.gz"

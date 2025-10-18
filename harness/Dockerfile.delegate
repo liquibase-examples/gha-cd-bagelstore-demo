@@ -1,0 +1,26 @@
+# Custom Harness Delegate with Additional Tools
+#
+# Extends the official Harness delegate image to add tools needed
+# for deployment scripts (jq, etc.)
+#
+# Base image version should match the version in docker-compose.yml
+
+ARG DELEGATE_VERSION=25.09.86800
+FROM us-docker.pkg.dev/gar-prod-setup/harness-public/harness/delegate:${DELEGATE_VERSION}
+
+# Switch to root to install packages
+USER root
+
+# Install additional tools needed by deployment scripts
+RUN microdnf update -y && \
+    microdnf install -y \
+    jq \
+    unzip \
+    && microdnf clean all
+
+# Switch back to harness user for security
+USER harness
+
+# Metadata
+LABEL maintainer="demo"
+LABEL description="Harness delegate with jq and deployment tools"
