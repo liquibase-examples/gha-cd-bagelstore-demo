@@ -86,8 +86,16 @@ This is a demonstration repository showcasing coordinated application and databa
 - **Harness CD pipelines** → Review [harness/README.md](harness/README.md) and [harness/pipelines/README.md](harness/pipelines/README.md)
   - Delegate setup, connector configuration, pipeline architecture
 
+- **Harness pipeline/trigger import issues** → Read [docs/HARNESS_MANUAL_SETUP.md](docs/HARNESS_MANUAL_SETUP.md)
+  - Complete step-by-step import process (template, pipeline, input set, trigger)
+  - Webhook trigger configuration with Pipeline Reference Branch
+  - GitHub variable vs secret setup
+  - Common import errors and solutions
+
 - **Any errors or issues** → Start with [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
   - Diagnostic scripts, common errors, solutions
+  - Harness pipeline import failures (infrastructure YAMLs, deployToAll pattern)
+  - Webhook trigger issues (wrong token, QUEUED state)
 
 **Pattern:** Read documentation BEFORE suggesting changes or answering questions about these areas.
 
@@ -421,6 +429,60 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/LOCAL_DEPLOYMENT.md](docs/LOC
 4. Run `terraform apply` to update Harness resources (remote templates, triggers)
 5. Check GitHub Actions workflows for hardcoded repo references
 6. Update any local documentation or scripts with repo name
+
+### Harness Pipeline Import Requirements
+
+**CRITICAL PATTERN TO RECOGNIZE:**
+
+1. **Infrastructure definition YAMLs are REQUIRED in two places**:
+   - ✅ Terraform resources (for runtime execution)
+   - ✅ YAML files in `.harness/orgs/.../envs/.../infras/` (for import validation)
+   - ❌ **Having only Terraform is NOT sufficient**
+   - Previous AI sessions have incorrectly deleted these YAMLs thinking Terraform alone was enough
+
+2. **Check before making changes**:
+   ```bash
+   # Verify all 4 infrastructure YAML files exist
+   find .harness -name "*infra*.yaml"
+
+   # Run diagnostic to verify all pipeline dependencies
+   ./scripts/verify-harness-entities.sh
+   ```
+
+3. **Pipeline YAML validation vs runtime behavior**:
+   - ❌ `deployToAll: true` - Works at runtime, FAILS import validation
+   - ✅ Explicit infrastructure references - Works everywhere:
+     ```yaml
+     environment:
+       environmentRef: psr_dev
+       infrastructureDefinitions:
+         - identifier: psr_dev_infra
+     ```
+
+4. **Webhook trigger setup**:
+   - Created manually in Harness UI (not Terraform, to avoid feature flag requirements)
+   - Uses Input Set: `webhook_default` (maps webhook payload to pipeline variables)
+   - **CRITICAL:** Pipeline Reference Branch: `<+trigger.branch>` (required for Git Experience)
+     - Without this, trigger stays QUEUED forever
+   - Webhook URL goes in GitHub **VARIABLE** (not secret!): `HARNESS_WEBHOOK_URL`
+   - Workflow references: `vars.HARNESS_WEBHOOK_URL`
+
+5. **Common webhook errors**:
+   - `No custom trigger found` → Wrong webhook URL in GitHub variable
+   - Trigger stays QUEUED → Missing Pipeline Reference Branch setting
+   - Secret vs Variable → Workflow uses `vars.` prefix, requires VARIABLE not SECRET
+
+6. **Diagnostic workflow**:
+   ```bash
+   # Before import attempts
+   ./scripts/verify-harness-entities.sh
+
+   # Get webhook URL
+   ./scripts/get-webhook-url.sh
+
+   # Update GitHub variable (NOT secret)
+   gh variable set HARNESS_WEBHOOK_URL --body "URL_HERE"
+   ```
 
 ## Documentation Index
 

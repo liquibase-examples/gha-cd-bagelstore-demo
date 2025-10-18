@@ -208,6 +208,165 @@ bash: terraform: command not found
 
 ## Common Workflow Issues
 
+### Harness Pipeline Import Failures
+
+#### Error: "infrastructureDefinitions should be present in stage"
+
+**Symptom:** Pipeline import fails with error: `Invalid yaml error: infrastructureDefinitions or infrastructureDefinition should be present in stage [pipeline.stages.Deploy_to_XXX]. Please add it and try again.`
+
+**Root Cause:** Missing infrastructure definition YAML files in `.harness/` directory
+
+**Solution:**
+
+1. **Verify infrastructure YAMLs exist:**
+   ```bash
+   find .harness -name "*infra*.yaml"
+   ```
+
+   Should show 4 files (for demo_id=psr):
+   ```
+   .harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_dev/infras/psr_dev_infra.yaml
+   .harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_test/infras/psr_test_infra.yaml
+   .harness/orgs/default/projects/bagel_store_demo/envs/PreProduction/psr_staging/infras/psr_staging_infra.yaml
+   .harness/orgs/default/projects/bagel_store_demo/envs/Production/psr_prod/infras/psr_prod_infra.yaml
+   ```
+
+2. **If missing, they were incorrectly deleted.** Restore from Git history:
+   ```bash
+   git log --all --full-history -- '.harness/*infra*'
+   # Find last commit before deletion, then restore each file:
+   git show COMMIT_SHA:.harness/path/to/psr_dev_infra.yaml > .harness/orgs/.../psr_dev/infras/psr_dev_infra.yaml
+   ```
+
+3. **Verify YAML format in each file:**
+   Each file must have empty `templateRef`:
+   ```yaml
+   spec:
+     customDeploymentRef:
+       templateRef: ""  # MUST be empty string, not "Custom" or any other value
+   ```
+
+4. **Commit and push the restored files:**
+   ```bash
+   git add .harness/
+   git commit -m "Restore infrastructure definition YAMLs"
+   git push
+   ```
+
+**Why this happens:**
+- Harness Git Experience requires infrastructure definitions in BOTH places:
+  - ✅ Terraform creates them in Harness (for runtime execution)
+  - ✅ YAML files in `.harness/` (for import validation)
+- Previous AI sessions sometimes incorrectly deleted these YAMLs thinking Terraform alone was sufficient
+
+**Prevention:**
+- Always run `./scripts/verify-harness-entities.sh` before attempting pipeline import
+- Check `.gitignore` doesn't accidentally ignore `.harness/` directory
+
+---
+
+#### Error: Pipeline uses `deployToAll: true` pattern
+
+**Symptom:** Pipeline fails validation during import even though infrastructure definitions exist
+
+**Root Cause:** `deployToAll: true` works at runtime but fails Harness import validation
+
+**Solution:**
+
+Update pipeline YAML to use explicit infrastructure definition references:
+
+**Change from:**
+```yaml
+environment:
+  environmentRef: psr_dev
+  deployToAll: true
+```
+
+**Change to:**
+```yaml
+environment:
+  environmentRef: psr_dev
+  infrastructureDefinitions:
+    - identifier: psr_dev_infra
+```
+
+Repeat for all 4 stages (dev, test, staging, prod) to match their respective infrastructure definitions.
+
+---
+
+### Harness Webhook Trigger Issues
+
+#### Error: "No custom trigger found for webhook token"
+
+**Symptom:** GitHub Actions webhook trigger step shows success but logs contain:
+```json
+{"status":"ERROR","code":"INVALID_REQUEST","message":"Invalid request: No custom trigger found for the used custom webhook token: XXXXX"}
+```
+
+**Root Cause:** Webhook URL in GitHub doesn't match the trigger created in Harness
+
+**Solution:**
+
+1. **Get current webhook URL from Harness:**
+   ```bash
+   ./scripts/get-webhook-url.sh
+   ```
+
+   Expected output:
+   ```
+   https://app.harness.io/gateway/pipeline/api/webhook/custom/TOKEN_HERE/v3?accountIdentifier=...
+   ```
+
+2. **Update GitHub VARIABLE (NOT secret!):**
+   ```bash
+   gh variable set HARNESS_WEBHOOK_URL --body "PASTE_FULL_URL_HERE"
+   ```
+
+3. **Verify it's a variable (not secret):**
+   ```bash
+   gh variable list | grep HARNESS_WEBHOOK_URL
+   ```
+
+4. **If you accidentally set it as a secret, remove it:**
+   ```bash
+   gh secret delete HARNESS_WEBHOOK_URL
+   gh variable set HARNESS_WEBHOOK_URL --body "URL_HERE"
+   ```
+
+**Common mistake:** Setting `HARNESS_WEBHOOK_URL` as a secret instead of variable. The workflow uses `vars.HARNESS_WEBHOOK_URL` which only reads variables, not secrets.
+
+---
+
+#### Webhook trigger stays in QUEUED state
+
+**Symptom:** Trigger is created, webhook is called, but pipeline execution never starts (stays QUEUED forever)
+
+**Root Cause:** Missing Pipeline Reference Branch configuration in trigger
+
+**Solution:**
+
+1. **Edit the trigger in Harness UI:**
+   - Go to: Pipelines → Deploy Bagel Store → Triggers → GitHub_Actions_CI
+   - Click Edit
+
+2. **Set Pipeline Reference Branch:**
+   - Go to "Pipeline Input" tab
+   - Find "Pipeline Reference Branch" field
+   - Enter: `<+trigger.branch>`
+
+3. **Why this is required:**
+   - For Git Experience (remote pipelines), Harness needs to know which Git branch to fetch the pipeline from
+   - `<+trigger.branch>` uses the `branch` field from webhook payload
+   - Without this, Harness cannot resolve the pipeline location
+
+4. **Verify webhook payload includes branch:**
+   ```bash
+   # Check workflow sends branch field
+   grep -A 5 '"branch"' .github/workflows/main-ci.yml
+   ```
+
+---
+
 ### CI/CD Debugging Workflow
 
 **Pattern for debugging failed GitHub Actions:**

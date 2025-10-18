@@ -195,9 +195,11 @@ Under **"Conditions"**, add:
 |-------|----------|-------|
 | `version` | **Equals** | `<+trigger.payload.version>` |
 
-### 4.4 Select Input Set (Required for Remote Pipelines)
+### 4.4 Configure Pipeline Input (CRITICAL for Remote Pipelines)
 
-**IMPORTANT:** Remote pipelines require an Input Set to be selected.
+**IMPORTANT:** Remote pipelines require both an Input Set AND Pipeline Reference Branch.
+
+#### 4.4.1 Select Input Set
 
 1. Click the **"Pipeline Input"** tab in the trigger configuration
 2. Click **"+ Select Input Set(s)"** button
@@ -208,7 +210,20 @@ Under **"Conditions"**, add:
    - `GITHUB_ORG`: `<+trigger.payload.github_org>`
    - `DEPLOYMENT_TARGET`: `<+trigger.payload.deployment_target>`
 
-**Note:** These values come from the Input Set file in Git (`harness/input-sets/webhook-default-2.yaml`). You should NOT see `<+input>` values - if you do, the Input Set needs to be re-synced from Git (delete and re-add it).
+**Note:** These values come from the Input Set file in Git. You should NOT see `<+input>` values - if you do, the Input Set needs to be re-synced from Git (delete and re-add it).
+
+#### 4.4.2 Set Pipeline Reference Branch
+
+**CRITICAL:** This tells Harness which Git branch to fetch the remote pipeline from.
+
+1. In the same **"Pipeline Input"** tab, look for **"Pipeline Reference Branch"** field
+2. Enter: `<+trigger.branch>`
+3. **Why:** This expression uses the `branch` field from the webhook payload (sent by GitHub Actions)
+
+**What happens without this:**
+- Trigger stays in QUEUED state forever
+- Pipeline execution never starts
+- Error: Cannot resolve `<+trigger.branch>` reference
 
 ### 4.5 Save Trigger
 
@@ -218,7 +233,7 @@ Click **"Create"** to save the trigger.
 
 After saving, you'll be back at the Trigger Listing page. Get the webhook URL:
 
-**Click the Webhook Icon**
+**Option 1: Via Harness UI**
 
 1. Look in the **WEBHOOK** column next to your trigger
 2. Click the link icon (🔗)
@@ -226,11 +241,23 @@ After saving, you'll be back at the Trigger Listing page. Get the webhook URL:
    - Copy the webhook URL to your clipboard, OR
    - Display the webhook URL in a popup
 
-**Expected format:** `https://app.harness.io/gateway/pipeline/api/webhook/custom/...`
+**Option 2: Via Helper Script**
+
+Run this script to fetch the webhook URL from the Harness API:
+
+```bash
+./scripts/get-webhook-url.sh
+```
+
+This script uses the Harness API to retrieve the webhook URL for the `GitHub_Actions_CI` trigger.
+
+**Expected format:** `https://app.harness.io/gateway/pipeline/api/webhook/custom/TOKEN/v3?accountIdentifier=...`
 
 ---
 
 ## Step 5: Set GitHub Repository Variable
+
+**CRITICAL:** Must be a VARIABLE (not a secret!) because the workflow uses `vars.HARNESS_WEBHOOK_URL`.
 
 ### 5.1 Set HARNESS_WEBHOOK_URL Variable
 
@@ -241,6 +268,11 @@ gh variable set HARNESS_WEBHOOK_URL \
   --repo liquibase-examples/gha-cd-bagelstore-demo \
   --body "PASTE_WEBHOOK_URL_HERE"
 ```
+
+**Why Variable and not Secret?**
+- The workflow file (`.github/workflows/main-ci.yml`) uses `vars.HARNESS_WEBHOOK_URL`
+- Variables are for non-sensitive configuration values
+- Webhook URLs don't need to be secret (they're just endpoints)
 
 ### 5.2 Verify Variable
 
