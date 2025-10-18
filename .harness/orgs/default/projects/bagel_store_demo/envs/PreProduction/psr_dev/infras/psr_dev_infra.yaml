@@ -8,6 +8,7 @@ infrastructureDefinition:
   type: CustomDeployment
   spec:
     customDeploymentRef:
-      templateRef: ""
+      templateRef: Custom
+      versionLabel: "1.0"
     variables: []
   allowSimultaneousDeployments: false

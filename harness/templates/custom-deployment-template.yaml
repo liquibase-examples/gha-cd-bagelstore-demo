@@ -1,0 +1,50 @@
+template:
+  name: Custom Deployment
+  identifier: Custom
+  versionLabel: "1.0"
+  type: CustomDeployment
+  projectIdentifier: bagel_store_demo
+  orgIdentifier: default
+  tags:
+    purpose: minimal_placeholder
+    managed_by: git
+  description: |
+    Minimal deployment template for CustomDeployment infrastructure validation.
+
+    This template exists to satisfy Harness validation requirements that
+    CustomDeployment infrastructure definitions must reference a deployment template.
+
+    Actual deployment logic is in the Step Group Template:
+    - Template: Coordinated_DB_App_Deployment (v1.0)
+    - Location: harness/templates/deployment-steps.yaml
+    - Contains: Fetch artifacts, database update, app deployment, health check, fetch instances
+
+    This template provides only:
+    - Empty infrastructure variables (variables come from Environment Variables)
+    - Minimal FetchInstanceScript placeholder (real script in Step Group Template)
+
+    Pattern: Minimal deployment template + Step Group Template with actual logic
+    Rationale: Satisfies Harness validation while keeping deployment logic centralized
+
+  spec:
+    infrastructure:
+      # No infrastructure variables needed
+      # All infrastructure-specific values come from Harness Environment Variables
+      # (populated by Terraform from AWS infrastructure outputs)
+      variables: []
+
+      # Minimal FetchInstanceScript required by CustomDeployment
+      # Actual instance fetching is handled in Step Group Template
+      # This placeholder satisfies template validation requirements
+      fetchInstancesScript:
+        store:
+          type: Inline
+          spec:
+            content: |
+              #!/bin/bash
+              # Minimal placeholder script for template validation
+              # Actual instance fetching logic is in Step Group Template:
+              # harness/templates/deployment-steps.yaml (Fetch Instances step)
+
+              # Return empty instances - Step Group Template handles real logic
+              echo '{"instances": []}'

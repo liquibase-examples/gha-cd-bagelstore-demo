@@ -56,6 +56,154 @@ This is a demonstration repository showcasing coordinated application and databa
 
 **Pattern:** Delegate showing `remote-stackdriver-log-submitter` errors or `DecoderException` in logs while showing "Connected" in Harness UI means it's **working fine** (errors are telemetry/logging issues, not core functionality).
 
+## API-First Pattern (CRITICAL)
+
+**ALWAYS use APIs before suggesting manual UI changes** - This is a hard requirement.
+
+### Priority Order for Making Changes
+
+1. **✅ FIRST: Check for API method**
+   - Search https://apidocs.harness.io/ for relevant endpoints
+   - Look in `scripts/` for existing automation scripts
+   - Use Harness API to GET, PUT, POST, DELETE resources
+
+2. **✅ SECOND: Create automation script**
+   - If API exists but no script, create one in `scripts/`
+   - Document in `scripts/README.md`
+   - Make it reusable for future issues
+
+3. **❌ LAST RESORT: Manual UI changes**
+   - Only suggest UI changes when:
+     - No API endpoint exists
+     - API is documented as requiring feature flags
+     - One-time setup that won't be repeated
+
+### Harness-Specific API Patterns
+
+**CRITICAL: Parse YAML, not JSON fields**
+
+Many Harness resources (triggers, pipelines, templates) store configuration in `.data.yaml`:
+
+```bash
+# ❌ WRONG - JSON fields return null
+curl ... | jq '.data.inputSetRefs'  # Returns null
+
+# ✅ CORRECT - Parse YAML field
+curl ... | jq -r '.data.yaml' | grep "inputSetRefs:"
+```
+
+**Example: Trigger Configuration**
+- JSON fields `.data.inputSetRefs` and `.data.pipelineBranchName` return `null`
+- Actual config is in `.data.yaml` YAML string
+- Must parse YAML to get actual values
+
+**CRITICAL: Reading Environment Variables from .env Files**
+
+**ALWAYS read the .env file FIRST before attempting to use variables from it.**
+
+Common mistake pattern:
+```bash
+# ❌ WRONG - Blindly source and use variable in one command
+source harness/.env && curl ... -H "x-api-key: ${HARNESS_API_KEY}"
+# Fails with "blank argument" if sourcing doesn't work as expected
+```
+
+Correct approach:
+```bash
+# ✅ CORRECT - Read file first to verify contents
+Read harness/.env  # Verify variable exists and see its value
+
+# Then use the value directly in command
+HARNESS_API_KEY="pat.xxxxx.yyyyy.zzzzz"
+curl ... -H "x-api-key: ${HARNESS_API_KEY}"
+```
+
+Why this matters:
+- Verifying file contents first avoids failed command attempts
+- You can see if the variable exists and has the correct format
+- Authentication tokens are sensitive - empty variables cause cryptic errors
+- Saves time by eliminating trial-and-error debugging
+
+**Available Scripts:**
+- `scripts/get-pipeline-executions.sh` - Query pipeline runs, includes trigger validation
+- `scripts/update-trigger.sh` - Update trigger via API (Input Set + Pipeline Branch)
+- `scripts/verify-harness-entities.sh` - Verify all Harness resources exist
+
+**API Endpoint Reference:** See `scripts/README.md` for complete Harness API documentation
+
+### CustomDeployment Infrastructure Pattern
+
+**CRITICAL: Minimal Deployment Template for Validation**
+
+This repository uses a **non-standard but validated pattern** for CustomDeployment infrastructure definitions:
+
+**The Pattern:**
+- Minimal deployment template (`Custom` v1.0) exists **only for Harness validation**
+- Template location: `harness/templates/custom-deployment-template.yaml`
+- Actual deployment logic lives in **Step Group Template** (`Coordinated_DB_App_Deployment`)
+
+**Why This Exists:**
+
+Harness CustomDeployment type **requires** infrastructure definitions to reference a deployment template via `customDeploymentRef.templateRef`. Empty string `""` causes `INVALID_REQUEST` error at Infrastructure step.
+
+**Historical Context:**
+1. Originally tried `templateRef: ""` (empty string) ❌
+2. Pipeline failed at Infrastructure step with `INVALID_REQUEST`
+3. Research showed: CustomDeployment always requires valid templateRef
+4. Solution: Created minimal template to satisfy validation
+
+**Architecture Trade-offs:**
+
+✅ **Traditional Harness Pattern:**
+- Deployment Template contains: infrastructure variables + FetchInstanceScript + deployment steps
+- Infrastructure Definition references template
+- Pipeline uses infrastructure definition
+
+✅ **This Repo's Pattern:**
+- Minimal Deployment Template: Empty variables + placeholder FetchInstanceScript (for validation only)
+- Step Group Template: Actual deployment logic + real FetchInstanceScript
+- Infrastructure Definition: References minimal template (satisfies validation)
+- Pipeline: Uses Step Group Template (actual deployment)
+
+**Why We Use This Pattern:**
+- ✅ Single source of truth: All deployment logic in Step Group Template
+- ✅ Terraform-friendly: Infrastructure definitions are simple, static
+- ✅ Environment variables from Terraform (not template variables)
+- ✅ Satisfies Harness validation requirements
+- ⚠️ Non-standard: Not in official Harness documentation
+
+**Files Involved:**
+```
+harness/templates/
+  ├── custom-deployment-template.yaml  # Minimal (validation only)
+  └── deployment-steps.yaml            # Actual deployment logic
+
+.harness/.../envs/.../infras/
+  ├── psr_dev_infra.yaml              # References: templateRef: Custom
+  ├── psr_test_infra.yaml
+  ├── psr_staging_infra.yaml
+  └── psr_prod_infra.yaml
+
+terraform/harness-infrastructure-definitions.tf  # Creates infras with templateRef: Custom
+```
+
+**Common Mistake to Avoid:**
+❌ **DO NOT** set `templateRef: ""` (empty string) - causes pipeline validation failure
+✅ **DO** reference the `Custom` v1.0 template
+
+### Why This Matters
+
+**Historical mistakes to avoid:**
+1. ❌ Telling user to manually fix trigger in UI when `scripts/update-trigger.sh` exists
+2. ❌ Parsing `.data.inputSetRefs` JSON field instead of `.data.yaml` YAML field
+3. ❌ Not checking https://apidocs.harness.io/ before suggesting manual changes
+
+**Correct workflow:**
+1. ✅ Problem: "Trigger needs Input Set configured"
+2. ✅ Check: `scripts/update-trigger.sh` exists
+3. ✅ Solution: "Run `./scripts/update-trigger.sh`"
+4. ✅ Document: Update `scripts/README.md` if new pattern discovered
+
 ## AI Documentation Reference Rules
 
 **IMPORTANT:** Before working on specific areas, automatically read the relevant documentation:
