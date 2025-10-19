@@ -12,7 +12,7 @@ git clone https://github.com/your-org/harness-gha-bagelstore.git
 cd harness-gha-bagelstore
 
 # Check dependencies
-./scripts/check-dependencies.sh
+./scripts/setup/check-dependencies.sh
 
 # Configure local environment
 cd app
@@ -268,7 +268,7 @@ We provide an automated dependency checker that verifies all tools are installed
 
 ```bash
 cd harness-gha-bagelstore
-./scripts/check-dependencies.sh
+./scripts/setup/check-dependencies.sh
 ```
 
 The script will:
@@ -453,7 +453,7 @@ aws sts get-caller-identity
 After configuring AWS, run our diagnostic script to verify everything:
 
 ```bash
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 This comprehensive script will:
@@ -676,7 +676,7 @@ Python 3.9.x found, but >= 3.11 required
 
 **ALWAYS run the AWS diagnostic script first for AWS issues:**
 ```bash
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 This will identify the exact problem and provide specific solutions.
@@ -699,7 +699,7 @@ aws configure      # For access keys
 aws sts get-caller-identity
 
 # If still not working
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 ---
@@ -734,7 +734,7 @@ aws configure list-profiles
 export AWS_PROFILE=<profile-name>
 
 # Verify which profile is active
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 ---
@@ -762,7 +762,7 @@ AccessDenied errors when running AWS commands
 **Solution:**
 ```bash
 # Check which permissions you have
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 
 # The script will test:
 # - S3 access (required for Liquibase flows)
@@ -833,10 +833,10 @@ docker compose restart
 2. **Use automated checkers:**
    ```bash
    # General dependency check
-   ./scripts/check-dependencies.sh
+   ./scripts/setup/check-dependencies.sh
 
    # AWS-specific diagnostics
-   ./scripts/diagnose-aws.sh
+   ./scripts/setup/diagnose-aws.sh
    ```
 
 3. **AI-assisted help (Claude Code users):**

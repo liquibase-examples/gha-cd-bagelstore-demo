@@ -19,7 +19,7 @@ Comprehensive troubleshooting guide for the Bagel Store Demo project.
 Run this to verify all required tools are installed with correct versions:
 
 ```bash
-./scripts/check-dependencies.sh
+./scripts/setup/check-dependencies.sh
 ```
 
 **What it checks:**
@@ -43,7 +43,7 @@ Run this to verify all required tools are installed with correct versions:
 Comprehensive AWS configuration diagnostics:
 
 ```bash
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 **What it checks:**
@@ -85,10 +85,10 @@ When users report setup or configuration issues:
 **1. Run diagnostics first (ALWAYS):**
 ```bash
 # General issues
-./scripts/check-dependencies.sh
+./scripts/setup/check-dependencies.sh
 
 # AWS-specific issues
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 **2. Common mistakes to check:**
@@ -260,7 +260,7 @@ bash: terraform: command not found
 - Previous AI sessions sometimes incorrectly deleted these YAMLs thinking Terraform alone was sufficient
 
 **Prevention:**
-- Always run `./scripts/verify-harness-entities.sh` before attempting pipeline import
+- Always run `./scripts/harness/verify-harness-entities.sh` before attempting pipeline import
 - Check `.gitignore` doesn't accidentally ignore `.harness/` directory
 
 ---
@@ -309,7 +309,7 @@ Repeat for all 4 stages (dev, test, staging, prod) to match their respective inf
 
 1. **Get current webhook URL from Harness:**
    ```bash
-   ./scripts/get-webhook-url.sh
+   ./scripts/harness/get-webhook-url.sh
    ```
 
    Expected output:
@@ -617,10 +617,10 @@ uv run pytest
 
 ```bash
 # General dependency check
-./scripts/check-dependencies.sh
+./scripts/setup/check-dependencies.sh
 
 # AWS-specific diagnostics
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 ### 3. AI-assisted help (Claude Code users)

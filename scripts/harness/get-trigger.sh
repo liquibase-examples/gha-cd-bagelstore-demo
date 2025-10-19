@@ -1,6 +1,6 @@
 #!/bin/bash
 # Get Harness Trigger Configuration
-# Usage: ./scripts/get-trigger.sh [trigger_id]
+# Usage: ./scripts/harness/get-trigger.sh [trigger_id]
 
 # Load API key
 if [ -f "harness/.env" ]; then

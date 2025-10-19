@@ -1,6 +1,6 @@
 #!/bin/bash
 # Get Recent Pipeline Executions and Details
-# Usage: ./scripts/get-pipeline-executions.sh [limit]
+# Usage: ./scripts/harness/get-pipeline-executions.sh [limit]
 
 # Load API key
 if [ -f "harness/.env" ]; then
@@ -156,7 +156,7 @@ PIPELINE_BRANCH=$(echo "$TRIGGER_YAML" | grep "pipelineBranchName:" | sed 's/.*p
 if [ -z "$INPUT_SET_REFS" ]; then
   echo "❌ WARNING: Trigger has NO Input Set configured!"
   echo "   Pipeline variables will not be resolved from webhook payload"
-  echo "   Fix: Run ./scripts/update-trigger.sh or edit in UI"
+  echo "   Fix: Run ./scripts/harness/update-trigger.sh or edit in UI"
 else
   echo "✅ Input Set configured: $INPUT_SET_REFS"
 fi
@@ -164,7 +164,7 @@ fi
 if [ -z "$PIPELINE_BRANCH" ]; then
   echo "❌ WARNING: Trigger has NO Pipeline Reference Branch configured!"
   echo "   Remote pipelines require this to fetch from Git"
-  echo "   Fix: Run ./scripts/update-trigger.sh or edit in UI"
+  echo "   Fix: Run ./scripts/harness/update-trigger.sh or edit in UI"
 else
   echo "✅ Pipeline Branch configured: $PIPELINE_BRANCH"
 fi

@@ -55,7 +55,7 @@ watch docker compose -f docker-compose-demo.yml ps
 
 ```bash
 # Check deployment state
-./scripts/show-deployment-state.sh
+./scripts/deployment/show-deployment-state.sh
 ```
 
 Expected output:
@@ -172,7 +172,7 @@ VERSION_PROD=latest
 ### View Deployment State
 
 ```bash
-./scripts/show-deployment-state.sh
+./scripts/deployment/show-deployment-state.sh
 ```
 
 Shows:
@@ -208,10 +208,10 @@ docker compose -f docker-compose-demo.yml up -d --no-deps app-dev
 
 ```bash
 # Reset all to latest
-./scripts/reset-local-environments.sh latest
+./scripts/deployment/reset-local-environments.sh latest
 
 # Reset all to specific version
-./scripts/reset-local-environments.sh v1.0.0
+./scripts/deployment/reset-local-environments.sh v1.0.0
 ```
 
 ### Stop All Environments

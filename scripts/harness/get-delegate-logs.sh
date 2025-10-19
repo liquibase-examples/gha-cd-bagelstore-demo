@@ -1,6 +1,6 @@
 #!/bin/bash
 # Get Harness Delegate Logs
-# Usage: ./scripts/get-delegate-logs.sh [task_id] [minutes]
+# Usage: ./scripts/harness/get-delegate-logs.sh [task_id] [minutes]
 
 TASK_ID="${1:-}"
 MINUTES="${2:-10}"
@@ -57,13 +57,13 @@ echo "========================================="
 echo "Usage Tips"
 echo "========================================="
 echo "Get logs for specific task:"
-echo "  ./scripts/get-delegate-logs.sh <task-id> [minutes]"
+echo "  ./scripts/harness/get-delegate-logs.sh <task-id> [minutes]"
 echo ""
 echo "Get recent task list:"
-echo "  ./scripts/get-delegate-logs.sh"
+echo "  ./scripts/harness/get-delegate-logs.sh"
 echo ""
 echo "Get logs from last hour:"
-echo "  ./scripts/get-delegate-logs.sh \"\" 60"
+echo "  ./scripts/harness/get-delegate-logs.sh \"\" 60"
 echo ""
 echo "View live logs:"
 echo "  docker logs -f $DELEGATE_CONTAINER"

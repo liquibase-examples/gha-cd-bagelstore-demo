@@ -5,18 +5,18 @@
 # Automatically loads HARNESS_API_KEY from harness/.env and makes authenticated API calls.
 #
 # Usage:
-#   ./scripts/harness-api.sh GET <endpoint> [jq_filter]
-#   ./scripts/harness-api.sh POST <endpoint> <json_data> [jq_filter]
+#   ./scripts/harness/harness-api.sh GET <endpoint> [jq_filter]
+#   ./scripts/harness/harness-api.sh POST <endpoint> <json_data> [jq_filter]
 #
 # Examples:
 #   # Get pipeline executions
-#   ./scripts/harness-api.sh GET "/pipeline/api/pipelines/execution/v2/LpMDt6PiSEWxlvrf0A4MhA?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo" ".data.pipelineExecutionSummary.status"
+#   ./scripts/harness/harness-api.sh GET "/pipeline/api/pipelines/execution/v2/LpMDt6PiSEWxlvrf0A4MhA?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo" ".data.pipelineExecutionSummary.status"
 #
 #   # List pipelines
-#   ./scripts/harness-api.sh GET "/pipeline/api/pipelines/list?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo" ".data.content[].name"
+#   ./scripts/harness/harness-api.sh GET "/pipeline/api/pipelines/list?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo" ".data.content[].name"
 #
 #   # Trigger pipeline via webhook
-#   ./scripts/harness-api.sh POST "https://app.harness.io/gateway/pipeline/api/webhook/custom/..." '{"version":"v1.0.0"}'
+#   ./scripts/harness/harness-api.sh POST "https://app.harness.io/gateway/pipeline/api/webhook/custom/..." '{"version":"v1.0.0"}'
 
 set -euo pipefail
 

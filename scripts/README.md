@@ -2,12 +2,27 @@
 
 This directory contains scripts for diagnosing and managing the Bagel Store demo environment.
 
-## Harness API Scripts
+## Directory Structure
+
+```
+scripts/
+├── harness/           # Harness API interaction and monitoring
+├── templates/         # Harness template management and Git sync
+├── deployment/        # Local deployment management
+├── setup/             # Initial setup and diagnostics
+└── README.md          # This file
+```
+
+---
+
+## Harness API Scripts (`harness/`)
+
+Scripts for interacting with the Harness API to monitor pipelines, executions, and resources.
 
 ### List Pipeline Executions
 
 ```bash
-./scripts/get-pipeline-executions.sh [limit]
+./scripts/harness/get-pipeline-executions.sh [limit]
 ```
 
 **Purpose:** Get recent pipeline execution history and details for the `Deploy_Bagel_Store` pipeline.
@@ -22,21 +37,56 @@ This directory contains scripts for diagnosing and managing the Bagel Store demo
 **Examples:**
 ```bash
 # Get last 5 executions (default)
-./scripts/get-pipeline-executions.sh
+./scripts/harness/get-pipeline-executions.sh
 
 # Get last 10 executions
-./scripts/get-pipeline-executions.sh 10
+./scripts/harness/get-pipeline-executions.sh 10
 ```
 
-**Requirements:**
-- `harness/.env` file with `HARNESS_API_KEY` set
-- `jq` installed
-- `curl` installed
+### Get Execution Details
+
+```bash
+./scripts/harness/get-execution-details.sh <execution_id>
+```
+
+Get detailed information about a specific pipeline execution.
+
+### Get Execution Graph
+
+```bash
+./scripts/harness/get-execution-graph.sh <execution_id>
+```
+
+Get the complete execution graph with all nodes and dependencies.
+
+### Get Stage Logs
+
+```bash
+./scripts/harness/get-stage-logs.sh <execution_id> <stage_name>
+```
+
+Get logs for a specific pipeline stage.
+
+### Get Execution Logs
+
+```bash
+./scripts/harness/get-execution-logs.sh <execution_id>
+```
+
+Get all logs for a pipeline execution.
+
+### Get Delegate Logs
+
+```bash
+./scripts/harness/get-delegate-logs.sh
+```
+
+Get logs from the Harness delegate.
 
 ### Verify Harness Entities
 
 ```bash
-./scripts/verify-harness-entities.sh
+./scripts/harness/verify-harness-entities.sh
 ```
 
 **Purpose:** Verify all Harness entities required for the `Deploy_Bagel_Store` pipeline exist and are configured correctly.
@@ -57,10 +107,18 @@ This directory contains scripts for diagnosing and managing the Bagel Store demo
 - Before manual Harness setup
 - When diagnosing pipeline import/execution issues
 
+### Check Harness Resources
+
+```bash
+./scripts/harness/check-harness-resources.sh
+```
+
+Check the status of all Harness resources.
+
 ### Update Trigger Configuration
 
 ```bash
-./scripts/update-trigger.sh [--dry-run]
+./scripts/harness/update-trigger.sh [--dry-run]
 ```
 
 **Purpose:** Update the `GitHub_Actions_CI` trigger configuration via Harness API to ensure Input Set and Pipeline Reference Branch are properly configured.
@@ -73,10 +131,10 @@ This directory contains scripts for diagnosing and managing the Bagel Store demo
 **Usage:**
 ```bash
 # Preview changes without applying
-./scripts/update-trigger.sh --dry-run
+./scripts/harness/update-trigger.sh --dry-run
 
 # Apply changes
-./scripts/update-trigger.sh
+./scripts/harness/update-trigger.sh
 ```
 
 **When to use:**
@@ -84,16 +142,308 @@ This directory contains scripts for diagnosing and managing the Bagel Store demo
 - After importing a remote pipeline from Git
 - When pipeline variables aren't resolving from webhook payload
 
-**Requirements:**
+### Get Trigger Configuration
+
+```bash
+./scripts/harness/get-trigger.sh
+```
+
+Get the current trigger configuration.
+
+### Get Input Set
+
+```bash
+./scripts/harness/get-inputset.sh
+```
+
+Get the input set configuration.
+
+### Get Webhook URL
+
+```bash
+./scripts/harness/get-webhook-url.sh
+```
+
+Retrieves the Harness webhook URL for the `GitHub_Actions_CI` trigger (used for GitHub Actions integration).
+
+### Search Harness API
+
+```bash
+./scripts/harness/search-harness-api.py "<search_term>"
+```
+
+Search the Harness OpenAPI specification for endpoints and operations.
+
+**Examples:**
+```bash
+./scripts/harness/search-harness-api.py "execution"
+./scripts/harness/search-harness-api.py "trigger"
+```
+
+### Harness API Wrapper
+
+```bash
+./scripts/harness/harness-api.sh <METHOD> <endpoint> [jq_filter]
+```
+
+**Purpose:** Wrapper for making authenticated Harness API calls. Automatically loads API key from `harness/.env`.
+
+**Examples:**
+```bash
+# GET request
+./scripts/harness/harness-api.sh GET "https://app.harness.io/pipeline/api/pipelines/..."
+
+# POST request with data
+./scripts/harness/harness-api.sh POST "https://app.harness.io/..." '{"key":"value"}'
+
+# With jq filter
+./scripts/harness/harness-api.sh GET "https://app.harness.io/..." '.data.status'
+```
+
+**Requirements (All Harness Scripts):**
 - `harness/.env` file with `HARNESS_API_KEY` set
 - `jq` installed
 - `curl` installed
 
+---
+
+## Template Management Scripts (`templates/`)
+
+Scripts for managing Harness templates and Git synchronization.
+
+### Get Template
+
+```bash
+./scripts/templates/get-template.sh <template_name>
+```
+
+Get template YAML from Harness.
+
+### Compare Template with Git
+
+```bash
+./scripts/templates/compare-template-with-git.sh
+```
+
+Compare Harness template with Git version.
+
+### Refresh Template
+
+```bash
+./scripts/templates/refresh-template.sh
+```
+
+Manually sync template from Git (normal refresh).
+
+### Force Refresh Template
+
+```bash
+./scripts/templates/force-refresh-template.sh
+```
+
+Force refresh template from Git (bypass cache).
+
+### Validate Template
+
+```bash
+./scripts/templates/validate-template.sh
+```
+
+Validate template YAML syntax.
+
+### Test Git Connector
+
+```bash
+./scripts/templates/test-git-connector.sh
+```
+
+Test GitHub connector connectivity.
+
+### Test Pipeline Import
+
+```bash
+./scripts/templates/test-pipeline-import.sh
+```
+
+Test pipeline import from Git.
+
+---
+
+## Deployment Scripts (`deployment/`)
+
+Scripts for managing local Docker Compose deployments.
+
+### Show Deployment State
+
+```bash
+./scripts/deployment/show-deployment-state.sh
+```
+
+Show current deployment state (all environments).
+
 **Output:**
-- Current trigger configuration
-- Proposed changes
-- Update result and verification
-- Next steps for testing
+- Current version deployed in each environment
+- Container status
+- Service URLs
+
+### Reset Local Environments
+
+```bash
+./scripts/deployment/reset-local-environments.sh [version]
+```
+
+Reset local Docker environments.
+
+**Examples:**
+```bash
+# Reset all environments to latest
+./scripts/deployment/reset-local-environments.sh latest
+
+# Reset to specific version
+./scripts/deployment/reset-local-environments.sh v1.2.0
+```
+
+---
+
+## Setup & Diagnostic Scripts (`setup/`)
+
+Scripts for initial setup and system diagnostics.
+
+### Check Dependencies
+
+```bash
+./scripts/setup/check-dependencies.sh
+```
+
+Verifies all required tools are installed (Docker, AWS CLI, `jq`, `curl`, etc.).
+
+**When to run:**
+- First-time setup
+- After system updates
+- When encountering "command not found" errors
+
+### Diagnose AWS
+
+```bash
+./scripts/setup/diagnose-aws.sh
+```
+
+Checks AWS credentials, profile configuration, and connectivity.
+
+**When to run:**
+- AWS authentication errors
+- Before terraform apply
+- When App Runner deployments fail
+
+### Create Harness AWS User
+
+```bash
+./scripts/setup/create-harness-aws-user.sh
+```
+
+Create AWS IAM user for Harness delegate with appropriate permissions.
+
+---
+
+## Harness API Authentication
+
+All Harness API scripts require an API key stored in `harness/.env`:
+
+```bash
+HARNESS_API_KEY=pat.ACCOUNT_ID.TOKEN_ID.TOKEN_VALUE
+```
+
+**To create a new API token:**
+
+1. Harness UI → Profile icon (top right) → **My Profile**
+2. **My API Keys** → **+ API Key**
+3. Name it (e.g., "debug-api-key") → **Save**
+4. **+ Token** → Name it → Set expiration (30 days recommended)
+5. **Generate Token** → **Copy immediately** (shown only once!)
+6. Add to `harness/.env`: `HARNESS_API_KEY=pat.xxxxx.yyyyy.zzzzz`
+
+---
+
+## Common Workflows
+
+### Diagnosing Pipeline Failures
+
+1. **Get recent executions:**
+   ```bash
+   ./scripts/harness/get-pipeline-executions.sh
+   ```
+
+2. **Check which stage failed** (from script output)
+
+3. **Get detailed logs for failed stage:**
+   ```bash
+   ./scripts/harness/get-stage-logs.sh <execution_id> "<stage_name>"
+   ```
+
+4. **Verify all entities exist:**
+   ```bash
+   ./scripts/harness/verify-harness-entities.sh
+   ```
+
+### After Terraform Changes
+
+```bash
+# 1. Verify Terraform-managed resources
+./scripts/harness/verify-harness-entities.sh
+
+# 2. Check if pipelines can see new environments
+./scripts/harness/get-pipeline-executions.sh 1
+
+# 3. If needed, trigger a test run
+gh run list --limit 1  # Get latest GitHub Actions run
+```
+
+### Troubleshooting Webhook Integration
+
+```bash
+# 1. Get webhook URL from Harness
+./scripts/harness/get-webhook-url.sh
+
+# 2. Verify GitHub variable is set correctly
+gh variable list --repo OWNER/REPO | grep HARNESS_WEBHOOK_URL
+
+# 3. Check recent pipeline triggers
+./scripts/harness/get-pipeline-executions.sh 5
+
+# 4. If trigger configuration is wrong, update it
+./scripts/harness/update-trigger.sh
+```
+
+### Template Sync Issues
+
+```bash
+# 1. Compare template in Harness vs Git
+./scripts/templates/compare-template-with-git.sh
+
+# 2. If out of sync, force refresh
+./scripts/templates/force-refresh-template.sh
+
+# 3. Verify template is valid
+./scripts/templates/validate-template.sh
+```
+
+### First-Time Setup
+
+```bash
+# 1. Check all dependencies are installed
+./scripts/setup/check-dependencies.sh
+
+# 2. Verify AWS configuration
+./scripts/setup/diagnose-aws.sh
+
+# 3. Create AWS IAM user for Harness (if needed)
+./scripts/setup/create-harness-aws-user.sh
+
+# 4. Verify Harness entities exist
+./scripts/harness/verify-harness-entities.sh
+```
+
+---
 
 ## API Endpoint Reference
 
@@ -187,92 +537,7 @@ curl -X PUT \
 
 **Reference:** https://apidocs.harness.io/tag/Webhook-Triggers/
 
-## Other Diagnostic Scripts
-
-### Check Dependencies
-
-```bash
-./scripts/check-dependencies.sh
-```
-
-Verifies all required tools are installed (Docker, AWS CLI, `jq`, `curl`, etc.).
-
-### Diagnose AWS
-
-```bash
-./scripts/diagnose-aws.sh
-```
-
-Checks AWS credentials, profile configuration, and connectivity.
-
-### Get Webhook URL
-
-```bash
-./scripts/get-webhook-url.sh
-```
-
-Retrieves the Harness webhook URL for the `GitHub_Actions_CI` trigger (used for GitHub Actions integration).
-
-## Harness API Authentication
-
-All Harness API scripts require an API key stored in `harness/.env`:
-
-```bash
-HARNESS_API_KEY=pat.ACCOUNT_ID.TOKEN_ID.TOKEN_VALUE
-```
-
-**To create a new API token:**
-
-1. Harness UI → Profile icon (top right) → **My Profile**
-2. **My API Keys** → **+ API Key**
-3. Name it (e.g., "debug-api-key") → **Save**
-4. **+ Token** → Name it → Set expiration (30 days recommended)
-5. **Generate Token** → **Copy immediately** (shown only once!)
-6. Add to `harness/.env`: `HARNESS_API_KEY=pat.xxxxx.yyyyy.zzzzz`
-
-## Common Workflows
-
-### Diagnosing Pipeline Failures
-
-1. **Get recent executions:**
-   ```bash
-   ./scripts/get-pipeline-executions.sh
-   ```
-
-2. **Check which stage failed** (from script output)
-
-3. **View detailed logs** in Harness UI (link provided by script)
-
-4. **Verify all entities exist:**
-   ```bash
-   ./scripts/verify-harness-entities.sh
-   ```
-
-### After Terraform Changes
-
-```bash
-# 1. Verify Terraform-managed resources
-./scripts/verify-harness-entities.sh
-
-# 2. Check if pipelines can see new environments
-./scripts/get-pipeline-executions.sh 1
-
-# 3. If needed, trigger a test run
-gh run list --limit 1  # Get latest GitHub Actions run
-```
-
-### Troubleshooting Webhook Integration
-
-```bash
-# 1. Get webhook URL from Harness
-./scripts/get-webhook-url.sh
-
-# 2. Verify GitHub variable is set correctly
-gh variable list --repo OWNER/REPO | grep HARNESS_WEBHOOK_URL
-
-# 3. Check recent pipeline triggers
-./scripts/get-pipeline-executions.sh 5
-```
+---
 
 ## Notes
 

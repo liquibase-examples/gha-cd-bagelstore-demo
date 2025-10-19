@@ -77,3 +77,4 @@ harness/backup-*/  # Keep migration backups out of Git
 
 # AI Session Handoffs (local only, not for version control)
 HANDOFF_NEXT_SESSION.md
+TASKS.md

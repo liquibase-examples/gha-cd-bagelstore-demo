@@ -154,7 +154,7 @@ docker compose up -d
 **Cost**: $0
 **Setup time**: 2 minutes
 
-**View state**: `./scripts/show-deployment-state.sh`
+**View state**: `./scripts/deployment/show-deployment-state.sh`
 
 ---
 
@@ -262,7 +262,7 @@ curl https://{env}.bagel-demo.example.com/health
 
 **Quick dependency check:**
 ```bash
-./scripts/check-dependencies.sh
+./scripts/setup/check-dependencies.sh
 ```
 
 ### Development

@@ -92,7 +92,7 @@ aws sso login --profile <profile-name>
 
 **Check session status:**
 ```bash
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 **Session expiration:** SSO sessions typically expire after 8-12 hours. Re-run `aws sso login` when expired.
@@ -150,16 +150,16 @@ aws sts get-caller-identity
 
 | Issue | Detection | Solution |
 |-------|-----------|----------|
-| **Typo in path** | `~/.aaws/` exists | `./scripts/diagnose-aws.sh` detects this |
+| **Typo in path** | `~/.aaws/` exists | `./scripts/setup/diagnose-aws.sh` detects this |
 | **Expired SSO session** | "ExpiredToken" error | `aws sso login --profile <name>` |
 | **Wrong profile active** | Commands use wrong account | `export AWS_PROFILE=<correct-profile>` |
 | **Multiple configure attempts** | User confusion | See decision tree (SSO vs keys) above |
-| **Missing credentials** | "Unable to locate credentials" | `./scripts/diagnose-aws.sh` shows how to fix |
+| **Missing credentials** | "Unable to locate credentials" | `./scripts/setup/diagnose-aws.sh` shows how to fix |
 
 ### Always Run Diagnostics First
 
 ```bash
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 Script will show:
@@ -188,7 +188,7 @@ aws configure      # For access keys
 aws sts get-caller-identity
 
 # If still not working
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 ---
@@ -223,7 +223,7 @@ aws configure list-profiles
 export AWS_PROFILE=<profile-name>
 
 # Verify which profile is active
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 ```
 
 ---
@@ -251,7 +251,7 @@ AccessDenied errors when running AWS commands
 **Solution:**
 ```bash
 # Check which permissions you have
-./scripts/diagnose-aws.sh
+./scripts/setup/diagnose-aws.sh
 
 # The script will test:
 # - S3 access (required for Liquibase flows)

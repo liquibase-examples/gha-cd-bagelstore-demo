@@ -323,7 +323,7 @@ check_aws_config() {
     else
         print_warning "AWS CLI installed but authentication failed"
         echo ""
-        print_info "Run diagnostics: ./scripts/diagnose-aws.sh"
+        print_info "Run diagnostics: ./scripts/setup/diagnose-aws.sh"
         echo ""
         print_info "Or configure AWS credentials:"
         echo "  • aws configure sso (recommended for SSO)"

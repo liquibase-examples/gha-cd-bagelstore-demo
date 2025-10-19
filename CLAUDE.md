@@ -31,7 +31,7 @@ This is a demonstration repository showcasing coordinated application and databa
 ## First-Time Setup
 
 **Quick start:**
-1. Run dependency checker: `./scripts/check-dependencies.sh`
+1. Run dependency checker: `./scripts/setup/check-dependencies.sh`
 2. Configure local environment: `cd app && cp .env.example .env`
 3. Start application: `docker compose up --build`
 
@@ -48,7 +48,7 @@ This is a demonstration repository showcasing coordinated application and databa
 2. **Verify external state FIRST** - Check UI dashboards, API responses, actual service connectivity
 3. **Check for environmental issues** - Wrong names, stale locks, timeouts, configuration mismatches
 4. **Read project-specific docs** - See "AI Documentation Reference Rules" below
-5. **Use diagnostic scripts** - `./scripts/diagnose-*.sh`
+5. **Use diagnostic scripts** - See `scripts/setup/` and `scripts/harness/` directories
 
 **Example That Will Save You 10+ Minutes:**
 - ❌ **Wrong:** "Harness delegate logs show errors → delegate is broken → debug token format"
@@ -66,7 +66,8 @@ This is the #1 most common mistake: manually constructing curl commands when a w
 
 1. **Check scripts directory FIRST:**
    ```bash
-   ls -la scripts/*.sh | grep -E "pipeline|execution|trigger|template|harness"
+   ls -la scripts/harness/*.sh | grep -E "pipeline|execution|trigger"
+   ls -la scripts/templates/*.sh
    ```
 
 2. **Read "Available Harness Scripts" section** in this file (below)
@@ -78,16 +79,16 @@ This is the #1 most common mistake: manually constructing curl commands when a w
 
 4. **Try the script:**
    ```bash
-   ./scripts/get-pipeline-executions.sh
+   ./scripts/harness/get-pipeline-executions.sh
    # or
-   bash scripts/get-pipeline-executions.sh  # If permissions issue
+   bash scripts/harness/get-pipeline-executions.sh  # If permissions issue
    ```
 
 5. **If script fails, DEBUG before giving up:**
    - Check working directory: `pwd`
-   - Check file exists: `ls -la scripts/<script-name>.sh`
+   - Check file exists: `ls -la scripts/harness/<script-name>.sh`
    - Check permissions: Should have `x` bit
-   - Try explicit bash: `bash scripts/<script-name>.sh`
+   - Try explicit bash: `bash scripts/harness/<script-name>.sh`
    - Read script to understand requirements
    - **FIX the issue, don't skip to manual approach**
 
@@ -98,32 +99,36 @@ This is the #1 most common mistake: manually constructing curl commands when a w
 
 ### Available Harness Scripts (Full Reference)
 
-**Pipeline Monitoring & Debugging:**
+**Pipeline Monitoring & Debugging** (`scripts/harness/`):
 - `get-pipeline-executions.sh` - **START HERE** for "what's the latest execution?" queries
 - `get-execution-details.sh <exec_id>` - Get detailed execution info and stage status
 - `get-stage-logs.sh <exec_id> <stage_name>` - Get logs for specific pipeline stage
 - `get-execution-graph.sh <exec_id>` - Get full execution graph with all nodes
 
-**Configuration & Setup:**
+**Configuration & Setup** (`scripts/harness/`):
 - `verify-harness-entities.sh` - Verify all Harness resources exist (templates, pipelines, etc.)
 - `update-trigger.sh` - Update trigger configuration (Input Set + Pipeline Branch)
 - `get-webhook-url.sh` - Get webhook URL for GitHub Actions trigger
 - `get-inputset.sh` - Get input set configuration
 
-**Templates & Git Sync:**
+**Templates & Git Sync** (`scripts/templates/`):
 - `get-template.sh <template_name>` - Get template YAML from Harness
 - `compare-template-with-git.sh` - Compare Harness template with Git version
 - `refresh-template.sh` - Manually sync template from Git
 - `force-refresh-template.sh` - Force refresh template (bypass cache)
 - `validate-template.sh` - Validate template YAML syntax
-
-**Diagnostics:**
-- `check-harness-resources.sh` - Check status of all Harness resources
 - `test-git-connector.sh` - Test GitHub connector connectivity
 - `test-pipeline-import.sh` - Test pipeline import from Git
-- `diagnose-aws.sh` - AWS-specific diagnostic checks
 
-**Local Deployment:**
+**Setup & Diagnostics** (`scripts/setup/`):
+- `check-dependencies.sh` - Verify all required tools installed
+- `diagnose-aws.sh` - AWS-specific diagnostic checks
+- `create-harness-aws-user.sh` - Create AWS IAM user for Harness
+
+**Harness Resources** (`scripts/harness/`):
+- `check-harness-resources.sh` - Check status of all Harness resources
+
+**Local Deployment** (`scripts/deployment/`):
 - `show-deployment-state.sh` - Show current deployment state (all environments)
 - `reset-local-environments.sh` - Reset local Docker environments
 
@@ -138,17 +143,17 @@ This is the #1 most common mistake: manually constructing curl commands when a w
 curl -s "https://app.harness.io/pipeline/api/..." -H "x-api-key: ${HARNESS_API_KEY}"
 # Fails with "blank argument" error
 # Waste 10 minutes debugging variable scoping
-# Never realize ./scripts/get-pipeline-executions.sh exists
+# Never realize ./scripts/harness/get-pipeline-executions.sh exists
 ```
 
 ### Example - CORRECT Approach
 
 ```bash
 # ✅ CORRECT: Check for script first
-ls scripts/*execution*.sh
+ls scripts/harness/*execution*.sh
 # Found: get-pipeline-executions.sh, get-execution-details.sh, get-execution-graph.sh
 
-./scripts/get-pipeline-executions.sh
+./scripts/harness/get-pipeline-executions.sh
 # ✅ Works! Shows formatted table with all executions
 # ✅ Shows trigger configuration issues
 # ✅ Provides Harness UI link
@@ -159,13 +164,13 @@ ls scripts/*execution*.sh
 
 ```bash
 # Script attempt
-./scripts/get-pipeline-executions.sh
+./scripts/harness/get-pipeline-executions.sh
 # Error: "no such file or directory"
 
 # ✅ DEBUG (don't skip this!):
 pwd  # Am I in the right directory?
-ls -la scripts/get-pipeline-executions.sh  # Does it exist? What permissions?
-bash scripts/get-pipeline-executions.sh  # Try explicit bash invocation
+ls -la scripts/harness/get-pipeline-executions.sh  # Does it exist? What permissions?
+bash scripts/harness/get-pipeline-executions.sh  # Try explicit bash invocation
 
 # Only after debugging can you determine if script is truly unusable
 ```
@@ -182,8 +187,8 @@ bash scripts/get-pipeline-executions.sh  # Try explicit bash invocation
 
 **What should happen:**
 1. ✅ Need pipeline execution status
-2. ✅ Check `ls scripts/*execution*.sh`
-3. ✅ Find and run `./scripts/get-pipeline-executions.sh`
+2. ✅ Check `ls scripts/harness/*execution*.sh`
+3. ✅ Find and run `./scripts/harness/get-pipeline-executions.sh`
 4. ✅ Get answer in 5 seconds
 
 **Time saved:** 10-15 minutes per query × multiple queries per session = significant productivity gain
@@ -323,19 +328,46 @@ ls -la /opt/harness-delegate/scripts/  # Verify mount
 
 **ALWAYS use APIs before suggesting manual UI changes** - This is a hard requirement.
 
+**⭐ NEW: Harness API Playbook** - See [docs/HARNESS_API_PLAYBOOK.md](docs/HARNESS_API_PLAYBOOK.md) for:
+- ✅ Working code examples for common operations (pipeline execution, get status, etc.)
+- ✅ Troubleshooting decision trees for common errors
+- ✅ API endpoint quick reference
+- ✅ Known issues and workarounds
+- ✅ How to use `search-harness-api.py` to search the OpenAPI spec
+
+**BEFORE attempting any Harness API call:**
+1. Check [docs/HARNESS_API_PLAYBOOK.md](docs/HARNESS_API_PLAYBOOK.md) first
+2. Use `python3 scripts/harness/search-harness-api.py "<operation>"` to search OpenAPI spec
+3. Check existing `scripts/` for reference implementations
+4. Only then try manual API calls
+
+**When to use the Harness API Playbook:**
+- 🚀 **Triggering pipeline execution** → See playbook for correct `application/yaml` format
+- 📊 **Checking pipeline status** → Monitoring patterns in playbook
+- 🔍 **Debugging failed deployments** → Extract failed step details pattern
+- ⚙️ **Verifying template/trigger config** → Template/trigger check patterns
+- ❌ **Getting 400/403 errors** → Troubleshooting decision trees
+- 🔧 **Environment variable issues** → Environment check pattern
+- 📝 **Any other Harness API operation** → Start with playbook, always
+
 ### Priority Order for Making Changes
 
-1. **✅ FIRST: Check for API method**
-   - Search https://apidocs.harness.io/ for relevant endpoints
+1. **✅ FIRST: Check the Harness API Playbook**
+   - See [docs/HARNESS_API_PLAYBOOK.md](docs/HARNESS_API_PLAYBOOK.md) for working examples
+   - Use `scripts/harness/search-harness-api.py` to search downloaded OpenAPI spec
    - Look in `scripts/` for existing automation scripts
-   - Use Harness API to GET, PUT, POST, DELETE resources
 
-2. **✅ SECOND: Create automation script**
+2. **✅ SECOND: Use Harness API**
+   - Search https://apidocs.harness.io/ for relevant endpoints
+   - Use Harness API to GET, PUT, POST, DELETE resources
+   - Document working patterns in the playbook
+
+3. **✅ THIRD: Create automation script**
    - If API exists but no script, create one in `scripts/`
    - Document in `scripts/README.md`
    - Make it reusable for future issues
 
-3. **❌ LAST RESORT: Manual UI changes**
+4. **❌ LAST RESORT: Manual UI changes**
    - Only suggest UI changes when:
      - No API endpoint exists
      - API is documented as requiring feature flags
@@ -388,52 +420,32 @@ Why this matters:
 - Saves time by eliminating trial-and-error debugging
 
 **Available Scripts:**
-- `scripts/get-pipeline-executions.sh` - Query pipeline runs, includes trigger validation
-- `scripts/update-trigger.sh` - Update trigger via API (Input Set + Pipeline Branch)
-- `scripts/verify-harness-entities.sh` - Verify all Harness resources exist
+- `scripts/harness/get-pipeline-executions.sh` - Query pipeline runs, includes trigger validation
+- `scripts/harness/update-trigger.sh` - Update trigger via API (Input Set + Pipeline Branch)
+- `scripts/harness/verify-harness-entities.sh` - Verify all Harness resources exist
 
 **API Endpoint Reference:** See `scripts/README.md` for complete Harness API documentation
 
 ### Harness API Wrapper (CRITICAL - Use This!)
 
-**Problem Solved:**
-Previously, API calls failed because `source harness/.env` in one Bash call doesn't persist to the next call (different shell sessions).
-
-**Solution:**
-Use `scripts/harness-api.sh` wrapper for ALL ad-hoc Harness API calls.
+**Use `scripts/harness/harness-api.sh` wrapper for ALL ad-hoc Harness API calls.**
 
 **✅ ALWAYS use:**
 ```bash
-# Ad-hoc API calls
-./scripts/harness-api.sh GET <endpoint> [jq_filter]
-./scripts/harness-api.sh POST <endpoint> <json_data> [jq_filter]
-
-# Existing scripts (already handle API key correctly)
-./scripts/get-pipeline-executions.sh
-./scripts/get-execution-logs.sh
-./scripts/get-execution-details.sh
+./scripts/harness/harness-api.sh GET <endpoint> [jq_filter]
+./scripts/harness/harness-api.sh POST <endpoint> <data> [jq_filter]
 ```
 
 **❌ NEVER do:**
 ```bash
-# DON'T - Variable won't persist to next call
+# DON'T - Variable won't persist across Bash tool calls
 source harness/.env
 curl ... -H "x-api-key: ${HARNESS_API_KEY}"  # BLANK!
 ```
 
-**Examples:**
-```bash
-# Get execution status
-./scripts/harness-api.sh GET "/pipeline/api/pipelines/execution/v2/ABC123?accountIdentifier=..." ".data.pipelineExecutionSummary.status"
+**Why:** The wrapper automatically loads API key from `harness/.env` in the same process.
 
-# Trigger webhook
-./scripts/harness-api.sh POST "https://app.harness.io/gateway/pipeline/api/webhook/..." '{"version":"v1.0.0"}'
-
-# Get multiple fields with jq
-./scripts/harness-api.sh GET "/pipeline/api/pipelines/execution/v2/ABC123?..." ".data.pipelineExecutionSummary | {status, runSequence, duration: ((.endTs - .startTs)/1000)}"
-```
-
-**Full documentation:** `scripts/HARNESS_API_USAGE.md` (8 examples, troubleshooting, common patterns)
+**Full documentation:** See [docs/HARNESS_API_PLAYBOOK.md § Monitoring & Diagnostics](docs/HARNESS_API_PLAYBOOK.md#monitoring--diagnostics)
 
 ### CustomDeployment Infrastructure Pattern
 
@@ -458,14 +470,14 @@ curl ... -H "x-api-key: ${HARNESS_API_KEY}"  # BLANK!
 **Historical mistakes to avoid:**
 1. ❌ Not checking `scripts/` directory before manually constructing API calls
 2. ❌ Giving up on scripts after one failure instead of debugging the issue (pwd, permissions, bash invocation)
-3. ❌ Telling user to manually fix trigger in UI when `scripts/update-trigger.sh` exists
+3. ❌ Telling user to manually fix trigger in UI when `scripts/harness/update-trigger.sh` exists
 4. ❌ Parsing `.data.inputSetRefs` JSON field instead of `.data.yaml` YAML field
 5. ❌ Not checking https://apidocs.harness.io/ before suggesting manual changes
 
 **Correct workflow:**
 1. ✅ Problem: "Trigger needs Input Set configured"
-2. ✅ Check: `scripts/update-trigger.sh` exists
-3. ✅ Solution: "Run `./scripts/update-trigger.sh`"
+2. ✅ Check: `scripts/harness/update-trigger.sh` exists
+3. ✅ Solution: "Run `./scripts/harness/update-trigger.sh`"
 4. ✅ Document: Update `scripts/README.md` if new pattern discovered
 
 ## AI Documentation Reference Rules
@@ -784,7 +796,7 @@ This project uses Harness Git Experience (remote templates, pipelines, infrastru
 **Verification:**
 ```bash
 # After manual sync, verify changes applied
-./scripts/verify-harness-entities.sh
+./scripts/harness/verify-harness-entities.sh
 
 # Check specific infrastructure definition
 source harness/.env
@@ -816,7 +828,7 @@ docker compose down           # Stop delegate
 docker compose -f docker-compose-demo.yml up -d
 
 # View deployment state
-./scripts/show-deployment-state.sh
+./scripts/deployment/show-deployment-state.sh
 
 # Deploy specific version to dev (manual)
 sed -i.bak 's/^VERSION_DEV=.*/VERSION_DEV=v1.1.0/' .env && rm -f .env.bak
@@ -828,7 +840,7 @@ docker compose -f docker-compose-demo.yml logs -f app-dev
 docker compose -f docker-compose-demo.yml logs -f postgres-dev
 
 # Reset all to latest
-./scripts/reset-local-environments.sh latest
+./scripts/deployment/reset-local-environments.sh latest
 
 # Stop all
 docker compose -f docker-compose-demo.yml down
@@ -913,7 +925,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/LOCAL_DEPLOYMENT.md](docs/LOC
    find .harness -name "*infra*.yaml"
 
    # Run diagnostic to verify all pipeline dependencies
-   ./scripts/verify-harness-entities.sh
+   ./scripts/harness/verify-harness-entities.sh
    ```
 
 3. **Pipeline YAML validation vs runtime behavior**:
@@ -942,10 +954,10 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/LOCAL_DEPLOYMENT.md](docs/LOC
 6. **Diagnostic workflow**:
    ```bash
    # Before import attempts
-   ./scripts/verify-harness-entities.sh
+   ./scripts/harness/verify-harness-entities.sh
 
    # Get webhook URL
-   ./scripts/get-webhook-url.sh
+   ./scripts/harness/get-webhook-url.sh
 
    # Update GitHub variable (NOT secret)
    gh variable set HARNESS_WEBHOOK_URL --body "URL_HERE"

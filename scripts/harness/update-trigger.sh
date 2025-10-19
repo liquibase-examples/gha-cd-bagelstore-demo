@@ -5,7 +5,7 @@
 # 1. Input Set (webhook_default) is configured
 # 2. Pipeline Reference Branch (<+trigger.branch>) is set
 #
-# Usage: ./scripts/update-trigger.sh [--dry-run]
+# Usage: ./scripts/harness/update-trigger.sh [--dry-run]
 
 # Load API key
 if [ -f "harness/.env" ]; then
@@ -197,7 +197,7 @@ if [ "$UPDATE_STATUS" = "SUCCESS" ]; then
   echo "   gh workflow run main-ci.yml --ref main"
   echo ""
   echo "2. Verify the pipeline executes successfully:"
-  echo "   ./scripts/get-pipeline-executions.sh"
+  echo "   ./scripts/harness/get-pipeline-executions.sh"
   echo ""
 else
   echo "❌ Failed to update trigger"
