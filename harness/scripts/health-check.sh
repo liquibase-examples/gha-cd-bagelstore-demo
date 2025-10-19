@@ -83,11 +83,12 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
 
     if [ "$DEPLOYED_VERSION" = "$VERSION" ]; then
       echo "✅ Version verified: ${DEPLOYED_VERSION}"
+      exit 0
     else
-      echo "⚠️  Version mismatch: expected ${VERSION}, got ${DEPLOYED_VERSION}"
+      echo "❌ Version mismatch: expected ${VERSION}, got ${DEPLOYED_VERSION}"
+      echo "Deployment may have failed or is still in progress"
+      exit 1
     fi
-
-    exit 0
   fi
 
   echo "Health check returned HTTP ${HTTP_CODE}, retrying in ${RETRY_INTERVAL}s..."
