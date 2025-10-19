@@ -59,7 +59,7 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
 
   echo "Using AWS RDS endpoint: ${RDS_ENDPOINT}"
   echo "Flow file: s3://${FLOWS_BUCKET}/main-deployment-flow.yaml"
-  echo "Database credentials: Using Liquibase native AWS Secrets Manager integration"
+  echo "Database credentials: Liquibase native AWS Secrets Manager (JSON secret: ${DEMO_ID}/rds/credentials)"
 
   # Create temporary AWS config directory
   AWS_CONFIG_DIR=$(mktemp -d)
@@ -78,8 +78,8 @@ EOF
     -e AWS_DEFAULT_REGION="${AWS_REGION}" \
     -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
     -e LIQUIBASE_COMMAND_URL="${JDBC_URL}" \
-    -e LIQUIBASE_COMMAND_USERNAME="aws-secrets,${DEMO_ID}/rds/username" \
-    -e LIQUIBASE_COMMAND_PASSWORD="aws-secrets,${DEMO_ID}/rds/password" \
+    -e LIQUIBASE_COMMAND_USERNAME="aws-secrets,${DEMO_ID}/rds/credentials,username" \
+    -e LIQUIBASE_COMMAND_PASSWORD="aws-secrets,${DEMO_ID}/rds/credentials,password" \
     -e LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog-master.yaml \
     -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE="s3://${FLOWS_BUCKET}/liquibase.checks-settings.conf" \
     -w /liquibase/changelog \
