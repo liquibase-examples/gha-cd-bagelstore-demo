@@ -394,6 +394,47 @@ Why this matters:
 
 **API Endpoint Reference:** See `scripts/README.md` for complete Harness API documentation
 
+### Harness API Wrapper (CRITICAL - Use This!)
+
+**Problem Solved:**
+Previously, API calls failed because `source harness/.env` in one Bash call doesn't persist to the next call (different shell sessions).
+
+**Solution:**
+Use `scripts/harness-api.sh` wrapper for ALL ad-hoc Harness API calls.
+
+**✅ ALWAYS use:**
+```bash
+# Ad-hoc API calls
+./scripts/harness-api.sh GET <endpoint> [jq_filter]
+./scripts/harness-api.sh POST <endpoint> <json_data> [jq_filter]
+
+# Existing scripts (already handle API key correctly)
+./scripts/get-pipeline-executions.sh
+./scripts/get-execution-logs.sh
+./scripts/get-execution-details.sh
+```
+
+**❌ NEVER do:**
+```bash
+# DON'T - Variable won't persist to next call
+source harness/.env
+curl ... -H "x-api-key: ${HARNESS_API_KEY}"  # BLANK!
+```
+
+**Examples:**
+```bash
+# Get execution status
+./scripts/harness-api.sh GET "/pipeline/api/pipelines/execution/v2/ABC123?accountIdentifier=..." ".data.pipelineExecutionSummary.status"
+
+# Trigger webhook
+./scripts/harness-api.sh POST "https://app.harness.io/gateway/pipeline/api/webhook/..." '{"version":"v1.0.0"}'
+
+# Get multiple fields with jq
+./scripts/harness-api.sh GET "/pipeline/api/pipelines/execution/v2/ABC123?..." ".data.pipelineExecutionSummary | {status, runSequence, duration: ((.endTs - .startTs)/1000)}"
+```
+
+**Full documentation:** `scripts/HARNESS_API_USAGE.md` (8 examples, troubleshooting, common patterns)
+
 ### CustomDeployment Infrastructure Pattern
 
 **Quick Summary:**
