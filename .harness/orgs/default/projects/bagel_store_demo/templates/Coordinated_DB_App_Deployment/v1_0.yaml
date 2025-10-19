@@ -242,10 +242,7 @@ template:
 
                   echo "✅ Terraform apply completed"
             environmentVariables: []
-            outputVariables:
-              - name: SERVICE_URL
-                type: String
-                value: service_url
+            outputVariables: []
           timeout: 15m
 
       # Step 4: Health check
