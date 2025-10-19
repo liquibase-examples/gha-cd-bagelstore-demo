@@ -28,26 +28,45 @@ template:
 
   spec:
     infrastructure:
-      # No infrastructure variables needed
-      # All infrastructure-specific values come from Harness Environment Variables
-      # (populated by Terraform from AWS infrastructure outputs)
-      variables: []
+      # Infrastructure variables passed from Pipeline → Infrastructure Definition → FetchInstanceScript
+      # Values come from Harness Environment Variables (populated by Terraform)
+      variables:
+        - name: environment
+          type: String
+          value: <+env.variables.environment>
+          description: "Target environment (dev/test/staging/prod)"
 
-      # Minimal FetchInstanceScript required by CustomDeployment
-      # Actual instance fetching is handled in Step Group Template
-      # This placeholder satisfies template validation requirements
+        - name: deployment_target
+          type: String
+          value: <+env.variables.DEPLOYMENT_TARGET>
+          description: "Deployment mode: aws or local"
+
+        - name: service_name
+          type: String
+          value: <+env.variables.app_runner_service_name>
+          description: "App Runner service name"
+
+        - name: service_url
+          type: String
+          value: <+env.variables.app_runner_service_url>
+          description: "App Runner service URL"
+
+      # FetchInstanceScript - Calls mounted script with infrastructure variables
+      # Script location: /opt/harness-delegate/scripts/fetch-instances.sh (mounted from harness/scripts/)
       fetchInstancesScript:
         store:
           type: Inline
           spec:
             content: |
               #!/bin/bash
-              # Minimal placeholder script for template validation
-              # Actual instance fetching logic is in Step Group Template:
-              # .harness/orgs/default/projects/bagel_store_demo/templates/Coordinated_DB_App_Deployment/v1_0.yaml
+              # Call the actual fetch-instances.sh script with infrastructure variables
+              # Variables are available as: <+infra.variables.name>
 
-              # Return empty instances - Step Group Template handles real logic
-              echo '{"instances": []}'
+              /opt/harness-delegate/scripts/fetch-instances.sh \
+                "<+infra.variables.environment>" \
+                "<+infra.variables.deployment_target>" \
+                "<+infra.variables.service_name>" \
+                "<+infra.variables.service_url>"
 
       # Instance attributes mapping (required by Harness)
       # CRITICAL: "instancename" is MANDATORY field name (cannot use "hostname" or other names)
