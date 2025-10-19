@@ -48,6 +48,10 @@ locals {
         aws_region  = var.aws_region
         environment = env
 
+        # Secrets Manager ARNs
+        secrets_username_arn = aws_secretsmanager_secret.rds_username[0].arn
+        secrets_password_arn = aws_secretsmanager_secret.rds_password[0].arn
+
         # DNS configuration (if Route53 enabled)
         dns_record = var.enable_route53 ? "${env}-${var.demo_id}.${var.domain_name}" : "not-configured"
         } : {

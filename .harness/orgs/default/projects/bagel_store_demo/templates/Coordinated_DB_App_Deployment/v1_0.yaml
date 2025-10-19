@@ -125,7 +125,9 @@ template:
                     "ecr_public_alias": "<+env.variables.ecr_public_alias>",
                     "rds_address": "<+env.variables.rds_address>",
                     "rds_port": "<+env.variables.rds_port>",
-                    "database_name": "<+env.variables.database_name>"
+                    "database_name": "<+env.variables.database_name>",
+                    "secrets_username_arn": "<+env.variables.secrets_username_arn>",
+                    "secrets_password_arn": "<+env.variables.secrets_password_arn>"
                   }
                   EOF
                   )
