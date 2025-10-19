@@ -56,11 +56,10 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   AWS_ACCESS_KEY_ID=$(echo "$SECRETS_JSON" | jq -r '.aws_access_key_id')
   AWS_SECRET_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.aws_secret_access_key')
   LIQUIBASE_LICENSE_KEY=$(echo "$SECRETS_JSON" | jq -r '.liquibase_license_key')
-  DB_USERNAME=$(echo "$SECRETS_JSON" | jq -r '.db_username')
-  DB_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.db_password')
 
   echo "Using AWS RDS endpoint: ${RDS_ENDPOINT}"
   echo "Flow file: s3://${FLOWS_BUCKET}/main-deployment-flow.yaml"
+  echo "Database credentials: Using Liquibase native AWS Secrets Manager integration"
 
   # Create temporary AWS config directory
   AWS_CONFIG_DIR=$(mktemp -d)
@@ -79,8 +78,8 @@ EOF
     -e AWS_DEFAULT_REGION="${AWS_REGION}" \
     -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
     -e LIQUIBASE_COMMAND_URL="${JDBC_URL}" \
-    -e LIQUIBASE_COMMAND_USERNAME="${DB_USERNAME}" \
-    -e LIQUIBASE_COMMAND_PASSWORD="${DB_PASSWORD}" \
+    -e LIQUIBASE_COMMAND_USERNAME="aws-secrets,${DEMO_ID}/rds/username" \
+    -e LIQUIBASE_COMMAND_PASSWORD="aws-secrets,${DEMO_ID}/rds/password" \
     -e LIQUIBASE_COMMAND_CHANGELOG_FILE=changelog-master.yaml \
     -e LIQUIBASE_COMMAND_CHECKS_SETTINGS_FILE="s3://${FLOWS_BUCKET}/liquibase.checks-settings.conf" \
     -w /liquibase/changelog \

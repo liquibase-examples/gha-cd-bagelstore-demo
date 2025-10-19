@@ -84,13 +84,12 @@ template:
                   )
 
                   # Build secrets JSON
+                  # Note: Database credentials fetched via Liquibase native AWS Secrets Manager integration
                   SECRETS=$(cat <<'EOF'
                   {
                     "aws_access_key_id": "<+secrets.getValue('aws_access_key_id')>",
                     "aws_secret_access_key": "<+secrets.getValue('aws_secret_access_key')>",
-                    "liquibase_license_key": "<+secrets.getValue('liquibase_license_key')>",
-                    "db_username": "${awsSecretsManager:<+env.variables.demo_id>/rds/username}",
-                    "db_password": "${awsSecretsManager:<+env.variables.demo_id>/rds/password}"
+                    "liquibase_license_key": "<+secrets.getValue('liquibase_license_key')>"
                   }
                   EOF
                   )
