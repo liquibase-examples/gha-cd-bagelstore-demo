@@ -167,6 +167,11 @@ template:
                   # Write image tag to SSM Parameter Store
                   # Terraform will read this value when applying infrastructure changes
 
+                  # Configure AWS credentials
+                  export AWS_ACCESS_KEY_ID="<+secrets.getValue('aws_access_key_id')>"
+                  export AWS_SECRET_ACCESS_KEY="<+secrets.getValue('aws_secret_access_key')>"
+                  export AWS_DEFAULT_REGION="<+env.variables.aws_region>"
+
                   echo "Writing image tag to SSM: /<+env.variables.demo_id>/image-tags/<+env.variables.environment>"
 
                   aws ssm put-parameter \
@@ -177,11 +182,7 @@ template:
                     --region <+env.variables.aws_region>
 
                   echo "✅ SSM parameter updated: <+pipeline.variables.VERSION>"
-            environmentVariables:
-              - name: AWS_ACCESS_KEY_ID
-                value: <+secrets.getValue('aws_access_key_id')>
-              - name: AWS_SECRET_ACCESS_KEY
-                value: <+secrets.getValue('aws_secret_access_key')>
+            environmentVariables: []
             outputVariables: []
           timeout: 2m
 

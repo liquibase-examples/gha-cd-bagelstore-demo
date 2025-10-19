@@ -19,6 +19,53 @@ scripts/
 
 Scripts for interacting with the Harness API to monitor pipelines, executions, and resources.
 
+### Trigger Pipeline via Webhook
+
+```bash
+./scripts/harness/trigger-pipeline-webhook.sh [VERSION] [DEPLOYMENT_TARGET] [GITHUB_ORG]
+```
+
+**Purpose:** Manually trigger the Harness pipeline using the webhook endpoint (same method as GitHub Actions).
+
+**Arguments (all optional):**
+- `VERSION`: Git version tag (default: auto-detected from current commit)
+- `DEPLOYMENT_TARGET`: `aws` or `local` (default: `aws`)
+- `GITHUB_ORG`: GitHub organization name (default: `liquibase-examples`)
+
+**Requirements:**
+- `HARNESS_WEBHOOK_URL` must be set in `harness/.env`
+- Get webhook URL with: `./scripts/harness/get-webhook-url.sh`
+
+**Output:**
+- Version and deployment parameters
+- Webhook payload (JSON)
+- Webhook response with event correlation ID
+- Trigger processing status
+- Pipeline execution ID (if successful)
+- Optional: Auto-monitoring of execution progress
+
+**Examples:**
+```bash
+# Auto-detect version from current commit, deploy to AWS
+./scripts/harness/trigger-pipeline-webhook.sh
+
+# Specific version, deploy to AWS
+./scripts/harness/trigger-pipeline-webhook.sh dev-abc123
+
+# Specific version, deploy locally via Docker Compose
+./scripts/harness/trigger-pipeline-webhook.sh dev-abc123 local
+
+# Custom GitHub org
+./scripts/harness/trigger-pipeline-webhook.sh v1.0.0 aws my-org
+```
+
+**Troubleshooting:**
+- If webhook fails with `INVALID_RUNTIME_INPUT_YAML`, check template validation
+- If trigger stays `QUEUED`, check Harness UI for pipeline/template sync issues
+- View trigger details API endpoint shown in output
+
+---
+
 ### List Pipeline Executions
 
 ```bash
