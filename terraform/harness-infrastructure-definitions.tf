@@ -1,68 +1,64 @@
 # Harness Infrastructure Definitions Configuration
 #
-# Creates infrastructure definitions for CustomDeployment.
-# Each environment gets one infrastructure definition that references the Custom deployment template.
+# MOVED TO GIT-BASED MANAGEMENT
+# Infrastructure definitions are now managed in Git (.harness/.../envs/.../infras/)
+# and imported manually via Harness UI.
 #
-# Pattern:
-# 1. Environment = Container (like a folder)
-# 2. Infrastructure Definition = Deployment target (like a file in the folder)
+# Rationale (from CLAUDE.md "Hybrid Harness Management"):
+# - Terraform is EXCELLENT for: Environments (with AWS outputs), Secrets, Connectors, Service
+# - Terraform is PROBLEMATIC for: Remote templates/pipelines/infrastructure (timeouts, feature flags)
+# - Infrastructure definitions already in Git anyway (true GitOps)
 #
-# CustomDeployment requires infrastructure definitions to exist, even with deployToAll: true.
-# The deployToAll flag means "deploy to ALL infrastructure definitions in this environment",
-# not "bypass infrastructure definitions".
+# Location: .harness/orgs/default/projects/bagel_store_demo/envs/<env>/<env>/infras/
+
+# COMMENTED OUT - Managed in Git instead
+# resource "harness_platform_infrastructure" "demo_infrastructures" {
+#   for_each = local.harness_environments
 #
-# Creates 4 infrastructure definitions per demo instance:
-# - ${demo_id}_dev_infra
-# - ${demo_id}_test_infra
-# - ${demo_id}_staging_infra
-# - ${demo_id}_prod_infra
-
-resource "harness_platform_infrastructure" "demo_infrastructures" {
-  for_each = local.harness_environments
-
-  identifier      = "${each.value.identifier}_infra"
-  name            = "${each.value.name} Infrastructure"
-  org_id          = var.harness_org_id
-  project_id      = var.harness_project_id
-  env_id          = harness_platform_environment.demo_environments[each.key].id
-  type            = "CustomDeployment"
-  deployment_type = "CustomDeployment"
-
-  yaml = <<-EOT
-    infrastructureDefinition:
-      name: ${each.value.name} Infrastructure
-      identifier: ${each.value.identifier}_infra
-      orgIdentifier: ${var.harness_org_id}
-      projectIdentifier: ${var.harness_project_id}
-      environmentRef: ${each.value.identifier}
-      deploymentType: CustomDeployment
-      type: CustomDeployment
-      spec:
-        customDeploymentRef:
-          templateRef: Custom
-          versionLabel: "1.0"
-        variables: []
-        # Minimal deployment template (.harness/.../templates/Custom/v1_0.yaml)
-        # exists to satisfy Harness validation requirements for CustomDeployment type.
-        # Actual deployment logic is in Step Group Template (Coordinated_DB_App_Deployment)
-      allowSimultaneousDeployments: false
-  EOT
-
-  tags = [
-    "demo_id:${var.demo_id}",
-    "environment:${each.key}",
-    "managed_by:terraform"
-  ]
-}
+#   identifier      = "${each.value.identifier}_infra"
+#   name            = "${each.value.name} Infrastructure"
+#   org_id          = var.harness_org_id
+#   project_id      = var.harness_project_id
+#   env_id          = harness_platform_environment.demo_environments[each.key].id
+#   type            = "CustomDeployment"
+#   deployment_type = "CustomDeployment"
+#
+#   yaml = <<-EOT
+#     infrastructureDefinition:
+#       name: ${each.value.name} Infrastructure
+#       identifier: ${each.value.identifier}_infra
+#       orgIdentifier: ${var.harness_org_id}
+#       projectIdentifier: ${var.harness_project_id}
+#       environmentRef: ${each.value.identifier}
+#       deploymentType: CustomDeployment
+#       type: CustomDeployment
+#       spec:
+#         customDeploymentRef:
+#           templateRef: Custom
+#           versionLabel: "1.0"
+#         variables: []
+#         # Minimal deployment template (.harness/.../templates/Custom/v1_0.yaml)
+#         # exists to satisfy Harness validation requirements for CustomDeployment type.
+#         # Actual deployment logic is in Step Group Template (Coordinated_DB_App_Deployment)
+#       allowSimultaneousDeployments: false
+#   EOT
+#
+#   tags = [
+#     "demo_id:${var.demo_id}",
+#     "environment:${each.key}",
+#     "managed_by:terraform"
+#   ]
+# }
 
 # Output infrastructure definition identifiers for reference
-output "harness_infrastructure_identifiers" {
-  description = "Harness infrastructure definition identifiers created"
-  value = {
-    for env in local.environments :
-    env => harness_platform_infrastructure.demo_infrastructures[env].identifier
-  }
-}
+# COMMENTED OUT - Infrastructure definitions now managed in Git
+# output "harness_infrastructure_identifiers" {
+#   description = "Harness infrastructure definition identifiers created"
+#   value = {
+#     for env in local.environments :
+#     env => harness_platform_infrastructure.demo_infrastructures[env].identifier
+#   }
+# }
 
 # Usage in Harness Pipeline:
 # Instead of: (no infrastructure definitions → pipeline fails)

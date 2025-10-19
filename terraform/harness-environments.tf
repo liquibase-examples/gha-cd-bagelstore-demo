@@ -78,6 +78,10 @@ locals {
         aws_region  = var.aws_region
         environment = env
 
+        # Secrets Manager ARNs (not used in local mode, but required for template compatibility)
+        secrets_username_arn = "local-mode-not-applicable"
+        secrets_password_arn = "local-mode-not-applicable"
+
         # DNS configuration
         dns_record = "localhost"
       }
@@ -212,6 +216,17 @@ resource "harness_platform_environment" "demo_environments" {
           type: String
           value: "${local.ecr_public_alias}"
           description: "AWS Public ECR registry alias for Docker images"
+
+        # AWS Secrets Manager ARNs (for App Runner RuntimeEnvironmentSecrets)
+        - name: secrets_username_arn
+          type: String
+          value: "${each.value.variables.secrets_username_arn}"
+          description: "ARN of AWS Secrets Manager secret for database username"
+
+        - name: secrets_password_arn
+          type: String
+          value: "${each.value.variables.secrets_password_arn}"
+          description: "ARN of AWS Secrets Manager secret for database password"
   EOT
 
   # Note: depends_on removed since AWS resources are now conditional
