@@ -428,22 +428,32 @@ When a pipeline execution fails or is aborted, follow this workflow:
 - Shows: Run #, status, trigger type, execution ID
 - Use execution ID for next steps
 
-**Step 2: If webhook-triggered, check trigger processing**
+**Step 2: If webhook-triggered, check trigger processing** (NEW SCRIPT!)
 ```bash
-# Get event correlation ID from webhook response
+# Use new check-webhook-trigger.sh script
+./scripts/harness/check-webhook-trigger.sh <EVENT_CORRELATION_ID>
+
+# Or manually:
 curl -s "https://app.harness.io/gateway/pipeline/api/webhook/triggerExecutionDetailsV2/{EVENT_ID}?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw" | \
   jq '.data.webhookProcessingDetails | {status, exception, message}'
 ```
 - Catches: `INVALID_RUNTIME_INPUT_YAML`, template validation errors, input set issues
 - If `exceptionOccured: true`, fix template/trigger before proceeding
 
-**Step 3: Diagnose execution failure** (FAST - API only)
+**Step 3: Diagnose execution failure** (FAST - API only, ENHANCED!)
 ```bash
 ./scripts/harness/diagnose-execution-failure.sh <EXECUTION_ID>
 ```
-- Shows: Failed/aborted steps, error messages, abort reason
+- Shows: Failed/aborted steps, detailed error messages, exit codes, log URLs
+- **NEW:** Detects systemUser aborts and directs you to UI console
+- **NEW:** Extracts detailed errors from responseMessages[] array
 - Time: ~2 seconds
 - **Use this first** for quick root cause identification
+
+**For specific step details:**
+```bash
+./scripts/harness/get-step-error-details.sh <EXECUTION_ID> "Step Name"
+```
 
 **Step 4: Download full logs if needed** (SLOW - downloads ZIP)
 ```bash
@@ -554,6 +564,156 @@ gh variable set HARNESS_WEBHOOK_URL --body "<URL>"
 - Infrastructure definition references non-existent resources
 - Environment variables have unresolvable Harness expressions
 - CustomDeployment template not found or invalid
+
+---
+
+#### Pattern: systemUser Abort (Artifact/Resource Not Found)
+
+**NEW:** Enhanced diagnostic script now detects this pattern automatically!
+
+**Symptom:**
+- Status = Aborted
+- `abortedBy: "systemUser"` (not a human)
+- `executionGraph` is empty or has no failed steps
+- **API returns `failureInfo: null` and `executionErrorInfo: null`**
+
+**Root Cause:** Pipeline aborted during stage initialization BEFORE any steps executed. Common triggers:
+- **Artifact resolution failed** (GitHub artifact not found - most common!)
+- Infrastructure definition validation failed
+- Delegate task assignment failed
+- Service definition invalid
+
+**CRITICAL: API Cannot Provide Error Details!**
+
+When execution aborts during initialization, the error message is ONLY visible in the Harness UI Console. The API will return `null` for all error fields because no steps were executed.
+
+**Diagnostic Workflow:**
+
+```bash
+# 1. Run enhanced diagnostic script (detects pattern automatically)
+./scripts/harness/diagnose-execution-failure.sh <EXEC_ID>
+
+# If it shows "DETECTED: systemUser Abort During Stage Initialization":
+# ⚠️  API cannot help - proceed to UI
+```
+
+**Output Example:**
+```
+⚠️  DETECTED: systemUser Abort During Stage Initialization
+
+This typically means:
+  • Artifact resolution failed (GitHub artifact not found)
+  • Infrastructure definition missing/invalid
+  • Delegate offline or unavailable
+  • Environment variable resolution failed
+
+API cannot provide error details for initialization failures.
+
+ACTION REQUIRED: Check Harness UI Console
+1. Go to: https://app.harness.io/...
+2. Click 'Console View' tab
+3. Expand the aborted stage
+4. Read the console output for the actual error message
+```
+
+**In Harness UI Console, Look For:**
+- `❌ Failed to find artifact: changelog-xyz` ← Artifact naming mismatch
+- `Error: Infrastructure definition 'xxx' not found` ← Missing infrastructure
+- `No delegate could be assigned` ← Delegate offline
+- `Error resolving expression: <+env.variables.xyz>` ← Variable issue
+
+**Common Solutions:**
+
+| Error in UI Console | Solution |
+|---------------------|----------|
+| "Failed to find artifact: changelog-X" | Check artifact naming in GitHub Actions vs. pipeline VERSION variable |
+| "Infrastructure definition not found" | Verify infrastructure YAML exists in `.harness/` and is synced |
+| "No delegate could be assigned" | Check delegate status: `./scripts/harness/get-delegate-logs.sh` |
+| "Error resolving expression" | Verify environment variable exists and is populated |
+
+**Real Example from 2025-01-19:**
+
+```
+Console Output:
+  ❌ Failed to find artifact: changelog-main-edde11c
+  Available artifacts:
+    changelog-dev-3df91b6
+    changelog-dev-ab91d58
+    ...
+
+Root Cause: GitHub Actions created "changelog-dev-<sha>" but pipeline expected "changelog-main-<sha>"
+Fix: Aligned version format between GitHub Actions and trigger script
+```
+
+**Key Takeaway:**
+- ✅ **Use API** for step-level failures (after execution begins)
+- ❌ **Use UI Console** for systemUser aborts (initialization failures)
+- The enhanced `diagnose-execution-failure.sh` now **detects this pattern and directs you to UI**
+
+---
+
+#### Pattern: Step fails with detailed error in responseMessages array
+
+**NEW:** Enhanced diagnostic script now extracts these automatically!
+
+**Symptom:**
+- Step status = Failed or Aborted
+- Generic error: "Shell Script execution failed. Please check execution logs."
+- API response has data, but error is buried
+
+**Root Cause:** Detailed errors are in `.failureInfo.responseMessages[]`, not `.failureInfo.message`
+
+**Solution:**
+
+```bash
+# Option 1: Use enhanced diagnostic script (extracts automatically)
+./scripts/harness/diagnose-execution-failure.sh <EXEC_ID>
+
+# Now shows "Detailed Diagnostics" section with:
+#   • Detailed Error Messages (from responseMessages array)
+#   • Exit Codes
+#   • Console Log URLs
+
+# Option 2: Get details for specific step
+./scripts/harness/get-step-error-details.sh <EXEC_ID> "Step Name"
+```
+
+**Output Example:**
+```
+Detailed Diagnostics
+=========================================
+
+Detailed Error Messages:
+  Fetch Changelog Artifact:
+    • Failed to find artifact: changelog-main-edde11c
+    • Artifact download returned 404 Not Found
+
+Exit Codes:
+  Fetch Changelog Artifact: exit code 1
+```
+
+**Manual API Extraction:**
+```bash
+EXEC_ID="abc123..."
+
+./scripts/harness/harness-api.sh GET \
+  "/pipeline/api/pipelines/execution/${EXEC_ID}?accountIdentifier=..." \
+  '.data.executionGraph.nodeMap |
+   to_entries[] |
+   select(.value.status == "Failed" or .value.status == "Aborted") |
+   {
+     step: .value.name,
+     genericError: .value.failureInfo.message,
+     detailedErrors: [.value.failureInfo.responseMessages[]? | select(.level == "ERROR") | .message],
+     exitCode: .value.outcomes.output.exitCode
+   }'
+```
+
+**Key Fields to Check (In Order):**
+1. `.failureInfo.responseMessages[]` - **Detailed errors array (check here FIRST!)**
+2. `.failureInfo.message` - Generic summary (often unhelpful)
+3. `.outcomes.output.exitCode` - Exit code (1 = failure)
+4. `.outcomes.log.url` - Console log download URL (requires special token)
 
 ---
 

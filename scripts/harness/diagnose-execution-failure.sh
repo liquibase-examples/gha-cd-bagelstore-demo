@@ -199,6 +199,107 @@ echo "$PROBLEM_NODES" | jq -r '.[] | @json' | while read -r node; do
   fi
 done
 
+# Check for detailed error messages and exit codes
+echo ""
+echo "========================================="
+echo "Detailed Diagnostics"
+echo "========================================="
+
+# Extract detailed error messages from responseMessages array
+DETAILED_ERRORS=$(echo "$EXEC_RESPONSE" | jq -r '
+  .data.executionGraph.nodeMap // {} |
+  to_entries[] |
+  select(.value.status != "Success" and .value.status != "NotStarted" and .value.status != "Skipped") |
+  {
+    step: .value.name,
+    uuid: .key,
+    errors: [.value.failureInfo.responseMessages[]? | select(.level == "ERROR") | .message]
+  } |
+  select(.errors | length > 0)
+' | jq -s '.')
+
+if [ "$(echo "$DETAILED_ERRORS" | jq 'length')" -gt 0 ]; then
+  echo ""
+  echo -e "${RED}Detailed Error Messages:${NC}"
+  echo "$DETAILED_ERRORS" | jq -r '.[] | @json' | while read -r item; do
+    STEP=$(echo "$item" | jq -r '.step')
+    echo ""
+    echo -e "  ${BOLD}$STEP:${NC}"
+    echo "$item" | jq -r '.errors[]' | while IFS= read -r err; do
+      echo "    • $err"
+    done
+  done
+  echo ""
+fi
+
+# Show exit codes
+EXIT_CODES=$(echo "$EXEC_RESPONSE" | jq -r '
+  .data.executionGraph.nodeMap // {} |
+  to_entries[] |
+  select(.value.status != "Success" and .value.status != "NotStarted" and .value.status != "Skipped") |
+  select(.value.outcomes.output.exitCode != null) |
+  {
+    step: .value.name,
+    exitCode: .value.outcomes.output.exitCode
+  }
+' | jq -s '.')
+
+if [ "$(echo "$EXIT_CODES" | jq 'length')" -gt 0 ]; then
+  echo ""
+  echo -e "${YELLOW}Exit Codes:${NC}"
+  echo "$EXIT_CODES" | jq -r '.[] | "  \(.step): exit code \(.exitCode)"'
+  echo ""
+fi
+
+# Check for log URLs
+LOG_URLS=$(echo "$EXEC_RESPONSE" | jq -r '
+  .data.executionGraph.nodeMap // {} |
+  to_entries[] |
+  select(.value.status != "Success" and .value.status != "NotStarted" and .value.status != "Skipped") |
+  select(.value.outcomes.log.url != null) |
+  {
+    step: .value.name,
+    logUrl: .value.outcomes.log.url
+  }
+' | jq -s '.')
+
+if [ "$(echo "$LOG_URLS" | jq 'length')" -gt 0 ]; then
+  echo ""
+  echo -e "${CYAN}Console Log URLs:${NC}"
+  echo "$LOG_URLS" | jq -r '.[] | @json' | while read -r item; do
+    STEP=$(echo "$item" | jq -r '.step')
+    URL=$(echo "$item" | jq -r '.logUrl')
+    echo "  $STEP:"
+    echo "    $URL"
+  done
+  echo ""
+  echo -e "${YELLOW}Note: Log download requires special token (use get-execution-logs.sh instead)${NC}"
+  echo ""
+fi
+
+# Check for systemUser abort (initialization failure pattern)
+ABORTED_BY=$(echo "$EXEC_RESPONSE" | jq -r '.data.pipelineExecutionSummary.layoutNodeMap | to_entries[] | select(.value.status == "Aborted") | .value.nodeRunInfo.whoAborted.email // empty' | head -1)
+
+if [ "$STATUS" = "Aborted" ] && [ "$ABORTED_BY" = "systemUser" ] && [ "$PROBLEM_COUNT" -eq 0 ]; then
+  echo ""
+  echo -e "${RED}⚠️  DETECTED: systemUser Abort During Stage Initialization${NC}"
+  echo ""
+  echo "This typically means:"
+  echo "  • Artifact resolution failed (GitHub artifact not found)"
+  echo "  • Infrastructure definition missing/invalid"
+  echo "  • Delegate offline or unavailable"
+  echo "  • Environment variable resolution failed"
+  echo ""
+  echo -e "${YELLOW}API cannot provide error details for initialization failures.${NC}"
+  echo ""
+  echo -e "${BOLD}ACTION REQUIRED: Check Harness UI Console${NC}"
+  echo "1. Go to: https://app.harness.io/ng/account/_dYBmxlLQu61cFhvdkV4Jw/cd/orgs/default/projects/bagel_store_demo/pipelines/Deploy_Bagel_Store/executions/$EXECUTION_ID/pipeline"
+  echo "2. Click 'Console View' tab"
+  echo "3. Expand the aborted stage"
+  echo "4. Read the console output for the actual error message"
+  echo ""
+fi
+
 echo ""
 echo "========================================="
 echo "Next Steps"
