@@ -133,11 +133,15 @@ if [ "$PROBLEM_COUNT" -eq 0 ]; then
     echo "$EXEC_ERROR" | jq .
   fi
 
-  exit 0
+  # Don't exit here - continue to systemUser abort detection below
+else
+  # Only show step details if there are problem steps
+  echo -e "${YELLOW}Found $PROBLEM_COUNT step(s) with issues:${NC}"
+  echo ""
 fi
 
-echo -e "${YELLOW}Found $PROBLEM_COUNT step(s) with issues:${NC}"
-echo ""
+# Only show table and failure details if there are problems
+if [ "$PROBLEM_COUNT" -gt 0 ]; then
 
 # Display problem nodes in table format
 printf "%-40s %-15s %-10s\n" "STEP NAME" "STATUS" "DURATION"
@@ -198,6 +202,8 @@ echo "$PROBLEM_NODES" | jq -r '.[] | @json' | while read -r node; do
     echo "  $FAILURE_MSG" | fold -w 76 -s | sed 's/^/    /'
   fi
 done
+
+fi  # End of "if PROBLEM_COUNT > 0" block
 
 # Check for detailed error messages and exit codes
 echo ""
