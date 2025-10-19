@@ -62,15 +62,20 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   export AWS_SECRET_ACCESS_KEY
   export AWS_DEFAULT_REGION="${AWS_REGION}"
 
-  # Build database URL with Secrets Manager references
-  DB_URL="postgresql://\${awsSecretsManager:${DEMO_ID}/rds/username}:\${awsSecretsManager:${DEMO_ID}/rds/password}@${RDS_ADDRESS}:${RDS_PORT}/${DATABASE_NAME}"
+  # Get Secrets Manager ARNs from AWS parameters
+  SECRETS_USERNAME_ARN=$(echo "$AWS_PARAMS_JSON" | jq -r '.secrets_username_arn')
+  SECRETS_PASSWORD_ARN=$(echo "$AWS_PARAMS_JSON" | jq -r '.secrets_password_arn')
 
   # Extract ECR alias from AWS parameters
   ECR_ALIAS=$(echo "$AWS_PARAMS_JSON" | jq -r '.ecr_public_alias')
   IMAGE_URL="public.ecr.aws/${ECR_ALIAS}/${DEMO_ID}-bagel-store:${VERSION}"
 
   echo "Deploying Docker image: ${IMAGE_URL}"
+  echo "Using AWS Secrets Manager for database credentials (native App Runner integration)"
 
+  # Update App Runner service with new image
+  # CRITICAL: Must include runtime_environment_secrets to preserve Terraform configuration
+  # App Runner natively resolves these secrets at runtime
   aws apprunner update-service \
     --service-arn "${SERVICE_ARN}" \
     --source-configuration "{
@@ -80,9 +85,18 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
         \"ImageConfiguration\": {
           \"Port\": \"5000\",
           \"RuntimeEnvironmentVariables\": {
-            \"DATABASE_URL\": \"${DB_URL}\",
             \"FLASK_ENV\": \"production\",
-            \"APP_VERSION\": \"${VERSION}\"
+            \"APP_VERSION\": \"${VERSION}\",
+            \"DB_HOST\": \"${RDS_ADDRESS}\",
+            \"DB_PORT\": \"${RDS_PORT}\",
+            \"DB_NAME\": \"${DATABASE_NAME}\",
+            \"DEMO_ID\": \"${DEMO_ID}\",
+            \"DEMO_USERNAME\": \"demo\",
+            \"DEMO_PASSWORD\": \"bagels123\"
+          },
+          \"RuntimeEnvironmentSecrets\": {
+            \"DB_USERNAME\": \"${SECRETS_USERNAME_ARN}\",
+            \"DB_PASSWORD\": \"${SECRETS_PASSWORD_ARN}\"
           }
         }
       }

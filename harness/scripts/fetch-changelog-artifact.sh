@@ -2,7 +2,7 @@
 # Fetch Changelog Artifact from GitHub Actions
 #
 # Downloads the changelog artifact from GitHub Actions artifact storage
-# and extracts it to /tmp/changelog for use by Liquibase.
+# and extracts it to a Docker volume for use by Liquibase.
 #
 # Usage:
 #   fetch-changelog-artifact.sh <VERSION> <GITHUB_ORG> <GITHUB_PAT>
@@ -32,17 +32,18 @@ GITHUB_PAT="$3"
 # ===== Configuration =====
 REPO="${GITHUB_ORG}/gha-cd-bagelstore-demo"
 ARTIFACT_NAME="changelog-${VERSION}"
-WORK_DIR="/tmp/changelog"
+VOLUME_NAME="harness-changelog-data"
+WORK_DIR="/changelog"
 
 # ===== Main Logic =====
 echo "=== Fetching Changelog Artifact ==="
 echo "Version: ${VERSION}"
 echo "Repository: ${REPO}"
 echo "Artifact: ${ARTIFACT_NAME}"
+echo "Volume: ${VOLUME_NAME}"
 
-# Create working directory
-mkdir -p "${WORK_DIR}"
-cd "${WORK_DIR}"
+# Create Docker volume if it doesn't exist
+docker volume create "${VOLUME_NAME}" >/dev/null 2>&1 || true
 
 # Get artifact download URL from GitHub API
 echo "Querying GitHub API for artifact..."
@@ -65,19 +66,41 @@ fi
 
 echo "Downloading from: ${ARTIFACT_URL}"
 
-# Download artifact (GitHub returns a zip containing the tar.gz)
-curl -L \
-  -H "Authorization: token ${GITHUB_PAT}" \
-  -o artifact.zip \
-  "${ARTIFACT_URL}"
+# Download and extract into Docker volume using a temporary container
+TEMP_CONTAINER="changelog-fetch-$$"
 
-# Unzip the artifact
-echo "Extracting artifact..."
-unzip -q artifact.zip
-rm artifact.zip
+# Run container in background to download and extract
+docker run --rm \
+  -v "${VOLUME_NAME}:${WORK_DIR}" \
+  -e "GITHUB_PAT=${GITHUB_PAT}" \
+  -e "ARTIFACT_URL=${ARTIFACT_URL}" \
+  -e "VERSION=${VERSION}" \
+  --name "${TEMP_CONTAINER}" \
+  alpine:latest \
+  sh -c '
+    # Install dependencies
+    apk add --no-cache curl unzip >/dev/null 2>&1
 
-# Extract the tar.gz changelog
-tar -xzf "bagel-store-changelog-${VERSION}.tar.gz"
+    cd /changelog
 
-echo "✅ Changelog extracted successfully"
-ls -la
+    # Download artifact
+    curl -L \
+      -H "Authorization: token ${GITHUB_PAT}" \
+      -o artifact.zip \
+      "${ARTIFACT_URL}"
+
+    # Extract artifact (GitHub returns a zip containing the tar.gz)
+    echo "Extracting artifact..."
+    unzip -o -q artifact.zip
+    rm artifact.zip
+
+    # Extract the tar.gz changelog
+    tar -xzf "bagel-store-changelog-${VERSION}.tar.gz"
+
+    echo "✅ Changelog extracted successfully"
+    ls -la
+  '
+
+echo ""
+echo "✅ fetch-changelog-artifact.sh completed"
+echo "   Changelog stored in Docker volume: ${VOLUME_NAME}"

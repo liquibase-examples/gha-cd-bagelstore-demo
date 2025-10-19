@@ -34,7 +34,7 @@ AWS_PARAMS_JSON="$4"
 SECRETS_JSON="$5"
 
 # ===== Configuration =====
-CHANGELOG_DIR="/tmp/changelog"
+VOLUME_NAME="harness-changelog-data"
 LIQUIBASE_VERSION="5.0.1"
 
 # ===== Main Logic =====
@@ -70,7 +70,7 @@ region = ${AWS_REGION}
 EOF
 
   docker run --rm \
-    -v "${CHANGELOG_DIR}:/liquibase/changelog" \
+    -v "${VOLUME_NAME}:/liquibase/changelog" \
     -v "${AWS_CONFIG_DIR}:/root/.aws:ro" \
     -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
     -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
@@ -102,7 +102,7 @@ else
   # Connect to Docker Compose network
   docker run --rm \
     --network harness-gha-bagelstore_bagel-network \
-    -v "${CHANGELOG_DIR}:/liquibase/changelog" \
+    -v "${VOLUME_NAME}:/liquibase/changelog" \
     -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
     "liquibase/liquibase-secure:${LIQUIBASE_VERSION}" \
     --url="jdbc:postgresql://postgres-${ENVIRONMENT}:5432/${ENVIRONMENT}" \

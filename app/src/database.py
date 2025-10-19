@@ -9,8 +9,23 @@ from contextlib import contextmanager
 
 
 def get_db_url():
-    """Get database URL from environment variable"""
-    return os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/dev')
+    """Get database URL from environment variable or build from components"""
+    # Option 1: Use DATABASE_URL if provided (local development)
+    if os.environ.get('DATABASE_URL'):
+        return os.environ.get('DATABASE_URL')
+
+    # Option 2: Build from individual components (AWS deployment with Secrets Manager)
+    db_username = os.environ.get('DB_USERNAME')
+    db_password = os.environ.get('DB_PASSWORD')
+    db_host = os.environ.get('DB_HOST')
+    db_port = os.environ.get('DB_PORT', '5432')
+    db_name = os.environ.get('DB_NAME')
+
+    if all([db_username, db_password, db_host, db_name]):
+        return f'postgresql://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}'
+
+    # Fallback for local development
+    return 'postgresql://postgres:postgres@localhost:5432/dev'
 
 
 @contextmanager
