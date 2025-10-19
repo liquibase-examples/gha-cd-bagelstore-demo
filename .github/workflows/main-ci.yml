@@ -240,7 +240,9 @@ jobs:
         run: |
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$VERSION" ]; then
-            VERSION="dev-$(git rev-parse --short HEAD)"
+            BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${BRANCH}-${SHORT_SHA}"
           fi
           VERSION=${VERSION#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT

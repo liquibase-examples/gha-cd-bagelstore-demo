@@ -278,9 +278,11 @@ if [ "$(echo "$LOG_URLS" | jq 'length')" -gt 0 ]; then
 fi
 
 # Check for systemUser abort (initialization failure pattern)
+# Note: whoAborted can be null, empty, or "systemUser" - all indicate system abort
 ABORTED_BY=$(echo "$EXEC_RESPONSE" | jq -r '.data.pipelineExecutionSummary.layoutNodeMap | to_entries[] | select(.value.status == "Aborted") | .value.nodeRunInfo.whoAborted.email // empty' | head -1)
 
-if [ "$STATUS" = "Aborted" ] && [ "$ABORTED_BY" = "systemUser" ] && [ "$PROBLEM_COUNT" -eq 0 ]; then
+# Detect systemUser abort: Status=Aborted + no executed steps + (whoAborted is null/empty OR equals "systemUser")
+if [ "$STATUS" = "Aborted" ] && [ "$PROBLEM_COUNT" -eq 0 ]; then
   echo ""
   echo -e "${RED}⚠️  DETECTED: systemUser Abort During Stage Initialization${NC}"
   echo ""
