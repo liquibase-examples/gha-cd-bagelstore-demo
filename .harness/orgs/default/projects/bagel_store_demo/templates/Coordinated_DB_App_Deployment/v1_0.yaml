@@ -13,15 +13,17 @@ template:
     Supports both AWS (RDS + App Runner) and Local (Docker Compose) deployment modes.
 
     Steps:
-    1. Fetch Changelog Artifact - Downloads changelog zip from GitHub Packages
+    1. Fetch Changelog Artifact - Downloads changelog zip from GitHub Actions artifacts
     2. Update Database - Runs Liquibase update via Docker container
-    3a. Update SSM Image Tag - Writes image version to SSM Parameter Store
-    3b. Deploy Application via Terraform - Runs terraform apply (reads SSM, updates App Runner)
+    3. Deploy Application - Updates App Runner (AWS) or Docker Compose (local) via deployment script
     4. Health Check - Verifies deployment success with version check
     5. Fetch Instances - Reports instance information to Harness for tracking
 
-    NOTE: Terraform files must be available on delegate at /opt/harness-delegate/terraform
-    (mounted from repository or cloned separately)
+    Architecture:
+    - Uses external deployment scripts (bind mounted to delegate from harness/scripts/)
+    - Scripts update automatically on git push (no UI refresh needed)
+    - For AWS: Calls aws apprunner update-service directly (no Terraform)
+    - For local: Updates Docker Compose with new version
 
     Environment variables used (automatically resolved from stage context):
     - env.variables.environment: Target environment (dev/test/staging/prod)
@@ -34,6 +36,9 @@ template:
     - env.variables.app_runner_service_url: App Runner service URL
     - env.variables.liquibase_flows_bucket: S3 bucket for flow files
     - env.variables.aws_region: AWS region
+    - env.variables.secrets_username_arn: AWS Secrets Manager ARN for DB username
+    - env.variables.secrets_password_arn: AWS Secrets Manager ARN for DB password
+    - env.variables.ecr_public_alias: ECR public alias for Docker images
 
     Pipeline variables used:
     - pipeline.variables.VERSION: Git tag version to deploy
@@ -108,11 +113,11 @@ template:
             outputVariables: []
           timeout: 10m
 
-      # Step 3a: Clone Terraform code
+      # Step 3: Deploy application
       - step:
           type: ShellScript
-          name: Clone Terraform Code
-          identifier: Clone_Terraform_Code
+          name: Deploy Application
+          identifier: Deploy_Application
           spec:
             shell: Bash
             executionTarget: {}
@@ -120,131 +125,41 @@ template:
               type: Inline
               spec:
                 script: |-
-                  # Clone repository to get Terraform files
-                  # Delegate needs Terraform code to run terraform apply
-                  # Uses Git credential helper to avoid exposing PAT in logs
+                  # Build AWS parameters JSON
+                  AWS_PARAMS=$(cat <<'EOF'
+                  {
+                    "app_runner_service_arn": "<+env.variables.app_runner_service_arn>",
+                    "aws_region": "<+env.variables.aws_region>",
+                    "demo_id": "<+env.variables.demo_id>",
+                    "rds_address": "<+env.variables.rds_address>",
+                    "rds_port": "<+env.variables.rds_port>",
+                    "database_name": "<+env.variables.database_name>",
+                    "secrets_username_arn": "<+env.variables.secrets_username_arn>",
+                    "secrets_password_arn": "<+env.variables.secrets_password_arn>",
+                    "ecr_public_alias": "<+env.variables.ecr_public_alias>"
+                  }
+                  EOF
+                  )
 
-                  WORK_DIR="/tmp/harness-terraform-$$"
-                  mkdir -p "$WORK_DIR"
-                  cd "$WORK_DIR"
+                  # Build secrets JSON
+                  SECRETS=$(cat <<'EOF'
+                  {
+                    "aws_access_key_id": "<+secrets.getValue('aws_access_key_id')>",
+                    "aws_secret_access_key": "<+secrets.getValue('aws_secret_access_key')>"
+                  }
+                  EOF
+                  )
 
-                  # Configure Git credential helper (avoids PAT in URL/logs)
-                  git config --global credential.helper store
-                  echo "https://<+secrets.getValue('github_pat')>@github.com" > ~/.git-credentials
-                  chmod 600 ~/.git-credentials
-
-                  echo "Cloning repository..."
-                  git clone --depth 1 --branch main \
-                    https://github.com/<+pipeline.variables.GITHUB_ORG>/harness-gha-bagelstore.git
-
-                  echo "Copying Terraform files to delegate..."
-                  mkdir -p /opt/harness-delegate/terraform
-                  cp -r harness-gha-bagelstore/terraform/* /opt/harness-delegate/terraform/
-
-                  echo "✅ Terraform code ready at /opt/harness-delegate/terraform"
-
-                  # Cleanup credentials and working directory
-                  rm -f ~/.git-credentials
-                  git config --global --unset credential.helper
-                  cd /
-                  rm -rf "$WORK_DIR"
+                  /opt/harness-delegate/scripts/deploy-application.sh \
+                    "<+env.variables.environment>" \
+                    "<+pipeline.variables.VERSION>" \
+                    "<+pipeline.variables.GITHUB_ORG>" \
+                    "${DEPLOYMENT_TARGET:-aws}" \
+                    "$AWS_PARAMS" \
+                    "$SECRETS"
             environmentVariables: []
             outputVariables: []
-          timeout: 3m
-
-      # Step 3b: Update SSM Parameter with image tag
-      - step:
-          type: ShellScript
-          name: Update SSM Image Tag
-          identifier: Update_SSM_Image_Tag
-          spec:
-            shell: Bash
-            executionTarget: {}
-            source:
-              type: Inline
-              spec:
-                script: |-
-                  # Write image tag to SSM Parameter Store
-                  # Terraform will read this value when applying infrastructure changes
-
-                  # Configure AWS credentials
-                  export AWS_ACCESS_KEY_ID="<+secrets.getValue('aws_access_key_id')>"
-                  export AWS_SECRET_ACCESS_KEY="<+secrets.getValue('aws_secret_access_key')>"
-                  export AWS_DEFAULT_REGION="<+env.variables.aws_region>"
-
-                  echo "Writing image tag to SSM: /<+env.variables.demo_id>/image-tags/<+env.variables.environment>"
-
-                  aws ssm put-parameter \
-                    --name "/<+env.variables.demo_id>/image-tags/<+env.variables.environment>" \
-                    --value "<+pipeline.variables.VERSION>" \
-                    --type String \
-                    --overwrite \
-                    --region <+env.variables.aws_region>
-
-                  echo "✅ SSM parameter updated: <+pipeline.variables.VERSION>"
-            environmentVariables: []
-            outputVariables: []
-          timeout: 2m
-
-      # Step 3c: Deploy application via Terraform
-      - step:
-          type: ShellScript
-          name: Deploy Application via Terraform
-          identifier: Deploy_Application_Terraform
-          spec:
-            shell: Bash
-            executionTarget: {}
-            source:
-              type: Inline
-              spec:
-                script: |-
-                  # Deploy application by running Terraform apply
-                  # Terraform reads image tag from SSM and updates App Runner service
-
-                  echo "Deploying via Terraform for environment: <+env.variables.environment>"
-
-                  cd /opt/harness-delegate/terraform
-
-                  # Configure credentials for AWS provider
-                  export AWS_ACCESS_KEY_ID="<+secrets.getValue('aws_access_key_id')>"
-                  export AWS_SECRET_ACCESS_KEY="<+secrets.getValue('aws_secret_access_key')>"
-                  export AWS_DEFAULT_REGION="<+env.variables.aws_region>"
-
-                  # Configure credentials for Harness provider (required during init)
-                  export HARNESS_PLATFORM_API_KEY="<+secrets.getValue('harness_api_key')>"
-
-                  # Configure credentials for GitHub provider (required during init)
-                  export GITHUB_TOKEN="<+secrets.getValue('github_pat')>"
-
-                  # Initialize Terraform (loads S3 backend + all providers)
-                  echo "Initializing Terraform..."
-                  terraform init -input=false
-
-                  # Apply targeted update to specific environment's App Runner service
-                  echo "Applying changes to App Runner service..."
-                  terraform apply \
-                    -target='aws_apprunner_service.bagel_store["<+env.variables.environment>"]' \
-                    -var='demo_id=<+env.variables.demo_id>' \
-                    -var='deployment_mode=aws' \
-                    -var='aws_region=<+env.variables.aws_region>' \
-                    -var='github_org=<+pipeline.variables.GITHUB_ORG>' \
-                    -var='github_repo=harness-gha-bagelstore' \
-                    -var='github_username=git' \
-                    -var='github_pat=placeholder' \
-                    -var='harness_account_id=<+account.identifier>' \
-                    -var='harness_api_key=placeholder' \
-                    -var='harness_org_id=<+org.identifier>' \
-                    -var='harness_project_id=<+project.identifier>' \
-                    -var='aws_access_key_id=placeholder' \
-                    -var='aws_secret_access_key=placeholder' \
-                    -var='liquibase_license_key=placeholder' \
-                    -auto-approve \
-                    -input=false
-
-                  echo "✅ Terraform apply completed"
-            environmentVariables: []
-            outputVariables: []
-          timeout: 15m
+          timeout: 10m
 
       # Step 4: Health check
       - step:
