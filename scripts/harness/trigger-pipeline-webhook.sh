@@ -49,10 +49,11 @@ if [ -z "$VERSION" ]; then
     VERSION=$(git describe --exact-match --tags HEAD)
     echo -e "${GREEN}✓ Detected tag version: $VERSION${NC}"
   else
-    # Use branch-commit format (same as GitHub Actions)
-    BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    VERSION="${BRANCH}-${SHORT_SHA}"
+    # Use dev-commit format (MUST match GitHub Actions main-ci.yml line 149)
+    # GitHub Actions always uses "dev-" prefix when no tag exists
+    VERSION="dev-${SHORT_SHA}"
     echo -e "${GREEN}✓ Detected commit version: $VERSION${NC}"
+    echo -e "${YELLOW}Note: GitHub Actions builds images as 'dev-<sha>' when no git tag exists${NC}"
   fi
 else
   # Get commit SHA for provided version
