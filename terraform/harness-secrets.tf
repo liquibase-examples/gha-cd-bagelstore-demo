@@ -85,6 +85,25 @@ resource "harness_platform_secret_text" "liquibase_license_key" {
   ]
 }
 
+# Harness API Key
+# Used by: Terraform Harness provider initialization on delegate
+resource "harness_platform_secret_text" "harness_api_key" {
+  identifier  = "harness_api_key"
+  name        = "harness-api-key"
+  description = "Harness Platform API key for Terraform provider initialization"
+  org_id      = var.harness_org_id
+  project_id  = var.harness_project_id
+
+  secret_manager_identifier = "harnessSecretManager"
+  value_type                = "Inline"
+  value                     = var.harness_api_key
+
+  tags = [
+    "demo_id:${var.demo_id}",
+    "managed_by:terraform"
+  ]
+}
+
 # Output secret identifiers for reference
 output "harness_secret_identifiers" {
   description = "Harness secret identifiers created"
@@ -93,6 +112,7 @@ output "harness_secret_identifiers" {
     aws_access_key_id     = harness_platform_secret_text.aws_access_key_id.identifier
     aws_secret_access_key = harness_platform_secret_text.aws_secret_access_key.identifier
     liquibase_license_key = harness_platform_secret_text.liquibase_license_key.identifier
+    harness_api_key       = harness_platform_secret_text.harness_api_key.identifier
   }
 }
 

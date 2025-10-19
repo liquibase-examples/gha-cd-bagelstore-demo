@@ -204,17 +204,39 @@ template:
 
                   cd /opt/harness-delegate/terraform
 
-                  # Configure AWS credentials for Terraform
+                  # Configure credentials for AWS provider
                   export AWS_ACCESS_KEY_ID="<+secrets.getValue('aws_access_key_id')>"
                   export AWS_SECRET_ACCESS_KEY="<+secrets.getValue('aws_secret_access_key')>"
                   export AWS_DEFAULT_REGION="<+env.variables.aws_region>"
 
-                  # Initialize Terraform (loads S3 backend)
+                  # Configure credentials for Harness provider (required during init)
+                  export HARNESS_PLATFORM_API_KEY="<+secrets.getValue('harness_api_key')>"
+
+                  # Configure credentials for GitHub provider (required during init)
+                  export GITHUB_TOKEN="<+secrets.getValue('github_pat')>"
+
+                  # Initialize Terraform (loads S3 backend + all providers)
+                  echo "Initializing Terraform..."
                   terraform init -input=false
 
                   # Apply targeted update to specific environment's App Runner service
+                  echo "Applying changes to App Runner service..."
                   terraform apply \
-                    -target="aws_apprunner_service.bagel_store[\"<+env.variables.environment>\"]" \
+                    -target='aws_apprunner_service.bagel_store["<+env.variables.environment>"]' \
+                    -var='demo_id=<+env.variables.demo_id>' \
+                    -var='deployment_mode=aws' \
+                    -var='aws_region=<+env.variables.aws_region>' \
+                    -var='github_org=<+pipeline.variables.GITHUB_ORG>' \
+                    -var='github_repo=harness-gha-bagelstore' \
+                    -var='github_username=git' \
+                    -var='github_pat=placeholder' \
+                    -var='harness_account_id=<+account.identifier>' \
+                    -var='harness_api_key=placeholder' \
+                    -var='harness_org_id=<+org.identifier>' \
+                    -var='harness_project_id=<+project.identifier>' \
+                    -var='aws_access_key_id=placeholder' \
+                    -var='aws_secret_access_key=placeholder' \
+                    -var='liquibase_license_key=placeholder' \
                     -auto-approve \
                     -input=false
 

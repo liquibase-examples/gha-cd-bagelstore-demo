@@ -35,6 +35,16 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv
     ./aws/install && \
     rm -rf aws awscliv2.zip
 
+# Install Terraform
+RUN curl -fsSL https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_amd64.zip -o terraform.zip && \
+    unzip -q terraform.zip && \
+    mv terraform /usr/local/bin/ && \
+    rm terraform.zip && \
+    chmod +x /usr/local/bin/terraform
+
+# Verify Terraform installation
+RUN terraform version
+
 # Switch back to harness user for security
 USER harness
 
