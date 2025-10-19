@@ -122,14 +122,20 @@ template:
                 script: |-
                   # Clone repository to get Terraform files
                   # Delegate needs Terraform code to run terraform apply
+                  # Uses Git credential helper to avoid exposing PAT in logs
 
                   WORK_DIR="/tmp/harness-terraform-$$"
                   mkdir -p "$WORK_DIR"
                   cd "$WORK_DIR"
 
+                  # Configure Git credential helper (avoids PAT in URL/logs)
+                  git config --global credential.helper store
+                  echo "https://<+secrets.getValue('github_pat')>@github.com" > ~/.git-credentials
+                  chmod 600 ~/.git-credentials
+
                   echo "Cloning repository..."
                   git clone --depth 1 --branch main \
-                    https://<+secrets.getValue('github_pat')>@github.com/<+pipeline.variables.GITHUB_ORG>/harness-gha-bagelstore.git
+                    https://github.com/<+pipeline.variables.GITHUB_ORG>/harness-gha-bagelstore.git
 
                   echo "Copying Terraform files to delegate..."
                   mkdir -p /opt/harness-delegate/terraform
@@ -137,7 +143,9 @@ template:
 
                   echo "✅ Terraform code ready at /opt/harness-delegate/terraform"
 
-                  # Cleanup
+                  # Cleanup credentials and working directory
+                  rm -f ~/.git-credentials
+                  git config --global --unset credential.helper
                   cd /
                   rm -rf "$WORK_DIR"
             environmentVariables: []
