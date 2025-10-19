@@ -85,9 +85,8 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
       echo "✅ Version verified: ${DEPLOYED_VERSION}"
       exit 0
     else
-      echo "❌ Version mismatch: expected ${VERSION}, got ${DEPLOYED_VERSION}"
-      echo "Deployment may have failed or is still in progress"
-      exit 1
+      echo "⚠️  Version mismatch: expected ${VERSION}, got ${DEPLOYED_VERSION}"
+      echo "Deployment may still be in progress, will retry..."
     fi
   fi
 
@@ -96,5 +95,10 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
   ATTEMPT=$((ATTEMPT + 1))
 done
 
-echo "❌ Health check failed after ${MAX_ATTEMPTS} attempts"
+echo "❌ Health check failed after ${MAX_ATTEMPTS} attempts (${MAX_ATTEMPTS}0 seconds)"
+echo "Last status: HTTP ${HTTP_CODE}"
+if [ -n "$DEPLOYED_VERSION" ]; then
+  echo "Last version seen: ${DEPLOYED_VERSION} (expected: ${VERSION})"
+fi
+echo "Deployment timed out - App Runner may still be deploying"
 exit 1
