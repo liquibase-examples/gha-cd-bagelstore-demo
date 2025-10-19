@@ -87,13 +87,6 @@ locals {
       }
     }
   }
-
-  # ECR Public registry alias - extracted from repository URI
-  ecr_public_alias = var.deployment_mode == "aws" ? (
-    length(aws_ecrpublic_repository.bagel_store) > 0 ?
-    split("/", aws_ecrpublic_repository.bagel_store[0].repository_uri)[1] :
-    "pending-creation"
-  ) : "local-mode"
 }
 
 # Create Harness Platform Environments

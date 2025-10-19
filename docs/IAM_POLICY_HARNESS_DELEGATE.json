@@ -1,0 +1,140 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SSMParameterAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:DescribeParameters",
+        "ssm:PutParameter"
+      ],
+      "Resource": [
+        "arn:aws:ssm:us-east-1:907240911534:parameter/psr/*"
+      ]
+    },
+    {
+      "Sid": "TerraformStateAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::907240911534-psr-terraform-state/*"
+      ]
+    },
+    {
+      "Sid": "S3StateBucketList",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::907240911534-psr-terraform-state"
+      ]
+    },
+    {
+      "Sid": "AppRunnerManagement",
+      "Effect": "Allow",
+      "Action": [
+        "apprunner:UpdateService",
+        "apprunner:DescribeService",
+        "apprunner:ListServices",
+        "apprunner:DescribeAutoScalingConfiguration"
+      ],
+      "Resource": [
+        "arn:aws:apprunner:us-east-1:907240911534:service/bagel-store-psr-*",
+        "arn:aws:apprunner:us-east-1:907240911534:autoscalingconfiguration/bagel-store-psr-*"
+      ]
+    },
+    {
+      "Sid": "RDSReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBSubnetGroups",
+        "rds:ListTagsForResource"
+      ],
+      "Resource": [
+        "arn:aws:rds:us-east-1:907240911534:db:bagel-store-psr-postgres",
+        "arn:aws:rds:us-east-1:907240911534:subgrp:*"
+      ]
+    },
+    {
+      "Sid": "SecretsManagerRead",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:us-east-1:907240911534:secret:psr/rds/*"
+      ]
+    },
+    {
+      "Sid": "EC2NetworkInfo",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeAvailabilityZones"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EC2SecurityGroupManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:CreateSecurityGroup",
+        "ec2:DeleteSecurityGroup",
+        "ec2:CreateTags",
+        "ec2:DeleteTags"
+      ],
+      "Resource": [
+        "arn:aws:ec2:us-east-1:907240911534:security-group/*",
+        "arn:aws:ec2:us-east-1:907240911534:vpc/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-east-1"
+        }
+      }
+    },
+    {
+      "Sid": "IAMRolePassForAppRunner",
+      "Effect": "Allow",
+      "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::907240911534:role/bagel-store-psr-apprunner-instance-role"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "tasks.apprunner.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "IAMReadOnlyForTerraform",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": [
+        "arn:aws:iam::907240911534:role/bagel-store-psr-*"
+      ]
+    }
+  ]
+}

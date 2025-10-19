@@ -1,6 +1,30 @@
 # AWS App Runner Services Configuration
 # Creates 4 App Runner services (dev, test, staging, prod)
 
+# SSM Parameter Store - Image tags written by Harness CD before Terraform Apply
+# These parameters are created/updated by Harness pipeline before calling Terraform
+data "aws_ssm_parameter" "image_tag" {
+  for_each = var.deployment_mode == "aws" ? toset(local.environments) : []
+  name     = "/${var.demo_id}/image-tags/${each.key}"
+
+  # Don't fail if parameter doesn't exist yet (first deployment uses placeholder)
+  # After first deployment, Harness will write SSM parameter before each Terraform apply
+  lifecycle {
+    postcondition {
+      condition     = self.value != ""
+      error_message = "SSM parameter /${var.demo_id}/image-tags/${each.key} must have a non-empty value"
+    }
+  }
+}
+
+# Map environment name to image tag from SSM
+locals {
+  image_tags = {
+    for env in local.environments :
+    env => try(data.aws_ssm_parameter.image_tag[env].value, "latest")
+  }
+}
+
 # IAM role for App Runner instance
 resource "aws_iam_role" "apprunner_instance" {
   count = var.deployment_mode == "aws" ? 1 : 0
@@ -60,22 +84,30 @@ resource "aws_apprunner_service" "bagel_store" {
     auto_deployments_enabled = false
 
     image_repository {
-      # Placeholder - will be updated by Harness to ghcr.io/<org>/<demo_id>-bagel-store:<version>
-      image_identifier      = "public.ecr.aws/docker/library/nginx:latest"
+      # Image tag dynamically read from SSM Parameter Store
+      # Harness CD writes SSM parameter before Terraform apply
+      image_identifier      = "public.ecr.aws/${local.ecr_public_alias}/${var.demo_id}-bagel-store:${local.image_tags[each.key]}"
       image_repository_type = "ECR_PUBLIC"
 
       image_configuration {
-        port = "80" # NGINX default port
+        port = "5000" # Flask port
 
         runtime_environment_variables = {
-          FLASK_ENV    = each.key
-          ENVIRONMENT  = each.key
-          DATABASE_URL = "postgresql://$${SECRETS_MANAGER_ARN_USERNAME}:$${SECRETS_MANAGER_ARN_PASSWORD}@${aws_db_instance.postgres[0].address}:5432/${each.key}"
+          FLASK_ENV     = "production"
+          ENVIRONMENT   = each.key
+          APP_VERSION   = local.image_tags[each.key]
+          DB_HOST       = aws_db_instance.postgres[0].address
+          DB_PORT       = "5432"
+          DB_NAME       = each.key
+          DEMO_ID       = var.demo_id
+          DEMO_USERNAME = "demo"
+          DEMO_PASSWORD = "bagels123"
         }
 
         runtime_environment_secrets = {
-          SECRETS_MANAGER_ARN_USERNAME = aws_secretsmanager_secret.rds_username[0].arn
-          SECRETS_MANAGER_ARN_PASSWORD = aws_secretsmanager_secret.rds_password[0].arn
+          # Fixed: Use correct variable names that app expects
+          DB_USERNAME = aws_secretsmanager_secret.rds_username[0].arn
+          DB_PASSWORD = aws_secretsmanager_secret.rds_password[0].arn
         }
       }
     }
@@ -91,7 +123,7 @@ resource "aws_apprunner_service" "bagel_store" {
 
   health_check_configuration {
     protocol            = "HTTP"
-    path                = "/" # Use root path for NGINX placeholder (Harness will update to /health)
+    path                = "/health"
     interval            = 10
     timeout             = 5
     healthy_threshold   = 1
