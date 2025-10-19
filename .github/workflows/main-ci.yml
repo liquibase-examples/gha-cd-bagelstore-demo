@@ -46,9 +46,11 @@ jobs:
           # Try to get version from git tag
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
-          # If no tag, use commit SHA
+          # If no tag, use branch-commit format (matching trigger script)
           if [ -z "$VERSION" ]; then
-            VERSION="dev-$(git rev-parse --short HEAD)"
+            BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${BRANCH}-${SHORT_SHA}"
           fi
 
           # Remove 'v' prefix if present
