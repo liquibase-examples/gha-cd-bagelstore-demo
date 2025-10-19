@@ -31,14 +31,17 @@ SERVICE_NAME="$3"
 SERVICE_URL="$4"
 
 # ===== Main Logic =====
-echo "=== Fetching Instance Information ==="
+# CRITICAL: All logging must go to stderr >&2
+# Harness expects ONLY valid JSON on stdout
+
+echo "=== Fetching Instance Information ===" >&2
 
 if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   # ===== AWS MODE - App Runner Instance =====
-  echo "Instance Name: ${SERVICE_NAME}"
-  echo "Instance URL: ${SERVICE_URL}"
+  echo "Instance Name: ${SERVICE_NAME}" >&2
+  echo "Instance URL: ${SERVICE_URL}" >&2
 
-  # Output instance in Harness format (JSON)
+  # Output instance in Harness format (JSON) to stdout
   echo "{\"instances\": [{\"instanceName\": \"${SERVICE_NAME}\", \"instanceUrl\": \"${SERVICE_URL}\"}]}"
 
 else
@@ -48,9 +51,9 @@ else
   # Get container ID if running
   CONTAINER_ID=$(docker ps -q -f "name=${CONTAINER_NAME}" || echo "unknown")
 
-  echo "Container Name: ${CONTAINER_NAME}"
-  echo "Container ID: ${CONTAINER_ID}"
+  echo "Container Name: ${CONTAINER_NAME}" >&2
+  echo "Container ID: ${CONTAINER_ID}" >&2
 
-  # Output instance in Harness format (JSON)
+  # Output instance in Harness format (JSON) to stdout
   echo "{\"instances\": [{\"instanceName\": \"${CONTAINER_NAME}\", \"instanceId\": \"${CONTAINER_ID}\"}]}"
 fi
