@@ -114,13 +114,82 @@ Get the complete execution graph with all nodes and dependencies.
 
 Get logs for a specific pipeline stage.
 
+### Diagnose Execution Failure
+
+```bash
+./scripts/harness/diagnose-execution-failure.sh <execution_id>
+```
+
+**Purpose:** Quick failure diagnosis using execution graph API (fast, no download).
+
+**When to use:** First step when investigating failed or aborted pipeline executions.
+
+**Output:**
+- Execution summary (status, duration, start time)
+- Table of failed/aborted steps
+- Detailed error messages for each problem step
+- Abort reason (user vs system)
+- Next steps recommendations
+
+**Speed:** ~2 seconds (API call only)
+
+**Examples:**
+```bash
+# Diagnose why execution failed
+./scripts/harness/diagnose-execution-failure.sh mlbW9NRGTnyuCbXo1vyZVQ
+
+# Use with latest execution
+EXEC_ID=$(./scripts/harness/get-pipeline-executions.sh 1 | grep "Execution ID:" | awk '{print $3}')
+./scripts/harness/diagnose-execution-failure.sh $EXEC_ID
+```
+
+**Next steps if you need more detail:**
+- Use `get-execution-logs.sh` for full log download and analysis
+
+---
+
 ### Get Execution Logs
 
 ```bash
 ./scripts/harness/get-execution-logs.sh <execution_id>
 ```
 
-Get all logs for a pipeline execution.
+**Purpose:** Download complete execution logs as ZIP file and analyze for errors (comprehensive, slower).
+
+**When to use:**
+- After `diagnose-execution-failure.sh` identifies problem area
+- Need full step-by-step logs
+- Looking for specific error messages in output
+- Debugging complex multi-step failures
+
+**Output:**
+- Downloads logs ZIP file from Harness Log Service
+- Extracts and parses all step logs
+- Searches for ERROR-level messages
+- Shows last 50 lines of each step
+- List of all log files
+
+**Speed:** ~10-30 seconds (depends on log size)
+
+**What it does:**
+1. Fetches execution details to get run sequence
+2. Calls Harness Log Service API to generate ZIP
+3. Downloads ZIP file (contains all step logs)
+4. Extracts and parses JSON Lines format logs
+5. Searches for errors across all steps
+6. Displays formatted output
+
+**Examples:**
+```bash
+# Download full logs for deep analysis
+./scripts/harness/get-execution-logs.sh mlbW9NRGTnyuCbXo1vyZVQ
+
+# Save logs to specific location
+./scripts/harness/get-execution-logs.sh mlbW9NRGTnyuCbXo1vyZVQ
+# Logs are in temp directory - copy before script exits
+```
+
+**Note:** Logs are downloaded to a temporary directory that is cleaned up when the script exits. Copy files if you need to keep them.
 
 ### Get Delegate Logs
 

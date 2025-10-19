@@ -11,9 +11,10 @@
 1. [Quick Start](#quick-start)
 2. [Common Operations](#common-operations)
 3. [Monitoring & Diagnostics](#monitoring--diagnostics)
-4. [Troubleshooting Decision Trees](#troubleshooting-decision-trees)
-5. [API Reference](#api-reference)
-6. [Known Issues & Workarounds](#known-issues--workarounds)
+4. [Pipeline Failure Diagnosis](#pipeline-failure-diagnosis)
+5. [Troubleshooting Decision Trees](#troubleshooting-decision-trees)
+6. [API Reference](#api-reference)
+7. [Known Issues & Workarounds](#known-issues--workarounds)
 
 ---
 
@@ -409,6 +410,189 @@ EXEC_ID="ABC123..."
 - API key doesn't persist across Bash tool calls
 - No error handling
 - No automatic base URL handling
+
+---
+
+## Pipeline Failure Diagnosis
+
+**Complete script documentation:** See [scripts/README.md](../scripts/README.md#harness-api-scripts-harness) for detailed usage of all diagnostic scripts.
+
+### 30-Second Diagnostic Checklist
+
+When a pipeline execution fails or is aborted, follow this workflow:
+
+**Step 1: Check latest execution status**
+```bash
+./scripts/harness/get-pipeline-executions.sh 1
+```
+- Shows: Run #, status, trigger type, execution ID
+- Use execution ID for next steps
+
+**Step 2: If webhook-triggered, check trigger processing**
+```bash
+# Get event correlation ID from webhook response
+curl -s "https://app.harness.io/gateway/pipeline/api/webhook/triggerExecutionDetailsV2/{EVENT_ID}?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw" | \
+  jq '.data.webhookProcessingDetails | {status, exception, message}'
+```
+- Catches: `INVALID_RUNTIME_INPUT_YAML`, template validation errors, input set issues
+- If `exceptionOccured: true`, fix template/trigger before proceeding
+
+**Step 3: Diagnose execution failure** (FAST - API only)
+```bash
+./scripts/harness/diagnose-execution-failure.sh <EXECUTION_ID>
+```
+- Shows: Failed/aborted steps, error messages, abort reason
+- Time: ~2 seconds
+- **Use this first** for quick root cause identification
+
+**Step 4: Download full logs if needed** (SLOW - downloads ZIP)
+```bash
+./scripts/harness/get-execution-logs.sh <EXECUTION_ID>
+```
+- Downloads: Complete logs ZIP, extracts, searches for errors
+- Time: ~10-30 seconds depending on log size
+- **Use this second** for deep dive debugging
+
+---
+
+### Failure Pattern Recognition
+
+Quickly identify the problem category based on symptoms:
+
+| Symptom | Root Cause | Diagnostic Action |
+|---------|------------|-------------------|
+| Webhook returns `INVALID_RUNTIME_INPUT_YAML` | Template YAML validation failed | Check trigger event details API, force refresh template |
+| Webhook returns `QUEUED` forever | Trigger configuration issue | Check Pipeline Reference Branch, verify Input Set |
+| `executionGraph: null` + Status = Aborted | Aborted during stage initialization | Check delegate connectivity, infrastructure definitions, environment variables |
+| `executionGraph` has Failed nodes | Step-level runtime failure | Run `diagnose-execution-failure.sh` → identify failed step |
+| Status = Success but deployment didn't work | Health check passed but app broken | Check App Runner service status, application logs directly |
+| All steps show Success but pipeline Aborted | Failure strategy triggered | Check abort info, review failure strategies in pipeline YAML |
+
+---
+
+### Decision Tree: Symptom → Action
+
+```
+Pipeline execution failed/aborted
+│
+├─ Did it start executing? (Check executionGraph)
+│  │
+│  ├─ No (executionGraph: null)
+│  │  ├─ Check trigger processing details API
+│  │  ├─ Common causes:
+│  │  │  - Delegate offline/disconnected
+│  │  │  - Infrastructure definition missing
+│  │  │  - Environment variable resolution failed
+│  │  │  - Service/artifact configuration invalid
+│  │  └─ Action: Check Harness UI Infrastructure tab, verify delegate
+│  │
+│  └─ Yes (executionGraph has nodes)
+│     ├─ Run: ./scripts/harness/diagnose-execution-failure.sh <EXEC_ID>
+│     ├─ Identify failed step(s)
+│     └─ If error message unclear:
+│        └─ Run: ./scripts/harness/get-execution-logs.sh <EXEC_ID>
+│
+└─ Was it a webhook trigger?
+   │
+   ├─ Yes
+   │  ├─ Check: Webhook event details API
+   │  ├─ Common issues:
+   │  │  - INVALID_RUNTIME_INPUT_YAML (template validation)
+   │  │  - Input set payload mapping errors
+   │  │  - Pipeline Reference Branch not set
+   │  └─ Solution: See "Problem: Webhook Trigger Stays QUEUED" below
+   │
+   └─ No (Manual trigger)
+      └─ Check runtime input YAML format matches pipeline variables
+```
+
+---
+
+### Common Error Patterns and Solutions
+
+#### Pattern: "No custom trigger found"
+
+**Symptom:** Webhook call succeeds but pipeline doesn't trigger
+
+**Root Cause:** Wrong webhook URL in GitHub variable
+
+**Solution:**
+```bash
+# Get correct webhook URL
+./scripts/harness/get-webhook-url.sh
+
+# Update GitHub variable (NOT secret)
+gh variable set HARNESS_WEBHOOK_URL --body "<URL>"
+```
+
+---
+
+#### Pattern: Pipeline starts then immediately aborts
+
+**Symptom:**
+- `executionGraph: null`
+- Status = Aborted
+- Duration < 30 seconds
+- Aborted by `systemUser`
+
+**Root Cause:** Stage initialization failed (infrastructure, delegate, or environment issue)
+
+**Diagnostic:**
+```bash
+# 1. Check delegate status
+./scripts/harness/get-delegate-logs.sh
+
+# 2. Verify Harness entities exist
+./scripts/harness/verify-harness-entities.sh
+
+# 3. Check infrastructure definition in Harness UI
+# Navigate to: Environments → <env> → Infrastructure Definitions
+```
+
+**Common Causes:**
+- Delegate disconnected or restarting
+- Infrastructure definition references non-existent resources
+- Environment variables have unresolvable Harness expressions
+- CustomDeployment template not found or invalid
+
+---
+
+#### Pattern: Step fails with "Expression evaluation failed"
+
+**Symptom:** Step shows error like `Error evaluating expression: <+env.variables.xyz>`
+
+**Root Cause:** Harness variable doesn't exist or has wrong name
+
+**Solution:**
+```bash
+# Check environment variables via API
+./scripts/harness/harness-api.sh GET \
+  "/ng/api/environmentsV2/<ENV_ID>?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo" \
+  '.data.environment.variables[] | {name, value}'
+```
+
+---
+
+### Quick Reference: Which Tool to Use When
+
+| Goal | Tool | Speed | Detail Level |
+|------|------|-------|--------------|
+| "What's the latest execution status?" | `get-pipeline-executions.sh` | 1s | Summary table |
+| "Why did it fail?" (first check) | `diagnose-execution-failure.sh` | 2s | Failed steps + error messages |
+| "What exactly happened in this step?" | `get-execution-logs.sh` | 10-30s | Full logs, all steps |
+| "Was the template YAML valid?" | Check trigger event details API | 1s | Validation errors |
+| "Is the delegate working?" | `get-delegate-logs.sh` | 2s | Delegate connection status |
+| "Do all Harness resources exist?" | `verify-harness-entities.sh` | 5s | Entity existence check |
+
+---
+
+### Integration with Existing Troubleshooting
+
+The sections below provide detailed troubleshooting for specific error messages.
+
+For general failure diagnosis workflow, **start with this section** and use the scripts above.
+
+For specific error patterns (e.g., "Value not provided for required variable"), **see the Troubleshooting Decision Trees below**.
 
 ---
 

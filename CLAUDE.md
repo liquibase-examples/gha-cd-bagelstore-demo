@@ -344,7 +344,7 @@ ls -la /opt/harness-delegate/scripts/  # Verify mount
 **When to use the Harness API Playbook:**
 - 🚀 **Triggering pipeline execution** → See playbook for correct `application/yaml` format
 - 📊 **Checking pipeline status** → Monitoring patterns in playbook
-- 🔍 **Debugging failed deployments** → Extract failed step details pattern
+- 🔍 **Debugging failed deployments** → See playbook § Pipeline Failure Diagnosis for workflow and decision trees
 - ⚙️ **Verifying template/trigger config** → Template/trigger check patterns
 - ❌ **Getting 400/403 errors** → Troubleshooting decision trees
 - 🔧 **Environment variable issues** → Environment check pattern
