@@ -14,7 +14,7 @@ set -e
 
 # Load environment
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 if [ -f "$PROJECT_ROOT/harness/.env" ]; then
   source "$PROJECT_ROOT/harness/.env"

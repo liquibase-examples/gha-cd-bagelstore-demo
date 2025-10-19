@@ -73,12 +73,24 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   echo "Deploying Docker image: ${IMAGE_URL}"
   echo "Using AWS Secrets Manager for database credentials (native App Runner integration)"
 
-  # Update App Runner service with new image
-  # CRITICAL: Must include runtime_environment_secrets to preserve Terraform configuration
-  # App Runner natively resolves these secrets at runtime
+  # Get current service configuration
+  echo "Fetching current service configuration..."
+  CURRENT_CONFIG=$(aws apprunner describe-service \
+    --service-arn "${SERVICE_ARN}" \
+    --region "${AWS_REGION}" \
+    --query 'Service.SourceConfiguration' \
+    --output json)
+
+  # Extract current configuration values to preserve
+  AUTO_DEPLOYMENTS=$(echo "$CURRENT_CONFIG" | jq -r '.AutoDeploymentsEnabled')
+
+  # Update only the image identifier and environment variables, preserve everything else
+  # CRITICAL: This preserves instance_role_arn, auto_scaling_configuration_arn, health_check_configuration
+  echo "Updating App Runner service with new image..."
   aws apprunner update-service \
     --service-arn "${SERVICE_ARN}" \
     --source-configuration "{
+      \"AutoDeploymentsEnabled\": ${AUTO_DEPLOYMENTS},
       \"ImageRepository\": {
         \"ImageIdentifier\": \"${IMAGE_URL}\",
         \"ImageRepositoryType\": \"ECR_PUBLIC\",
