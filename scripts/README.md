@@ -258,6 +258,57 @@ Check the status of all Harness resources.
 - After importing a remote pipeline from Git
 - When pipeline variables aren't resolving from webhook payload
 
+---
+
+## Git Sync Management
+
+Scripts for managing Git Experience synchronization between Git repository and Harness.
+
+### Check Git Sync Status
+
+```bash
+./scripts/harness/check-sync-status.sh
+```
+
+**Purpose:** Verify if Git changes have been synced to Harness for all Git Experience resources (templates, pipelines, infrastructure definitions).
+
+**What it checks:**
+- Step Group Template: `Coordinated_DB_App_Deployment` v1.0
+- Pipeline: `Deploy_Bagel_Store`
+- Infrastructure Definitions: 4 files (psr_dev_infra, psr_test_infra, psr_staging_infra, psr_prod_infra)
+
+**Output:**
+- ✅ **Synced** - Harness has latest Git version (Git SHA matches Harness SHA)
+- ❌ **Out of Sync** - Manual refresh needed (shows both SHAs for comparison)
+- ⚠️ **Unknown** - Unable to determine status (resource may not have Git sync enabled)
+- Summary table with refresh instructions
+
+**Usage:**
+```bash
+# Check all resources
+./scripts/harness/check-sync-status.sh
+
+# Typical workflow after git push
+git push
+./scripts/harness/check-sync-status.sh
+# If out of sync, refresh in Harness UI or use:
+./scripts/templates/refresh-template.sh
+```
+
+**When to use:**
+- After `git push` to verify changes applied
+- Before triggering pipeline execution (ensure using latest code)
+- Debugging "why isn't my change working?" issues
+- As part of CI/CD verification workflow
+- After manual Harness UI refresh (to verify it worked)
+
+**Addresses Pain Point:** Manual UI refresh after git push (CLAUDE.md line 103-110) - this script verifies whether refresh is needed.
+
+**Related scripts:**
+- `scripts/templates/compare-template-with-git.sh` - Detailed YAML diff for templates
+- `scripts/templates/refresh-template.sh` - Force template refresh via API
+- `scripts/templates/force-refresh-template.sh` - Bypass cache and force refresh
+
 ### Get Trigger Configuration
 
 ```bash
