@@ -35,14 +35,27 @@ SERVICE_URL="$4"
 # Harness expects ONLY valid JSON on stdout
 
 echo "=== Fetching Instance Information ===" >&2
+echo "DEBUG: ENVIRONMENT='${ENVIRONMENT}'" >&2
+echo "DEBUG: DEPLOYMENT_TARGET='${DEPLOYMENT_TARGET}'" >&2
+echo "DEBUG: SERVICE_NAME='${SERVICE_NAME}'" >&2
+echo "DEBUG: SERVICE_URL='${SERVICE_URL}'" >&2
 
 if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   # ===== AWS MODE - App Runner Instance =====
   echo "Instance Name: ${SERVICE_NAME}" >&2
   echo "Instance URL: ${SERVICE_URL}" >&2
 
-  # Output instance in Harness format (JSON) to stdout
-  echo "{\"instances\": [{\"instanceName\": \"${SERVICE_NAME}\", \"instanceUrl\": \"${SERVICE_URL}\"}]}"
+  # Output instance in Harness format (JSON)
+  # When called from CustomDeployment fetchInstancesScript: write to $INSTANCE_OUTPUT_PATH
+  # When called from regular step: write to stdout
+  JSON_OUTPUT="{\"instances\": [{\"instanceName\": \"${SERVICE_NAME}\", \"instanceUrl\": \"${SERVICE_URL}\"}]}"
+
+  if [ -n "$INSTANCE_OUTPUT_PATH" ]; then
+    echo "$JSON_OUTPUT" > "$INSTANCE_OUTPUT_PATH"
+    echo "Wrote instance info to: $INSTANCE_OUTPUT_PATH" >&2
+  else
+    echo "$JSON_OUTPUT"
+  fi
 
 else
   # ===== LOCAL MODE - Docker Compose Container =====
@@ -54,6 +67,15 @@ else
   echo "Container Name: ${CONTAINER_NAME}" >&2
   echo "Container ID: ${CONTAINER_ID}" >&2
 
-  # Output instance in Harness format (JSON) to stdout
-  echo "{\"instances\": [{\"instanceName\": \"${CONTAINER_NAME}\", \"instanceId\": \"${CONTAINER_ID}\"}]}"
+  # Output instance in Harness format (JSON)
+  # When called from CustomDeployment fetchInstancesScript: write to $INSTANCE_OUTPUT_PATH
+  # When called from regular step: write to stdout
+  JSON_OUTPUT="{\"instances\": [{\"instanceName\": \"${CONTAINER_NAME}\", \"instanceId\": \"${CONTAINER_ID}\"}]}"
+
+  if [ -n "$INSTANCE_OUTPUT_PATH" ]; then
+    echo "$JSON_OUTPUT" > "$INSTANCE_OUTPUT_PATH"
+    echo "Wrote instance info to: $INSTANCE_OUTPUT_PATH" >&2
+  else
+    echo "$JSON_OUTPUT"
+  fi
 fi
