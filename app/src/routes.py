@@ -236,13 +236,59 @@ def order_confirmation(order_id):
 
 @bp.route('/health')
 def health():
-    """Health check endpoint"""
+    """Health check endpoint - verifies database connectivity and schema"""
+    checks = {
+        'status': 'healthy',
+        'database': 'unknown',
+        'schema': 'unknown',
+        'tables': []
+    }
+
     try:
-        # Test database connection
+        # Test 1: Database connection
         execute_one('SELECT 1')
-        return jsonify({'status': 'healthy', 'database': 'connected'}), 200
+        checks['database'] = 'connected'
+
+        # Test 2: Verify critical tables exist
+        required_tables = ['products', 'orders', 'order_items', 'inventory']
+        existing_tables = []
+
+        for table in required_tables:
+            try:
+                # Check if table exists and has at least the expected structure
+                execute_one(f"SELECT COUNT(*) FROM {table} LIMIT 1")
+                existing_tables.append(table)
+            except Exception:
+                # Table doesn't exist
+                pass
+
+        checks['tables'] = existing_tables
+
+        # Determine overall schema status
+        if len(existing_tables) == len(required_tables):
+            checks['schema'] = 'complete'
+        elif len(existing_tables) > 0:
+            checks['schema'] = 'partial'
+            checks['status'] = 'degraded'
+            checks['missing_tables'] = list(set(required_tables) - set(existing_tables))
+        else:
+            checks['schema'] = 'missing'
+            checks['status'] = 'unhealthy'
+            checks['error'] = 'Database schema not initialized'
+
+        # Return appropriate status code
+        if checks['status'] == 'healthy':
+            return jsonify(checks), 200
+        elif checks['status'] == 'degraded':
+            return jsonify(checks), 503  # Service Unavailable
+        else:
+            return jsonify(checks), 500  # Internal Server Error
+
     except Exception as e:
-        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+        checks['status'] = 'unhealthy'
+        checks['database'] = 'disconnected'
+        checks['error'] = str(e)
+        return jsonify(checks), 500
 
 
 @bp.route('/version')

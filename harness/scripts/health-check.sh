@@ -70,9 +70,44 @@ ATTEMPT=0
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
   echo "Attempt $((ATTEMPT + 1))/${MAX_ATTEMPTS}..."
 
-  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${HEALTH_URL}" || echo "000")
+  # Get both HTTP code and response body
+  HEALTH_RESPONSE=$(curl -s -w "\n%{http_code}" "${HEALTH_URL}" || echo "{}\n000")
+  HEALTH_BODY=$(echo "$HEALTH_RESPONSE" | head -n -1)
+  HTTP_CODE=$(echo "$HEALTH_RESPONSE" | tail -n 1)
 
-  if [ "$HTTP_CODE" = "200" ]; then
+  # Parse health check response
+  HEALTH_STATUS=$(echo "$HEALTH_BODY" | jq -r '.status // "unknown"')
+  DB_STATUS=$(echo "$HEALTH_BODY" | jq -r '.database // "unknown"')
+  SCHEMA_STATUS=$(echo "$HEALTH_BODY" | jq -r '.schema // "unknown"')
+
+  echo "Health check response: HTTP ${HTTP_CODE}"
+  echo "  Status: ${HEALTH_STATUS}"
+  echo "  Database: ${DB_STATUS}"
+  echo "  Schema: ${SCHEMA_STATUS}"
+
+  # Check for degraded or unhealthy states
+  if [ "$HTTP_CODE" = "503" ]; then
+    echo "⚠️  Service is DEGRADED (HTTP 503)"
+    MISSING_TABLES=$(echo "$HEALTH_BODY" | jq -r '.missing_tables // [] | join(", ")')
+    if [ -n "$MISSING_TABLES" ]; then
+      echo "  Missing tables: ${MISSING_TABLES}"
+      echo "  ❌ Database schema incomplete - Liquibase update may have failed"
+      exit 1
+    fi
+  fi
+
+  if [ "$HTTP_CODE" = "500" ]; then
+    echo "❌ Service is UNHEALTHY (HTTP 500)"
+    ERROR_MSG=$(echo "$HEALTH_BODY" | jq -r '.error // "unknown error"')
+    echo "  Error: ${ERROR_MSG}"
+
+    if [ "$SCHEMA_STATUS" = "missing" ]; then
+      echo "  ❌ Database schema not initialized - Liquibase update failed or didn't run"
+      exit 1
+    fi
+  fi
+
+  if [ "$HTTP_CODE" = "200" ] && [ "$HEALTH_STATUS" = "healthy" ]; then
     echo "✅ Health check passed!"
 
     # Verify version
@@ -90,7 +125,7 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
     fi
   fi
 
-  echo "Health check returned HTTP ${HTTP_CODE}, retrying in ${RETRY_INTERVAL}s..."
+  echo "Retrying in ${RETRY_INTERVAL}s..."
   sleep $RETRY_INTERVAL
   ATTEMPT=$((ATTEMPT + 1))
 done
