@@ -1095,3 +1095,4 @@ Start with the [Documentation Index](#documentation-index) above
 docker compose logs app       # Application logs
 docker compose logs postgres  # Database logs
 ```
+- The delegate often has an "unhealthy" status but this is usually a red herring
