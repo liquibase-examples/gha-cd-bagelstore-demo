@@ -63,6 +63,17 @@ stages:
           reports-name: "${POLICY_REPORT}"
           reports-open: "false"
 
+  # Stage 3: Deploy Database Changes
+  Deploy:
+    actions:
+      - type: liquibase
+        command: update
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${DEPLOYMENT_REPORT}"
+          reports-open: "false"
+
 endStage:
   actions:
     - type: shell
