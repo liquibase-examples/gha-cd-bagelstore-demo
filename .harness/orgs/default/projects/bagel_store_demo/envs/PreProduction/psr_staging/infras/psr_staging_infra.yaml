@@ -10,5 +10,17 @@ infrastructureDefinition:
     customDeploymentRef:
       templateRef: Custom
       versionLabel: "1.0"
-    variables: []
+    variables:
+      - name: environment
+        type: String
+        value: <+env.variables.environment>
+      - name: deployment_target
+        type: String
+        value: <+env.variables.DEPLOYMENT_TARGET>
+      - name: service_name
+        type: String
+        value: <+env.variables.app_runner_service_name>
+      - name: service_url
+        type: String
+        value: <+env.variables.app_runner_service_url>
   allowSimultaneousDeployments: false
