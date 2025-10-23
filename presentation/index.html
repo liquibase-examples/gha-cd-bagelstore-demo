@@ -323,7 +323,7 @@ VALUES ('Sesame', 'Classic topped with sesame seeds', 2.75);
                             <li>Extract version from git tag</li>
                             <li>Build Docker image</li>
                             <li>Tag with version</li>
-                            <li>Push to ghcr.io (public)</li>
+                            <li>Push to AWS Public ECR</li>
                             <li>Tag as 'latest'</li>
                         </ol>
                     </div>
@@ -523,7 +523,7 @@ VALUES ('Sesame', 'Classic topped with sesame seeds', 2.75);
                         <h3>🚀 App Runner</h3>
                         <ul>
                             <li>4 services (one per environment)</li>
-                            <li>Public Docker images from ghcr.io</li>
+                            <li>Public Docker images from AWS ECR</li>
                             <li>Fixed instance count (cost control)</li>
                         </ul>
                     </div>
@@ -689,7 +689,7 @@ VALUES ('Sesame', 'Classic topped with sesame seeds', 2.75);
                     <div class="system-layer">
                         <div class="layer-title">Artifacts & Storage</div>
                         <div class="layer-content">
-                            Docker Images (ghcr.io) | Changelog Artifacts (GitHub Packages) | Flow Files (S3) | Reports (S3)
+                            Docker Images (AWS Public ECR) | Changelog Artifacts (GitHub Actions) | Flow Files (S3) | Reports (S3)
                         </div>
                     </div>
                     <div class="system-layer">

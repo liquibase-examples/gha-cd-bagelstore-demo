@@ -53,7 +53,7 @@ This document defines the requirements and system design for a demonstration sho
 
 **Examples:**
 - RDS instance: `bagel-store-<demo_id>-rds`
-- Docker image: `ghcr.io/<org>/<demo_id>-bagel-store:v1.0.0`
+- Docker image: `public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:v1.0.0`
 - DNS: `dev-<demo_id>.bagel-demo.example.com`
 - S3 bucket: `bagel-store-<demo_id>-liquibase-flows`
 - Secrets: `<demo_id>/rds/username`, `<demo_id>/rds/password`
@@ -326,8 +326,8 @@ Developer uses Liquibase IDE extension for VS Code to develop changesets locally
 1. Checkout code
 2. Extract version from git tag
 3. Build Docker image for application
-4. Tag image with version: `ghcr.io/<org>/<demo_id>-bagel-store:<version>`
-5. Push image to GitHub Container Registry (ghcr.io)
+4. Tag image with version: `public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:<version>`
+5. Push image to AWS Public ECR (public.ecr.aws)
 6. Trigger Harness deployment (if needed) via webhook
 
 ### 7.5 Versioning Strategy
@@ -419,10 +419,10 @@ services:
 **Required Connectors:**
 1. **GitHub Connector** - Access GitHub Packages for changelog artifacts
    - Authentication: Personal Access Token with packages:read scope
-2. **AWS Connector** - Access AWS resources
+2. **AWS Connector** - Access AWS resources (including ECR Public)
    - Authentication: AWS Access Key/Secret Key (stored in Harness secrets)
 
-**Note:** Docker images are pulled from **public** GitHub Container Registry (ghcr.io), so no Docker Registry Connector is needed.
+**Note:** Docker images are pulled from **public** AWS Public ECR (public.ecr.aws), so no separate Docker Registry Connector is needed - AWS Connector handles ECR authentication.
 
 ### 9.4 Harness Pipeline Configuration
 
@@ -439,8 +439,8 @@ services:
 1. **Stage: Deploy to Dev**
    - Trigger: Automatic (webhook from GitHub Actions)
    - Steps:
-     - Fetch changelog zip from GitHub Packages
-     - Fetch Docker image from GitHub Container Registry
+     - Fetch changelog zip from GitHub Actions artifacts
+     - Fetch Docker image from AWS Public ECR
      - Execute Liquibase update on dev database (using shell script with Docker)
      - Deploy application to App Runner dev service
    
@@ -502,7 +502,7 @@ docker run --rm \
 aws apprunner update-service \
   --service-arn <service-arn> \
   --source-configuration ImageRepository={
-    ImageIdentifier=ghcr.io/<org>/<demo_id>-bagel-store:<version>,
+    ImageIdentifier=public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:<version>,
     ImageRepositoryType=ECR_PUBLIC,
     ImageConfiguration={
       Port=5000,
@@ -573,9 +573,9 @@ aws apprunner update-service \
      - `bagel-store-<demo_id>-test`
      - `bagel-store-<demo_id>-staging`
      - `bagel-store-<demo_id>-prod`
-   - Source: **Public** container image from GitHub Container Registry (ghcr.io)
-   - Image: `ghcr.io/<org>/<demo_id>-bagel-store:<version>`
-   - Authentication: **None required** (public images)
+   - Source: **Public** container image from AWS Public ECR (public.ecr.aws)
+   - Image: `public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:<version>`
+   - Authentication: **None required** (public registry)
    - CPU: 1 vCPU
    - Memory: 2GB
    - Port: 5000
@@ -665,15 +665,15 @@ resource "aws_s3_object" "policy_checks_config" {
 
 ### 11.1 Docker Images (Application)
 
-**Registry:** GitHub Container Registry (ghcr.io)
+**Registry:** AWS Public ECR (public.ecr.aws)
 
 **Visibility:** **Public** (no authentication required for pulling)
 
-**Naming Convention:** `ghcr.io/<github-org>/<demo_id>-bagel-store:<version>`
+**Naming Convention:** `public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:<version>`
 
-**Example:** `ghcr.io/myorg/demo1-bagel-store:v1.0.0`
+**Example:** `public.ecr.aws/l1v5b6d6/demo1-bagel-store:v1.0.0`
 
-**Storage:** GitHub Container Registry (free for public repos)
+**Storage:** Amazon Elastic Container Registry (Public)
 
 **Retention:** Indefinite (manual cleanup if needed)
 
@@ -755,7 +755,7 @@ resource "aws_s3_object" "policy_checks_config" {
 - `AWS_SECRET_KEY` - AWS secret key for deployments
 - `GITHUB_PAT` - Personal access token for GitHub Packages (changelog artifacts only)
 
-**Note:** No secrets needed for Docker images - they are public on ghcr.io
+**Note:** No secrets needed for Docker images - they are public on AWS Public ECR
 
 ### 12.4 Application Security
 - Authentication: Session-based with hardcoded user
@@ -1016,8 +1016,8 @@ Parallel workflows:
 1. Checkout code                   1. Checkout code
 2. Setup Liquibase                 2. Extract version from git tag
 3. Configure AWS credentials       3. Build Docker image
-4. Download flow from S3           4. Tag: ghcr.io/<org>/<demo_id>-bagel-store:v<ver>
-5. Download policy checks from S3  5. Push to ghcr.io
+4. Download flow from S3           4. Tag: public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:v<ver>
+5. Download policy checks from S3  5. Push to AWS Public ECR
 6. Execute Liquibase flow:         6. Trigger Harness webhook
    - Run checks (BLOCKER)
    - Validate
@@ -1058,7 +1058,7 @@ Stage 1: Deploy to Dev (automatic)
           aws apprunner update-service \
             --service-arn <dev-service-arn> \
             --source-configuration ImageRepository={
-              ImageIdentifier=ghcr.io/<org>/<demo_id>-bagel-store:v1.0.0
+              ImageIdentifier=public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:v1.0.0
             }
     
     Step 4: Health Check
@@ -1307,7 +1307,7 @@ pipeline:
                           aws apprunner update-service \
                             --service-arn ${DEV_SERVICE_ARN} \
                             --source-configuration ImageRepository={
-                              ImageIdentifier=ghcr.io/<org>/<demo_id>-bagel-store:${VERSION}
+                              ImageIdentifier=public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:${VERSION}
                             }
     
     - stage:
@@ -1362,8 +1362,8 @@ pipeline:
 - **Secrets:** AWS Secrets Manager
 
 ### 18.5 Artifacts & Registries
-- **Container Images:** GitHub Container Registry (ghcr.io/<org>/<demo_id>-bagel-store)
-- **Changelog Artifacts:** GitHub Packages
+- **Container Images:** AWS Public ECR (public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store)
+- **Changelog Artifacts:** GitHub Actions artifacts
 - **Flow Files:** AWS S3
 - **Operation Reports:** AWS S3
 
@@ -1527,7 +1527,7 @@ Schema Match:       ✅ Identical to app/init-db.sql
 **Deliverables:**
 - **PR Validation Workflow:** Runs policy checks before merge, blocks on BLOCKER violations
 - **Test Deployment Workflow:** Deploys changelog to Docker Compose postgres, verifies with system tests
-- **Main CI Workflow:** Builds versioned artifacts (changelog zip + Docker image to ghcr.io)
+- **Main CI Workflow:** Builds versioned artifacts (changelog zip + Docker image to AWS Public ECR)
 - **Local Flow Files:** Uses `liquibase-flows/` directory (migrates to S3 when Phase 1 complete)
 
 **Key Features:**

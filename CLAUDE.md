@@ -609,7 +609,8 @@ Benefits: 10-100x faster than pip, reproducible builds via `uv.lock`
 - **Implementation:**
   - Single Harness pipeline with `DEPLOYMENT_TARGET` environment variable
   - Conditional shell scripts in pipeline steps (AWS vs. local logic)
-  - Both modes pull same artifacts from ghcr.io (consistent versioning)
+  - Both modes pull same Docker images from AWS Public ECR (consistent versioning)
+  - Changelog artifacts from GitHub Actions artifacts
   - Version state persists in `.env` file for local mode
 - **Trade-offs:**
   - Adds conditional complexity to pipeline YAML

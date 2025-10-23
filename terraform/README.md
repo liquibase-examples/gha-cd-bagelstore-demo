@@ -408,7 +408,7 @@ After Terraform completes:
 2. Note the RDS endpoint and other outputs: `terraform output`
 3. Configure GitHub Actions secrets with `DEMO_ID` (Harness environments reference this)
 4. Create Liquibase changelogs in `db/changelog/`
-5. Build and push Docker image to GitHub Container Registry
+5. Build and push Docker image to AWS Public ECR
 6. Deploy via Harness pipeline (infrastructure details already configured via environment variables)
 
 ## Support

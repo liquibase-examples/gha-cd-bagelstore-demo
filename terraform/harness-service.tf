@@ -52,6 +52,6 @@ output "harness_service_identifier" {
 # Reference service using: serviceRef: bagel_store
 #
 # The pipeline will use this service definition and add:
-# - Artifact sources (Docker image from GitHub Container Registry)
+# - Artifact sources (Docker image from AWS Public ECR)
 # - Deployment steps (Liquibase + App Runner updates)
 # - Environment-specific configuration

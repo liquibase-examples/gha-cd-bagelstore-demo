@@ -132,8 +132,8 @@ This is controlled by setting `DEPLOYMENT_TARGET=local` before pipeline executio
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  GitHub Actions CI (main branch)                            │
-│  • Builds Docker image → ghcr.io                            │
-│  • Creates changelog artifact → GitHub Packages             │
+│  • Builds Docker image → AWS Public ECR                     │
+│  • Creates changelog artifact → GitHub Actions artifacts    │
 │  • Triggers Harness webhook                                 │
 └─────────────────────────────────────────────────────────────┘
                           ↓
@@ -254,7 +254,7 @@ All stages use the **Coordinated DB and App Deployment** step group template (`h
    - **AWS Mode:** Updates App Runner service via AWS CLI
    - **Local Mode:** Updates Docker Compose service
    - Service ARN from: `<+env.variables.app_runner_service_arn>`
-   - Image: `ghcr.io/{org}/bagel-store:{version}`
+   - Image: `public.ecr.aws/l1v5b6d6/{demo_id}-bagel-store:{version}`
    - Environment variables:
      - `DATABASE_URL`: PostgreSQL connection string (uses Secrets Manager + env vars)
      - `FLASK_ENV`: `production`

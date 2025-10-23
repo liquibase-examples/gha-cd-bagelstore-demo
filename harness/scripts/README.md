@@ -98,12 +98,12 @@ deploy-application.sh <ENVIRONMENT> <VERSION> <GITHUB_ORG> <DEPLOYMENT_TARGET> <
 
 **AWS Mode:**
 - Updates App Runner service with new Docker image
-- Pulls from ghcr.io
+- Pulls from AWS Public ECR
 - Sets environment variables including Secrets Manager refs
 
 **Local Mode:**
 - Updates `.env` file with new version
-- Pulls Docker image from ghcr.io
+- Pulls Docker image from AWS Public ECR
 - Restarts specific Docker Compose service
 
 **Example (Local):**

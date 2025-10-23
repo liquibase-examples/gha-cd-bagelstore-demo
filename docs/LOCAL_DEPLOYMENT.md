@@ -23,7 +23,7 @@ Local deployment mode provides:
 | **DNS** | Route53 custom domains | localhost:5001-5004 |
 | **Deployment** | `aws apprunner update-service` | `docker compose up -d` |
 | **Harness Pipeline** | ✅ Same (4 stages, approvals) | ✅ Same (4 stages, approvals) |
-| **Versioning** | Pull from ghcr.io | Pull from ghcr.io |
+| **Versioning** | Pull from AWS Public ECR | Pull from AWS Public ECR |
 | **Liquibase** | Docker container via Harness | Docker container via Harness |
 
 ## Quick Start
@@ -32,7 +32,7 @@ Local deployment mode provides:
 
 - Docker Desktop installed and running
 - Harness delegate running locally (see [harness/README.md](../harness/README.md))
-- GitHub Container Registry access (public images or authenticated)
+- AWS credentials configured (for pulling images from AWS Public ECR)
 
 ### 1. Initial Setup
 
@@ -268,7 +268,7 @@ docker compose -f docker-compose-demo.yml logs postgres-dev
 
 **Common issues:**
 - PostgreSQL not healthy yet - wait 30 seconds
-- Image pull failure - check GitHub Container Registry auth
+- Image pull failure - check AWS credentials and ECR access
 - Out of disk space - `docker system prune`
 
 ### Version Not Updating
@@ -292,8 +292,8 @@ docker compose -f docker-compose-demo.yml pull app-dev
 # Force recreate container
 docker compose -f docker-compose-demo.yml up -d --force-recreate --no-deps app-dev
 
-# Clear Docker image cache
-docker rmi ghcr.io/recampbell/bagel-store:v1.1.0
+# Clear Docker image cache (use your actual image name)
+docker rmi public.ecr.aws/l1v5b6d6/demo1-bagel-store:v1.1.0
 docker compose -f docker-compose-demo.yml pull app-dev
 docker compose -f docker-compose-demo.yml up -d --no-deps app-dev
 ```

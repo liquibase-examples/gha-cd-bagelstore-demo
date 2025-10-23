@@ -319,7 +319,7 @@ echo "$ARTIFACTS" > $HARNESS_ARTIFACT_RESULT_PATH
 3. SSH into delegate pod/container
 4. Manually test connectivity:
    ```bash
-   curl -v https://ghcr.io/v2/
+   curl -v https://public.ecr.aws/v2/
    curl -v https://your-artifact-repo.com/api/v1/health
    ```
 

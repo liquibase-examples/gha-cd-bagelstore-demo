@@ -551,7 +551,7 @@ This local setup mirrors the CI/CD environment:
 
 | Component | Local | CI/CD |
 |-----------|-------|-------|
-| App Image | Built locally via `docker compose` | Built in GitHub Actions, pushed to ghcr.io |
+| App Image | Built locally via `docker compose` | Built in GitHub Actions, pushed to AWS Public ECR |
 | Database | PostgreSQL 16 container | AWS RDS PostgreSQL (shared, 4 databases) |
 | Secrets | Hardcoded in `docker-compose.yml` | AWS Secrets Manager |
 | Port | 5001 (external) | App Runner assigns dynamically |

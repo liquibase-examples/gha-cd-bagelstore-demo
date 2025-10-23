@@ -212,7 +212,7 @@ Parallel Workflows:
 [Database Workflow]              [Application Workflow]
 • Validate changelog             • Build Docker image
 • Run policy checks              • Tag with version
-• Create changelog.zip           • Push to ghcr.io
+• Create changelog.zip           • Push to AWS Public ECR
 • Upload to GitHub Packages
     ↓                                   ↓
     └───────────────┬───────────────────┘
@@ -250,7 +250,7 @@ docker run liquibase/liquibase-secure:5.0.1 \
 # 3. Deploy application to App Runner
 aws apprunner update-service \
   --service-arn {env-service-arn} \
-  --image ghcr.io/{org}/bagel-store:{version}
+  --image public.ecr.aws/l1v5b6d6/{demo_id}-bagel-store:{version}
 
 # 4. Health check
 curl https://{env}.bagel-demo.example.com/health
@@ -592,7 +592,7 @@ After deployment, access your environments:
 - No SSL/TLS enforcement on database connections
 - Single-database instance (no high availability)
 - Hardcoded demo user credentials
-- Public Docker images on GitHub Container Registry
+- Public Docker images on AWS Public ECR
 
 **For production deployments:**
 - Use private subnets and VPC peering

@@ -318,7 +318,7 @@ Should show: `HARNESS_WEBHOOK_URL  <webhook_url>  Updated YYYY-MM-DD`
 │  GitHub Actions CI      │
 │  - Build Docker image   │
 │  - Create changelog ZIP │
-│  - Publish to ghcr.io   │
+│  - Publish to ECR       │
 │  - Post to webhook      │
 └────────┬────────────────┘
          │

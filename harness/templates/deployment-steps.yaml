@@ -188,7 +188,7 @@ template:
                       --service-arn "$SERVICE_ARN" \
                       --source-configuration "{
                         \"ImageRepository\": {
-                          \"ImageIdentifier\": \"ghcr.io/<+pipeline.variables.GITHUB_ORG>/bagel-store:<+pipeline.variables.VERSION>\",
+                          \"ImageIdentifier\": \"public.ecr.aws/l1v5b6d6/<+pipeline.variables.DEMO_ID>-bagel-store:<+pipeline.variables.VERSION>\",
                           \"ImageRepositoryType\": \"ECR_PUBLIC\",
                           \"ImageConfiguration\": {
                             \"Port\": \"5000\",

@@ -162,8 +162,8 @@ permissions:
 ```bash
 # 1. Extract version from git tag or commit SHA
 # 2. Build Docker image
-# 3. Tag: ghcr.io/<org>/<demo_id>-bagel-store:<version>
-# 4. Push to GitHub Container Registry (public)
+# 3. Tag: public.ecr.aws/l1v5b6d6/<demo_id>-bagel-store:<version>
+# 4. Push to AWS Public ECR
 # 5. Also tag as 'latest'
 ```
 

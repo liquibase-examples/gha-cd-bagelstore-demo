@@ -71,8 +71,8 @@ resource "aws_iam_role_policy" "apprunner_secrets" {
   })
 }
 
-# Note: No access role needed for public GitHub Container Registry images
-# App Runner can pull public images without authentication
+# Note: No access role needed for public AWS Public ECR images
+# App Runner can pull public ECR images without authentication
 
 # App Runner services for each environment
 resource "aws_apprunner_service" "bagel_store" {
@@ -112,7 +112,7 @@ resource "aws_apprunner_service" "bagel_store" {
       }
     }
 
-    # No authentication_configuration needed for public GitHub Container Registry images
+    # No authentication_configuration needed for public AWS Public ECR images
   }
 
   instance_configuration {
