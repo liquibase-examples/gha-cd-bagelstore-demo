@@ -70,7 +70,7 @@ This is the #1 most common mistake: manually constructing curl commands when a w
    ls -la scripts/templates/*.sh
    ```
 
-2. **Read "Available Harness Scripts" section** in this file (below)
+2. **Read [scripts/README.md](scripts/README.md)** for complete script listing
 
 3. **Verify working directory:**
    ```bash
@@ -97,44 +97,24 @@ This is the #1 most common mistake: manually constructing curl commands when a w
    - Script is confirmed broken and cannot be fixed
    - You document WHY you're not using a script
 
-### Available Harness Scripts (Full Reference)
+### Available Scripts
 
-**Pipeline Monitoring & Debugging** (`scripts/harness/`):
-- `get-pipeline-executions.sh` - **START HERE** for "what's the latest execution?" queries
-- `get-execution-details.sh <exec_id>` - Get detailed execution info and stage status
-- `get-stage-logs.sh <exec_id> <stage_name>` - Get logs for specific pipeline stage
-- `get-execution-graph.sh <exec_id>` - Get full execution graph with all nodes
+**See [scripts/README.md](scripts/README.md) for complete reference.**
 
-**Configuration & Setup** (`scripts/harness/`):
-- `verify-harness-entities.sh` - Verify all Harness resources exist (templates, pipelines, etc.)
-- `update-trigger.sh` - Update trigger configuration (Input Set + Pipeline Branch)
-- `get-webhook-url.sh` - Get webhook URL for GitHub Actions trigger
-- `get-inputset.sh` - Get input set configuration
+**Quick check:**
+```bash
+ls scripts/harness/*.sh      # Pipeline monitoring & Harness API
+ls scripts/templates/*.sh    # Template management & Git sync
+ls scripts/deployment/*.sh   # Local deployment management
+ls scripts/setup/*.sh        # Setup & diagnostics
+```
 
-**Templates & Git Sync** (`scripts/templates/`):
-- `get-template.sh <template_name>` - Get template YAML from Harness
-- `compare-template-with-git.sh` - Compare Harness template with Git version
-- `refresh-template.sh` - Manually sync template from Git
-- `force-refresh-template.sh` - Force refresh template (bypass cache)
-- `validate-template.sh` - Validate template YAML syntax
-- `test-git-connector.sh` - Test GitHub connector connectivity
-- `test-pipeline-import.sh` - Test pipeline import from Git
-
-**Setup & Diagnostics** (`scripts/setup/`):
-- `check-dependencies.sh` - Verify all required tools installed
-- `diagnose-aws.sh` - AWS-specific diagnostic checks
-- `create-harness-aws-user.sh` - Create AWS IAM user for Harness
-
-**Harness Resources** (`scripts/harness/`):
-- `check-harness-resources.sh` - Check status of all Harness resources
-
-**Local Deployment** (`scripts/deployment/`):
-- `show-deployment-state.sh` - Show current deployment state (all environments)
-- `reset-local-environments.sh` - Reset local Docker environments
-
-**AWS/Infrastructure:**
-- `create-harness-aws-user.sh` - Create AWS IAM user for Harness delegate
-- `check-dependencies.sh` - Verify all required tools installed
+**Most commonly used:**
+- `scripts/harness/get-pipeline-executions.sh` - Pipeline execution status
+- `scripts/harness/diagnose-execution-failure.sh` - Quick failure diagnosis
+- `scripts/harness/verify-harness-entities.sh` - Verify all resources exist
+- `scripts/harness/check-sync-status.sh` - Check Git sync status
+- `scripts/setup/check-dependencies.sh` - Verify tools installed
 
 ### Example - WRONG Approach
 
@@ -387,24 +367,15 @@ curl ... | jq '.data.inputSetRefs'  # Returns null
 curl ... | jq -r '.data.yaml' | grep "inputSetRefs:"
 ```
 
-**Example: Trigger Configuration**
-- JSON fields `.data.inputSetRefs` and `.data.pipelineBranchName` return `null`
-- Actual config is in `.data.yaml` YAML string
-- Must parse YAML to get actual values
-
 **CRITICAL: Reading Environment Variables from .env Files**
 
 **ALWAYS read the .env file FIRST before attempting to use variables from it.**
 
-Common mistake pattern:
 ```bash
 # ❌ WRONG - Blindly source and use variable in one command
 source harness/.env && curl ... -H "x-api-key: ${HARNESS_API_KEY}"
 # Fails with "blank argument" if sourcing doesn't work as expected
-```
 
-Correct approach:
-```bash
 # ✅ CORRECT - Read file first to verify contents
 Read harness/.env  # Verify variable exists and see its value
 
@@ -413,18 +384,7 @@ HARNESS_API_KEY="pat.xxxxx.yyyyy.zzzzz"
 curl ... -H "x-api-key: ${HARNESS_API_KEY}"
 ```
 
-Why this matters:
-- Verifying file contents first avoids failed command attempts
-- You can see if the variable exists and has the correct format
-- Authentication tokens are sensitive - empty variables cause cryptic errors
-- Saves time by eliminating trial-and-error debugging
-
-**Available Scripts:**
-- `scripts/harness/get-pipeline-executions.sh` - Query pipeline runs, includes trigger validation
-- `scripts/harness/update-trigger.sh` - Update trigger via API (Input Set + Pipeline Branch)
-- `scripts/harness/verify-harness-entities.sh` - Verify all Harness resources exist
-
-**API Endpoint Reference:** See `scripts/README.md` for complete Harness API documentation
+**See [scripts/README.md](scripts/README.md) for complete script reference and API documentation.**
 
 ### Harness API Wrapper (CRITICAL - Use This!)
 
@@ -685,168 +645,38 @@ Benefits: 10-100x faster than pip, reproducible builds via `uv.lock`
 
 ## Quick Reference
 
-### Local Development
+**See [docs/COMMANDS.md](docs/COMMANDS.md) for complete command reference.**
+
+**Common tasks:**
 ```bash
-cd app
-docker compose up --build     # Start app (http://localhost:5001)
-uv run pytest                 # Run tests
-docker compose build --no-cache  # Rebuild after template changes
-```
+# Local development
+cd app && docker compose up --build
 
-### Database Development
-```bash
-# Create changeset in db/changelog/changesets/
-# Update db/changelog/changelog-master.yaml
-# Test locally (see db/changelog/README.md)
-```
+# Run tests
+cd app && uv run pytest
 
-### CI/CD Debugging
-```bash
-# Get latest run and watch
-RUN_ID=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
-gh run watch $RUN_ID --exit-status
-gh run view $RUN_ID --log-failed
-```
+# Check dependencies
+./scripts/setup/check-dependencies.sh
 
-### GitHub Actions Path Filters
+# Monitor pipeline
+./scripts/harness/get-pipeline-executions.sh
 
-**IMPORTANT:** The `main-ci.yml` workflow has path filters and will NOT trigger on empty commits:
-
-```yaml
-paths:
-  - 'app/**'
-  - 'db/changelog/**'
-  - 'liquibase-flows/**'
-  - '.github/workflows/main-ci.yml'
-```
-
-**To trigger the workflow:**
-
-```bash
-# Option 1: Rerun last workflow
-gh run list --workflow=main-ci.yml --limit 1 --json databaseId --jq '.[0].databaseId'
-gh run rerun <run_id>
-
-# Option 2: Touch a file in monitored path
-touch app/README.md && git add app/README.md && git commit -m "Test trigger" && git push
-```
-
-### Harness API Authentication
-
-**Harness CLI is installed** at `~/bin/harness` (version 0.0.29). However, CLI doesn't support inputset/trigger commands - use API instead.
-
-**HARNESS_API_KEY Location:**
-- Stored in `harness/.env` file (gitignored, local only)
-- Used for API calls and CLI authentication
-- Example: `HARNESS_API_KEY=pat.xxxxx.yyyyy.zzzzz`
-
-**All Harness API calls require authentication:**
-
-```bash
-# Load API key from harness/.env
-source harness/.env
-curl -X GET 'https://app.harness.io/...' -H "x-api-key: ${HARNESS_API_KEY}"
-```
-
-**To create an API token:**
-1. In Harness UI, click profile icon (top right) → **My Profile**
-2. Go to **"My API Keys"** section → **"+ API Key"**
-3. Name it (e.g., "debug-api-key") → **"Save"**
-4. Click **"+ Token"** → Name it → Set expiration (30 days recommended)
-5. Click **"Generate Token"**
-6. **IMPORTANT:** Copy token immediately (shown only once!)
-7. Add to `harness/.env`: `HARNESS_API_KEY=pat.xxxxx.yyyyy.zzzzz`
-
-**Example API call:**
-```bash
-source harness/.env
-curl -X GET \
-  'https://app.harness.io/pipeline/api/inputSets/webhook_default?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo&pipelineIdentifier=Deploy_Bagel_Store&branch=main' \
-  -H "x-api-key: ${HARNESS_API_KEY}"
-```
-
-### Harness Git Experience - Manual Sync Required
-
-**IMPORTANT: No Webhook Configured**
-
-This project uses Harness Git Experience (remote templates, pipelines, infrastructure definitions stored in Git), but **webhook auto-sync is NOT configured** due to GitHub permissions limitations.
-
-**What This Means:**
-- Git changes (templates, pipelines, infrastructure definitions) **do NOT auto-sync** to Harness
-- After `git push`, you must **manually refresh** entities in Harness UI
-- Harness will not detect changes until you trigger a manual sync
-
-**Manual Sync Procedure After Git Push:**
-
-1. **Templates** (e.g., `Custom` deployment template, `Coordinated_DB_App_Deployment` step group):
-   - Navigate to: **Project Setup** → **Templates**
-   - Click on template name → Click **Refresh** icon (circular arrow)
-   - Harness auto-syncs templates from `.harness/orgs/default/projects/bagel_store_demo/templates/`
-
-2. **Infrastructure Definitions** (4 files: `psr_dev_infra`, `psr_test_infra`, `psr_staging_infra`, `psr_prod_infra`):
-   - Navigate to: **Environments** → Select environment (e.g., `psr-dev`)
-   - Click **Infrastructure Definitions** tab
-   - Click infrastructure name → Click **Refresh** icon
-   - Or delete and re-import: **+ Infrastructure** → **YAML** → Paste updated YAML
-
-3. **Pipelines**:
-   - Navigate to: **Pipelines** → `Deploy_Bagel_Store`
-   - Click **Refresh** icon in top right corner
-
-**Verification:**
-```bash
-# After manual sync, verify changes applied
-./scripts/harness/verify-harness-entities.sh
-
-# Check specific infrastructure definition
-source harness/.env
-curl -s "https://app.harness.io/gateway/ng/api/infrastructures/psr_dev_infra?accountIdentifier=_dYBmxlLQu61cFhvdkV4Jw&orgIdentifier=default&projectIdentifier=bagel_store_demo&environmentIdentifier=psr_dev" \
-  -H "x-api-key: ${HARNESS_API_KEY}" | jq -r '.data.infrastructure.yaml'
-```
-
-**Why Webhook Not Configured:**
-- Requires GitHub Admin permissions to configure webhooks
-- Alternatively: Configure GitHub App integration (also requires admin permissions)
-
-### Harness Delegate
-```bash
-cd harness
-docker compose up -d          # Start delegate
-docker compose logs -f        # View logs (ignore Stackdriver/logging errors)
-docker compose ps             # Check container status
-
-# IMPORTANT: Verify delegate connectivity in Harness UI (NOT just logs!)
-# Harness UI: Project Settings → Delegates → Look for "Connected" + recent heartbeat
-# Delegate can show error logs while being fully functional
-
-docker compose down           # Stop delegate
-```
-
-### Local Deployment Mode (NEW)
-```bash
-# Start all 4 environments
-docker compose -f docker-compose-demo.yml up -d
+# Check Git sync status
+./scripts/harness/check-sync-status.sh
 
 # View deployment state
 ./scripts/deployment/show-deployment-state.sh
-
-# Deploy specific version to dev (manual)
-sed -i.bak 's/^VERSION_DEV=.*/VERSION_DEV=v1.1.0/' .env && rm -f .env.bak
-docker compose -f docker-compose-demo.yml pull app-dev
-docker compose -f docker-compose-demo.yml up -d --no-deps app-dev
-
-# View logs
-docker compose -f docker-compose-demo.yml logs -f app-dev
-docker compose -f docker-compose-demo.yml logs -f postgres-dev
-
-# Reset all to latest
-./scripts/deployment/reset-local-environments.sh latest
-
-# Stop all
-docker compose -f docker-compose-demo.yml down
 ```
 
-See [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md) for complete reference.
+**Key resources:**
+- **Harness API authentication**: Stored in `harness/.env` (see [SECURITY.md](SECURITY.md))
+- **Git sync workflow**: Manual refresh required after `git push` (use `scripts/harness/check-sync-status.sh`)
+- **Harness delegate**: Check Harness UI for status, not just logs (errors often non-fatal)
+
+**See also:**
+- [docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md) - Local deployment mode
+- [scripts/README.md](scripts/README.md) - All available scripts
+- [SECURITY.md](SECURITY.md) - Secrets and credentials management
 
 ## Common Gotchas
 
@@ -965,115 +795,40 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/LOCAL_DEPLOYMENT.md](docs/LOC
 
 ## Documentation Index
 
-### Core Documentation
-- **[README.md](README.md)** - Project overview and architecture
-- **[SETUP.md](SETUP.md)** - Complete setup guide (Windows, macOS, Linux)
-- **[requirements-design-plan.md](requirements-design-plan.md)** - System design
+**Core:** README, SETUP, SECURITY, CONTRIBUTING, requirements-design-plan
 
-### Application & Testing
-- **[app/README.md](app/README.md)** - Application architecture
-- **[app/TESTING.md](app/TESTING.md)** - Comprehensive testing guide (15 tests)
+**Application:** app/README, app/TESTING
 
-### Database
-- **[db/changelog/README.md](db/changelog/README.md)** - Changeset documentation and policy checks
+**Database:** db/changelog/README
 
-### Infrastructure & Operations
-- **[terraform/README.md](terraform/README.md)** - AWS infrastructure
-- **[docs/AWS_SETUP.md](docs/AWS_SETUP.md)** - AWS SSO, credentials, common issues
-- **[docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md)** - Local deployment mode (Docker Compose)
-- **[docs/WORKFLOWS.md](docs/WORKFLOWS.md)** - GitHub Actions workflows
-- **[docs/COMMANDS.md](docs/COMMANDS.md)** - Complete command reference
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Diagnostic scripts and solutions
+**Infrastructure:** terraform/README, docs/AWS_SETUP, docs/LOCAL_DEPLOYMENT
 
-### Flow Files
-- **[liquibase-flows/README.md](liquibase-flows/README.md)** - Flow file documentation
+**CI/CD:** docs/WORKFLOWS, docs/COMMANDS
 
-### Harness CD
-- **[harness/README.md](harness/README.md)** - Delegate setup, connectors, secrets
-- **[harness/pipelines/README.md](harness/pipelines/README.md)** - Pipeline architecture and execution
-- **[docs/HARNESS_MANUAL_SETUP.md](docs/HARNESS_MANUAL_SETUP.md)** - Manual setup for template, pipeline, and trigger (one-time, 10 min)
+**Harness:** harness/README, harness/pipelines/README, docs/HARNESS_MANUAL_SETUP, docs/HARNESS_API_PLAYBOOK, docs/HARNESS_CUSTOMDEPLOYMENT_GUIDE, docs/HARNESS_API_WORKFLOWS
 
-## Security & Secrets
+**Liquibase:** liquibase-flows/README
 
-### GitHub Secrets (Required for CI/CD)
-- `AWS_ACCESS_KEY_ID` - AWS credentials for S3 and Secrets Manager
-- `AWS_SECRET_ACCESS_KEY` - AWS credentials
-- `LIQUIBASE_LICENSE_KEY` - **Required!** Liquibase Pro/Secure license
-- `HARNESS_WEBHOOK_URL` - Harness pipeline webhook
-- `DEMO_ID` - Demo instance identifier (e.g., "demo1")
+**Scripts:** scripts/README
 
-### Harness Secrets (Required for Deployment)
-- `github_pat` - GitHub Personal Access Token (scopes: `repo`, `read:packages`)
-- `aws_access_key_id` - AWS Access Key for deployments
-- `aws_secret_access_key` - AWS Secret Key for deployments
-- `liquibase_license_key` - Liquibase Pro/Secure license key
+**Troubleshooting:** docs/TROUBLESHOOTING
 
-### Security-Sensitive Files
+## Security & Contributing
 
-**Never commit these:**
-- `app/.env` - Local credentials (in .gitignore)
-- `terraform/*.tfvars` - Infrastructure secrets (in .gitignore)
-- `harness/.env` - Harness delegate credentials (in .gitignore)
+**See [SECURITY.md](SECURITY.md)** for:
+- GitHub Secrets and Harness Secrets setup
+- Security-sensitive files (never commit vs. always commit)
+- Pre-commit security checks
+- Obtaining credentials (Liquibase license, GitHub PAT, AWS, Harness API)
+- Security best practices
 
-**Always commit these:**
-- `app/.env.example` - Template with placeholders
-- `terraform/terraform.tfvars.example` - Infrastructure template
-- `harness/.env.example` - Harness delegate template
-
-**Check:** `git check-ignore -v <file>` to verify gitignore status
-
-## Development Workflow
-
-### Phase Completion Checklist
-When completing a phase:
-1. Test locally using Docker Compose (see [app/TESTING.md](app/TESTING.md))
-2. Run automated tests if changes affect UI or database
-3. Update documentation if patterns change
-4. Commit with descriptive message
-5. Push to trigger CI/CD workflows
-
-### File Organization
-- **App code**: `app/src/` - Flask application with Blueprint architecture
-- **Database**: `db/changelog/` - Master YAML + SQL changesets
-- **Infrastructure**: `terraform/` - All AWS resources
-- **CI/CD**: `.github/workflows/` - GitHub Actions
-- **Deployment**: `harness/` - Harness pipelines and delegate
-- **Flow files**: `liquibase-flows/` - Uploaded to S3 by Terraform
-
-## Cost Estimates
-
-Running continuously: ~$37-42/month
-- RDS db.t3.micro: ~$15-20
-- App Runner (4 services, no auto-scaling): ~$20
-- Route53: $0.50
-- Secrets Manager: ~$2
-
-**Run `terraform destroy` after demos to minimize costs.**
-
-## Code Review & Security Checklist
-
-### Before Committing Infrastructure Changes
-
-**Terraform files (.tf, .tfvars.example):**
-- [ ] No hardcoded AWS account names or IDs
-- [ ] No hardcoded VPC/subnet/security group IDs
-- [ ] No organization-specific values in `default` blocks
-- [ ] All secrets use variables (never hardcoded)
-- [ ] `terraform.tfvars.example` includes all required variables
-
-**Application files:**
-- [ ] No credentials in code (use `.env` files)
-- [ ] `.env.example` exists with placeholders
-- [ ] Secrets use environment variables or AWS Secrets Manager
-
-**Git safety:**
-```bash
-# Verify .gitignore is working
-git check-ignore -v app/.env terraform/terraform.tfvars
-
-# Check for accidentally staged secrets
-git diff --staged | grep -i "password\|secret\|token\|key"
-```
+**See [CONTRIBUTING.md](CONTRIBUTING.md)** for:
+- Development workflow and phase completion checklist
+- File organization
+- Before committing: security checklist
+- Testing requirements and code style
+- Commit message format
+- Pull request process
 
 ## Getting Help
 
@@ -1082,8 +837,8 @@ Start with the [Documentation Index](#documentation-index) above
 
 ### 2. Run Diagnostic Scripts
 ```bash
-./scripts/check-dependencies.sh  # General issues
-./scripts/diagnose-aws.sh        # AWS-specific issues
+./scripts/setup/check-dependencies.sh  # General issues
+./scripts/setup/diagnose-aws.sh        # AWS-specific issues
 ```
 
 ### 3. AI-Assisted Help
