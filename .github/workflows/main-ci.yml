@@ -46,10 +46,11 @@ jobs:
           # Try to get version from git tag
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
-          # If no tag, use dev-commit format (MUST match build-app-image job and trigger script)
+          # If no tag, use branch-commit format (MUST match trigger-harness-deployment job)
           if [ -z "$VERSION" ]; then
+            BRANCH=$(git rev-parse --abbrev-ref HEAD)
             SHORT_SHA=$(git rev-parse --short HEAD)
-            VERSION="dev-${SHORT_SHA}"
+            VERSION="${BRANCH}-${SHORT_SHA}"
           fi
 
           # Remove 'v' prefix if present
@@ -145,7 +146,9 @@ jobs:
         run: |
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$VERSION" ]; then
-            VERSION="dev-$(git rev-parse --short HEAD)"
+            BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${BRANCH}-${SHORT_SHA}"
           fi
           VERSION=${VERSION#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
