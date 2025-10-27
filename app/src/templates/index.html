@@ -10,6 +10,9 @@
         {% for product in products %}
         <div class="product-card">
             <h3>{{ product.name }}</h3>
+            <div class="rating">
+                {% for i in range(product.rating) %}★{% endfor %}{% for i in range(5 - product.rating) %}☆{% endfor %}
+            </div>
             <p class="description">{{ product.description }}</p>
             <p class="price">${{ "%.2f"|format(product.price) }}</p>
             <form action="{{ url_for('main.add_to_cart', product_id=product.id) }}" method="POST">

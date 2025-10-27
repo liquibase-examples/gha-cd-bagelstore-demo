@@ -6,8 +6,8 @@
 #
 # What it does:
 # 1. Resets git working tree (discards uncommitted changes)
-# 2. Rollbacks rating changeset from dev, test, staging, prod databases
-# 3. Switches back to main branch and deletes PR branches
+# 2. Connects to AWS RDS databases via terraform outputs
+# 3. Rollbacks rating changeset from dev, test, staging, prod
 # 4. Handles missing changesets gracefully (not yet deployed)
 #
 # This resets the demo to baseline state, ready for next demonstration.
@@ -246,87 +246,12 @@ done
 cd "${REPO_ROOT}"
 
 echo ""
-
-#
-# Part 3: Clean Up Branches
-#
-echo -e "${CYAN}Part 3: Clean Up Branches${NC}"
-echo ""
-
-# Get current branch
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-
-# Check if we're on a demo branch
-if [[ "${CURRENT_BRANCH}" == demo/rating-feature-* ]]; then
-    echo -e "${YELLOW}→${NC} Currently on PR branch: ${CURRENT_BRANCH}"
-    echo -e "${YELLOW}→${NC} Switching to main branch..."
-
-    git checkout main
-    echo -e "${GREEN}✓${NC} Switched to main"
-
-    # Delete the PR branch
-    echo -e "${YELLOW}→${NC} Deleting local PR branch: ${CURRENT_BRANCH}..."
-    git branch -D "${CURRENT_BRANCH}"
-    echo -e "${GREEN}✓${NC} Local branch deleted"
-
-    # Try to delete remote branch if it exists
-    if git ls-remote --exit-code --heads origin "${CURRENT_BRANCH}" >/dev/null 2>&1; then
-        echo -e "${YELLOW}→${NC} Deleting remote PR branch: ${CURRENT_BRANCH}..."
-        git push origin --delete "${CURRENT_BRANCH}" 2>/dev/null || echo -e "${YELLOW}⚠${NC}  Remote branch may already be deleted"
-        echo -e "${GREEN}✓${NC} Remote branch deleted"
-    else
-        echo -e "${GREEN}✓${NC} Remote branch does not exist (already deleted or never pushed)"
-    fi
-elif [[ "${CURRENT_BRANCH}" == "main" ]]; then
-    echo -e "${GREEN}✓${NC} Already on main branch"
-
-    # Check for any leftover demo branches
-    DEMO_BRANCHES=$(git branch --list 'demo/rating-feature-*' | sed 's/^[* ]*//')
-
-    if [[ -n "${DEMO_BRANCHES}" ]]; then
-        echo -e "${YELLOW}→${NC} Found leftover demo branches:"
-        echo "${DEMO_BRANCHES}" | sed 's/^/    /'
-        echo ""
-
-        read -p "Delete these branches? [y/N] " -n 1 -r
-        echo
-
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            while IFS= read -r branch; do
-                echo -e "${YELLOW}→${NC} Deleting: ${branch}..."
-                git branch -D "${branch}"
-
-                # Try to delete remote if it exists
-                if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
-                    git push origin --delete "${branch}" 2>/dev/null || true
-                fi
-            done <<< "${DEMO_BRANCHES}"
-            echo -e "${GREEN}✓${NC} Leftover branches deleted"
-        else
-            echo -e "${YELLOW}⊘${NC}  Branches not deleted (manual cleanup needed)"
-        fi
-    else
-        echo -e "${GREEN}✓${NC} No leftover demo branches found"
-    fi
-else
-    echo -e "${YELLOW}⚠${NC}  On unexpected branch: ${CURRENT_BRANCH}"
-    echo "  Switching to main..."
-    git checkout main
-    echo -e "${GREEN}✓${NC} Switched to main"
-fi
-
-echo ""
-
-echo ""
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Rollback Summary${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
-echo -e "${CYAN}Git status:${NC}"
-echo "  • Working tree: Reset to HEAD"
-echo "  • Branch: main"
-echo "  • Demo branches: Cleaned up"
+echo -e "${CYAN}Git working tree:${NC} Reset to HEAD"
 echo ""
 
 echo -e "${CYAN}Database rollbacks:${NC}"
