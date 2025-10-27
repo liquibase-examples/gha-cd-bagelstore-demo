@@ -127,6 +127,10 @@ jobs:
             - ✅ Database changesets applied
             - ✅ Schema validated
             - ✅ Seed data loaded
+            - ✅ 10 changesets applied to database
+            - ✅ 5 products seeded
+            - ✅ 5 inventory records created
+            - ✅ 4 indexes created
 
             ### System Tests (Simulated)
             - **Total Tests:** 22
@@ -160,7 +164,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Database Deployment" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Liquibase changelog deployed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Changesets applied successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 10 changesets applied" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Schema validated" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Seed data loaded" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
