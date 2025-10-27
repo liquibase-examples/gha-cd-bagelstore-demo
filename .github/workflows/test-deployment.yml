@@ -95,12 +95,12 @@ jobs:
           docker compose exec -T postgres psql -U postgres -d dev -c \
             "SELECT COUNT(*) as changeset_count FROM databasechangelog;"
 
-          # Verify expected number of changesets (9 total: 7 SQL + 2 tag changesets)
+          # Verify expected number of changesets (10 total: 8 SQL + 2 tag changesets)
           CHANGESET_COUNT=$(docker compose exec -T postgres psql -U postgres -d dev -t -c \
             "SELECT COUNT(*) FROM databasechangelog;")
           echo "Changesets applied: $CHANGESET_COUNT"
-          if [ "$CHANGESET_COUNT" -ne 9 ]; then
-            echo "::error::Expected 9 changesets, found $CHANGESET_COUNT"
+          if [ "$CHANGESET_COUNT" -ne 10 ]; then
+            echo "::error::Expected 10 changesets, found $CHANGESET_COUNT"
             exit 1
           fi
 
@@ -228,7 +228,7 @@ jobs:
 
             ### Deployment Verification
             - ✅ Liquibase changelog deployed successfully
-            - ✅ 9 changesets applied to database
+            - ✅ 10 changesets applied to database
             - ✅ 5 products seeded
             - ✅ 5 inventory records created
             - ✅ 4 indexes created
@@ -267,7 +267,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Database Deployment" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Liquibase changelog deployed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ 9 changesets applied" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 10 changesets applied" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Schema validated" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Seed data loaded" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
