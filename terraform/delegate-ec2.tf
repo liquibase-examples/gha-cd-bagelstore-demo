@@ -140,8 +140,8 @@ resource "aws_iam_role_policy" "delegate_s3" {
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::${var.demo_id}-*",
-          "arn:aws:s3:::${var.demo_id}-*/*"
+          "arn:aws:s3:::${local.name_prefix}-*",
+          "arn:aws:s3:::${local.name_prefix}-*/*"
         ]
       }
     ]
