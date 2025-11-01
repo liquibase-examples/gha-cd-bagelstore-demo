@@ -150,17 +150,26 @@ variable "harness_project_id" {
   default     = ""
 }
 
-# ===== AWS Credentials for Harness =====
+variable "harness_delegate_token" {
+  description = "Harness delegate token for EC2 delegate authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# ===== AWS Credentials for GitHub Actions CI/CD =====
+# Used by GitHub Actions to push Docker images to ECR Public
+# NOT used by Harness (delegate uses IAM instance profile instead)
 
 variable "aws_access_key_id" {
-  description = "AWS Access Key ID for Harness deployments (stored as Harness secret)"
+  description = "AWS Access Key ID for GitHub Actions CI/CD (ECR Public access)"
   type        = string
   sensitive   = true
   default     = ""
 }
 
 variable "aws_secret_access_key" {
-  description = "AWS Secret Access Key for Harness deployments (stored as Harness secret)"
+  description = "AWS Secret Access Key for GitHub Actions CI/CD (ECR Public access)"
   type        = string
   sensitive   = true
   default     = ""

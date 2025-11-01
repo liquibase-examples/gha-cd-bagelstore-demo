@@ -52,14 +52,11 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   RDS_PORT=$(echo "$AWS_PARAMS_JSON" | jq -r '.rds_port')
   DATABASE_NAME=$(echo "$AWS_PARAMS_JSON" | jq -r '.database_name')
 
-  # Extract secrets
-  AWS_ACCESS_KEY_ID=$(echo "$SECRETS_JSON" | jq -r '.aws_access_key_id')
-  AWS_SECRET_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.aws_secret_access_key')
+  # Note: AWS credentials provided by IAM instance profile (no explicit credentials needed)
 
   echo "Deploying to App Runner: ${SERVICE_ARN}"
+  echo "AWS authentication: IAM instance profile (EC2 delegate)"
 
-  export AWS_ACCESS_KEY_ID
-  export AWS_SECRET_ACCESS_KEY
   export AWS_DEFAULT_REGION="${AWS_REGION}"
 
   # Get Secrets Manager ARNs from AWS parameters

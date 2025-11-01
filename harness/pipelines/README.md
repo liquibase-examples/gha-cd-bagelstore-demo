@@ -115,8 +115,11 @@ The step group template inherits context from the stage and uses:
 
 **From Secrets:**
 - `<+secrets.getValue('github_pat')>` - GitHub Packages authentication
-- `<+secrets.getValue('aws_access_key_id')>` - AWS credentials
 - `<+secrets.getValue('liquibase_license_key')>` - Liquibase license
+
+**AWS Authentication:**
+- EC2 delegate uses IAM instance profile (`psr-harness-delegate-role`) - no explicit credentials needed
+- AWS SDK/CLI automatically discovers credentials via EC2 instance metadata service (IMDS)
 
 ### Deployment Modes
 

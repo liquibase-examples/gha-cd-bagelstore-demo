@@ -75,8 +75,10 @@ update-database.sh <ENVIRONMENT> <DEMO_ID> <DEPLOYMENT_TARGET> <AWS_PARAMS_JSON>
   "demo1" \
   "aws" \
   '{"jdbc_url":"jdbc:postgresql://...","aws_region":"us-east-1","liquibase_flows_bucket":"...","rds_endpoint":"..."}' \
-  '{"aws_access_key_id":"...","aws_secret_access_key":"...","liquibase_license_key":"...","db_username":"...","db_password":"..."}'
+  '{"liquibase_license_key":"..."}'
 ```
+
+**Note:** AWS credentials are provided by IAM instance profile (EC2 delegate). Database credentials are fetched via Liquibase's native AWS Secrets Manager integration.
 
 ---
 
@@ -100,6 +102,7 @@ deploy-application.sh <ENVIRONMENT> <VERSION> <GITHUB_ORG> <DEPLOYMENT_TARGET> <
 - Updates App Runner service with new Docker image
 - Pulls from AWS Public ECR
 - Sets environment variables including Secrets Manager refs
+- Uses IAM instance profile for AWS authentication (no explicit credentials)
 
 **Local Mode:**
 - Updates `.env` file with new version

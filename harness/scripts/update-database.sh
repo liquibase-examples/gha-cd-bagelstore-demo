@@ -46,6 +46,14 @@ echo "Deployment Target: ${DEPLOYMENT_TARGET}"
 if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   # ===== AWS MODE - Use S3 Flow Files =====
 
+  # DEBUG: Show received JSON
+  echo "DEBUG: AWS_PARAMS_JSON received:"
+  echo "$AWS_PARAMS_JSON"
+  echo ""
+  echo "DEBUG: SECRETS_JSON received:"
+  echo "$SECRETS_JSON" | sed 's/\(license_key\)":\s*"[^"]*"/\1":"***REDACTED***"/g'
+  echo ""
+
   # Extract AWS parameters
   JDBC_URL=$(echo "$AWS_PARAMS_JSON" | jq -r '.jdbc_url')
   AWS_REGION=$(echo "$AWS_PARAMS_JSON" | jq -r '.aws_region')
@@ -53,27 +61,16 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   RDS_ENDPOINT=$(echo "$AWS_PARAMS_JSON" | jq -r '.rds_endpoint')
 
   # Extract secrets
-  AWS_ACCESS_KEY_ID=$(echo "$SECRETS_JSON" | jq -r '.aws_access_key_id')
-  AWS_SECRET_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.aws_secret_access_key')
+  # Note: AWS credentials provided by IAM instance profile (no explicit credentials needed)
   LIQUIBASE_LICENSE_KEY=$(echo "$SECRETS_JSON" | jq -r '.liquibase_license_key')
 
   echo "Using AWS RDS endpoint: ${RDS_ENDPOINT}"
   echo "Flow file: s3://${FLOWS_BUCKET}/main-deployment-flow.yaml"
   echo "Database credentials: Liquibase native AWS Secrets Manager (JSON secret: ${DEMO_ID}/rds/credentials)"
-
-  # Create temporary AWS config directory
-  AWS_CONFIG_DIR=$(mktemp -d)
-  mkdir -p "${AWS_CONFIG_DIR}"
-  cat > "${AWS_CONFIG_DIR}/config" <<EOF
-[default]
-region = ${AWS_REGION}
-EOF
+  echo "AWS authentication: IAM instance profile (EC2 delegate)"
 
   docker run --rm \
     -v "${VOLUME_NAME}:/liquibase/changelog" \
-    -v "${AWS_CONFIG_DIR}:/root/.aws:ro" \
-    -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-    -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
     -e AWS_REGION="${AWS_REGION}" \
     -e AWS_DEFAULT_REGION="${AWS_REGION}" \
     -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
@@ -86,9 +83,6 @@ EOF
     "liquibase/liquibase-secure:${LIQUIBASE_VERSION}" \
     flow \
     --flow-file="s3://${FLOWS_BUCKET}/main-deployment-flow.yaml"
-
-  # Cleanup
-  rm -rf "${AWS_CONFIG_DIR}"
 
 else
   # ===== LOCAL MODE - Direct Update =====
