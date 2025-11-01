@@ -71,7 +71,7 @@ resource "aws_iam_role_policy" "delegate_apprunner" {
           "apprunner:ListServices",
           "apprunner:ListTagsForResource"
         ]
-        Resource = "arn:aws:apprunner:${var.aws_region}:*:service/${var.demo_id}-*"
+        Resource = "arn:aws:apprunner:${var.aws_region}:*:service/${local.name_prefix}-*"
       }
     ]
   })
