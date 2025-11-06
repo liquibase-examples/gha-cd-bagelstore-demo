@@ -1,6 +1,2 @@
 # Everything requires liquibase-customer-success approval
 *  @liquibase-examples/liquibase-customer-success
-
-# Except app and db where either team can approve
-/app/ @liquibase-examples/external-bofa-poc
-/db/ @liquibase-examples/external-bofa-poc
