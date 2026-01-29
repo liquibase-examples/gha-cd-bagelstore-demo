@@ -94,6 +94,13 @@ h2 {
     margin-bottom: 0.5rem;
 }
 
+.product-card .rating {
+    color: #f39c12;
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    letter-spacing: 2px;
+}
+
 .product-card .description {
     color: #7f8c8d;
     margin-bottom: 1rem;
