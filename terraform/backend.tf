@@ -8,5 +8,6 @@ terraform {
     region       = "us-east-1"
     encrypt      = true
     use_lockfile = true # Terraform 1.10+ native S3 locking (no DynamoDB needed)
+    profile      = "liquibase-sandbox-admin"
   }
 }

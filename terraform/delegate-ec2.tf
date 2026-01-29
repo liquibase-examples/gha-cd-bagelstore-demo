@@ -13,6 +13,40 @@
 # - S3 (get/put artifacts)
 # - ECR (pull custom delegate image)
 
+# Shared security groups (managed outside this project)
+data "aws_security_group" "liquibase_team" {
+  filter {
+    name   = "group-name"
+    values = ["Liquibase Team"]
+  }
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+data "aws_security_group" "liquibase_office" {
+  filter {
+    name   = "group-name"
+    values = ["Liquibase Office"]
+  }
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+data "aws_security_group" "aws_instances" {
+  filter {
+    name   = "group-name"
+    values = ["AWS Instances"]
+  }
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
 # Data source: Latest Amazon Linux 2023 AMI
 data "aws_ami" "amazon_linux_2023" {
   most_recent = true
@@ -300,6 +334,8 @@ resource "aws_security_group" "harness_delegate" {
   }
 
   # No inbound access required - using SSM Session Manager for secure shell access
+  # Explicitly set ingress to empty list to remove any manually-added rules
+  ingress = []
 
   tags = {
     Name       = "${var.demo_id}-harness-delegate-sg"
@@ -376,7 +412,12 @@ resource "aws_spot_instance_request" "delegate" {
   spot_price           = "0.03" # Max price (current spot ~$0.0166/hr)
 
   iam_instance_profile        = aws_iam_instance_profile.harness_delegate.name
-  vpc_security_group_ids      = [aws_security_group.harness_delegate.id]
+  vpc_security_group_ids = [
+    aws_security_group.harness_delegate.id,
+    data.aws_security_group.aws_instances.id,
+    data.aws_security_group.liquibase_team.id,
+    data.aws_security_group.liquibase_office.id,
+  ]
   subnet_id                   = data.aws_subnets.default.ids[0]
   associate_public_ip_address = true # Required for internet access to download packages
 
