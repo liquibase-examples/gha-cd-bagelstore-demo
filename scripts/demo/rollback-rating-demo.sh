@@ -8,7 +8,8 @@
 # 1. Resets git working tree (discards uncommitted changes)
 # 2. Connects to AWS RDS databases via terraform outputs
 # 3. Rollbacks rating changeset from dev, test, staging, prod
-# 4. Handles missing changesets gracefully (not yet deployed)
+# 4. Rolls back App Runner services to the baseline Docker image
+# 5. Handles missing changesets gracefully (not yet deployed)
 #
 # This resets the demo to baseline state, ready for next demonstration.
 #
@@ -92,7 +93,7 @@ fi
 # Check AWS Profile
 if [[ -z "${AWS_PROFILE:-}" ]]; then
     echo -e "${RED}❌ Error: AWS_PROFILE not set${NC}"
-    echo "  Export AWS profile: export AWS_PROFILE=liquibase-csteam-operator"
+    echo "  Export AWS profile: export AWS_PROFILE=liquibase-sandbox-admin"
     exit 1
 fi
 
@@ -245,6 +246,85 @@ done
 
 cd "${REPO_ROOT}"
 
+#
+# Part 3: Rollback App Runner Services to Baseline Image
+#
+echo ""
+echo -e "${CYAN}Part 3: Rollback App Runner Services${NC}"
+echo ""
+
+# Get baseline commit SHA (current HEAD after git reset = baseline)
+BASELINE_SHA=$(git rev-parse --short=7 HEAD)
+echo -e "${YELLOW}→${NC} Baseline commit: ${BASELINE_SHA}"
+
+# Get ECR URI and App Runner service ARNs from terraform
+ECR_URI=$(echo "${TERRAFORM_OUTPUT}" | jq -r '.ecr_public_repository_uri.value')
+BASELINE_IMAGE="${ECR_URI}:main-${BASELINE_SHA}"
+
+echo -e "${YELLOW}→${NC} Baseline image: ${BASELINE_IMAGE}"
+echo ""
+
+IMAGE_FOUND=true
+
+# Verify the baseline image exists in ECR
+echo -e "${YELLOW}→${NC} Verifying baseline image exists in ECR..."
+if aws ecr-public describe-images \
+    --repository-name "${DEMO_ID}-bagel-store" \
+    --region us-east-1 \
+    --image-ids "imageTag=main-${BASELINE_SHA}" &>/dev/null; then
+    echo -e "${GREEN}✓${NC} Baseline image found"
+else
+    echo -e "${RED}❌ Error: Baseline image not found in ECR${NC}"
+    echo "  Image: ${BASELINE_IMAGE}"
+    echo "  No App Runner rollback will be performed."
+    echo ""
+    IMAGE_FOUND=false
+fi
+
+APP_RUNNER_UPDATED=()
+APP_RUNNER_SKIPPED=()
+
+# Extract App Runner service ARNs from terraform
+APP_RUNNER_FAILED=()
+
+if [[ "${IMAGE_FOUND}" == "true" ]]; then
+
+    echo -e "${YELLOW}→${NC} Updating App Runner services..."
+    echo ""
+
+    for ENV_NAME in "${DATABASES[@]}"; do
+        SERVICE_ARN=$(echo "${TERRAFORM_OUTPUT}" | jq -r ".app_runner_services.value.${ENV_NAME}.service_arn")
+
+        if [[ "${SERVICE_ARN}" == "null" ]] || [[ -z "${SERVICE_ARN}" ]]; then
+            echo -e "${CYAN}  ${ENV_NAME}:${NC}"
+            echo -e "    ${YELLOW}⊘${NC}  No App Runner service found - skipping"
+            APP_RUNNER_SKIPPED+=("${ENV_NAME}")
+            echo ""
+            continue
+        fi
+
+        echo -e "${CYAN}  ${ENV_NAME}:${NC}"
+        echo -e "    ${YELLOW}→${NC} Updating to ${BASELINE_IMAGE}..."
+
+        UPDATE_OUTPUT=$(aws apprunner update-service \
+            --service-arn "${SERVICE_ARN}" \
+            --region us-east-1 \
+            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"${BASELINE_IMAGE}\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\"}}}" \
+            --query 'Service.Status' \
+            --output text 2>&1)
+
+        if [[ "${UPDATE_OUTPUT}" == "OPERATION_IN_PROGRESS" ]]; then
+            echo -e "    ${GREEN}✓${NC} Update started (OPERATION_IN_PROGRESS)"
+            APP_RUNNER_UPDATED+=("${ENV_NAME}")
+        else
+            echo -e "    ${RED}✗${NC} Update failed: ${UPDATE_OUTPUT}"
+            APP_RUNNER_FAILED+=("${ENV_NAME}")
+        fi
+
+        echo ""
+    done
+fi
+
 echo ""
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Rollback Summary${NC}"
@@ -269,7 +349,29 @@ fi
 
 echo ""
 
-if [[ ${#FAILED[@]} -eq 0 ]]; then
+echo -e "${CYAN}App Runner rollbacks:${NC}"
+if [[ ${#APP_RUNNER_UPDATED[@]} -gt 0 ]]; then
+    echo -e "  ${GREEN}✓ Updated (${#APP_RUNNER_UPDATED[@]}):${NC} ${APP_RUNNER_UPDATED[*]} → main-${BASELINE_SHA}"
+fi
+
+if [[ ${#APP_RUNNER_SKIPPED[@]} -gt 0 ]]; then
+    echo -e "  ${YELLOW}⊘ Skipped (${#APP_RUNNER_SKIPPED[@]}):${NC} ${APP_RUNNER_SKIPPED[*]}"
+fi
+
+if [[ "${IMAGE_FOUND}" == "false" ]]; then
+    echo -e "  ${RED}✗ Skipped: Baseline image not found in ECR${NC}"
+elif [[ ${#APP_RUNNER_FAILED[@]} -gt 0 ]]; then
+    echo -e "  ${RED}✗ Failed (${#APP_RUNNER_FAILED[@]}):${NC} ${APP_RUNNER_FAILED[*]}"
+fi
+
+echo ""
+
+HAS_FAILURES=false
+if [[ ${#FAILED[@]} -gt 0 ]] || [[ ${#APP_RUNNER_FAILED[@]} -gt 0 ]] || [[ "${IMAGE_FOUND}" == "false" ]]; then
+    HAS_FAILURES=true
+fi
+
+if [[ "${HAS_FAILURES}" == "false" ]]; then
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN}  ✓ Demo Reset Complete!${NC}"
     echo -e "${GREEN}========================================${NC}"
@@ -277,12 +379,15 @@ if [[ ${#FAILED[@]} -eq 0 ]]; then
     echo "Ready for next demonstration:"
     echo "  ./scripts/demo/apply-rating-demo.sh"
     echo ""
+    if [[ ${#APP_RUNNER_UPDATED[@]} -gt 0 ]]; then
+        echo "Note: App Runner deployments take a few minutes to complete."
+        echo ""
+    fi
 else
     echo -e "${YELLOW}========================================${NC}"
     echo -e "${YELLOW}  ⚠ Rollback Completed with Errors${NC}"
     echo -e "${YELLOW}========================================${NC}"
     echo ""
-    echo "Some databases could not be rolled back."
-    echo "Check database connectivity and Liquibase logs."
+    echo "Some rollbacks had issues. Check logs above for details."
     echo ""
 fi
