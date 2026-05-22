@@ -15,3 +15,9 @@ inputSet:
       - name: DEPLOYMENT_TARGET
         type: String
         value: <+trigger.payload.deployment_target>
+      - name: ROLLBACK
+        type: String
+        value: "false"
+      - name: ROLLBACK_TO_VERSION
+        type: String
+        value: ""

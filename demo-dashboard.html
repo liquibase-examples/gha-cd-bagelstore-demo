@@ -174,6 +174,137 @@
         </header>
 
         <div class="grid">
+            <!-- Architecture Diagram -->
+            <div class="card full-width">
+                <h2><span class="icon">🏗️</span> Application Architecture</h2>
+                <svg viewBox="0 0 920 320" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
+                    <defs>
+                        <filter id="cardShadow" x="-5%" y="-5%" width="115%" height="130%">
+                            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000012"/>
+                        </filter>
+                        <marker id="arr" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                            <polygon points="0 0, 7 2.5, 0 5" fill="#94a3b8"/>
+                        </marker>
+                        <style>
+                            .app-link { cursor: pointer; }
+                            .app-link .hover-overlay { fill: transparent; transition: fill 0.15s; }
+                            .app-link:hover .hover-overlay { fill: rgba(0,0,0,0.045); }
+                        </style>
+                        <!-- Left-border gradients for each environment -->
+                        <linearGradient id="gradDev" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0"     stop-color="#10b981"/>
+                            <stop offset="0.023" stop-color="#10b981"/>
+                            <stop offset="0.023" stop-color="white"/>
+                            <stop offset="1"     stop-color="white"/>
+                        </linearGradient>
+                        <linearGradient id="gradTest" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0"     stop-color="#3b82f6"/>
+                            <stop offset="0.023" stop-color="#3b82f6"/>
+                            <stop offset="0.023" stop-color="white"/>
+                            <stop offset="1"     stop-color="white"/>
+                        </linearGradient>
+                        <linearGradient id="gradStaging" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0"     stop-color="#f59e0b"/>
+                            <stop offset="0.023" stop-color="#f59e0b"/>
+                            <stop offset="0.023" stop-color="white"/>
+                            <stop offset="1"     stop-color="white"/>
+                        </linearGradient>
+                        <linearGradient id="gradProd" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0"     stop-color="#ef4444"/>
+                            <stop offset="0.023" stop-color="#ef4444"/>
+                            <stop offset="0.023" stop-color="white"/>
+                            <stop offset="1"     stop-color="white"/>
+                        </linearGradient>
+                    </defs>
+
+                    <!-- Background -->
+                    <rect width="920" height="320" fill="#f8fafc" rx="10"/>
+                    <!-- AWS boundary -->
+                    <rect x="12" y="12" width="896" height="296" rx="10" fill="none" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="5,4"/>
+                    <text x="24" y="28" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="10" fill="#94a3b8" font-weight="700" letter-spacing="1">AWS</text>
+
+                    <!-- ════ DEV App Runner ════ -->
+                    <a href="https://ftngew3ms2.us-east-1.awsapprunner.com" target="_blank" class="app-link">
+                        <rect x="70"  y="28" width="180" height="118" rx="7" fill="url(#gradDev)"     stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+                        <rect x="82"  y="40"  width="36" height="17" rx="8" fill="#d1fae5"/>
+                        <text x="100" y="53"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="10" font-weight="700" fill="#065f46" text-anchor="middle">DEV</text>
+                        <text x="84"  y="78"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="12" font-weight="700" fill="#1a202c">AWS App Runner</text>
+                        <text x="84"  y="95"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="11" fill="#718096">Flask Application</text>
+                        <rect x="82"  y="105" width="92" height="16" rx="8" fill="#dbeafe"/>
+                        <text x="128" y="117" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="9.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">Docker Container</text>
+                        <rect x="70"  y="28" width="180" height="118" rx="7" class="hover-overlay"/>
+                    </a>
+
+                    <!-- ════ TEST App Runner ════ -->
+                    <a href="https://idimzicn3r.us-east-1.awsapprunner.com" target="_blank" class="app-link">
+                        <rect x="270" y="28" width="180" height="118" rx="7" fill="url(#gradTest)"    stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+                        <rect x="282" y="40"  width="40" height="17" rx="8" fill="#dbeafe"/>
+                        <text x="302" y="53"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="10" font-weight="700" fill="#1e40af" text-anchor="middle">TEST</text>
+                        <text x="284" y="78"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="12" font-weight="700" fill="#1a202c">AWS App Runner</text>
+                        <text x="284" y="95"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="11" fill="#718096">Flask Application</text>
+                        <rect x="282" y="105" width="92" height="16" rx="8" fill="#dbeafe"/>
+                        <text x="328" y="117" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="9.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">Docker Container</text>
+                        <rect x="270" y="28" width="180" height="118" rx="7" class="hover-overlay"/>
+                    </a>
+
+                    <!-- ════ STAGING App Runner ════ -->
+                    <a href="https://kyhmqghxzr.us-east-1.awsapprunner.com" target="_blank" class="app-link">
+                        <rect x="470" y="28" width="180" height="118" rx="7" fill="url(#gradStaging)" stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+                        <rect x="482" y="40"  width="55" height="17" rx="8" fill="#fef3c7"/>
+                        <text x="510" y="53"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="10" font-weight="700" fill="#92400e" text-anchor="middle">STAGING</text>
+                        <text x="484" y="78"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="12" font-weight="700" fill="#1a202c">AWS App Runner</text>
+                        <text x="484" y="95"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="11" fill="#718096">Flask Application</text>
+                        <rect x="482" y="105" width="92" height="16" rx="8" fill="#dbeafe"/>
+                        <text x="528" y="117" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="9.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">Docker Container</text>
+                        <rect x="470" y="28" width="180" height="118" rx="7" class="hover-overlay"/>
+                    </a>
+
+                    <!-- ════ PROD App Runner ════ -->
+                    <a href="https://cipykp34zu.us-east-1.awsapprunner.com" target="_blank" class="app-link">
+                        <rect x="670" y="28" width="180" height="118" rx="7" fill="url(#gradProd)"    stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+                        <rect x="682" y="40"  width="42" height="17" rx="8" fill="#fee2e2"/>
+                        <text x="703" y="53"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="10" font-weight="700" fill="#991b1b" text-anchor="middle">PROD</text>
+                        <text x="684" y="78"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="12" font-weight="700" fill="#1a202c">AWS App Runner</text>
+                        <text x="684" y="95"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="11" fill="#718096">Flask Application</text>
+                        <rect x="682" y="105" width="92" height="16" rx="8" fill="#dbeafe"/>
+                        <text x="728" y="117" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="9.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">Docker Container</text>
+                        <rect x="670" y="28" width="180" height="118" rx="7" class="hover-overlay"/>
+                    </a>
+
+                    <!-- Lines from boxes down to collection line -->
+                    <line x1="160" y1="146" x2="160" y2="188" stroke="#94a3b8" stroke-width="1.5"/>
+                    <line x1="360" y1="146" x2="360" y2="188" stroke="#94a3b8" stroke-width="1.5"/>
+                    <line x1="560" y1="146" x2="560" y2="188" stroke="#94a3b8" stroke-width="1.5"/>
+                    <line x1="760" y1="146" x2="760" y2="188" stroke="#94a3b8" stroke-width="1.5"/>
+                    <!-- Horizontal collection line -->
+                    <line x1="160" y1="188" x2="760" y2="188" stroke="#cbd5e0" stroke-width="1.5"/>
+                    <!-- Dots at junctions -->
+                    <circle cx="160" cy="188" r="3" fill="#94a3b8"/>
+                    <circle cx="360" cy="188" r="3" fill="#94a3b8"/>
+                    <circle cx="560" cy="188" r="3" fill="#94a3b8"/>
+                    <circle cx="760" cy="188" r="3" fill="#94a3b8"/>
+
+                    <!-- Arrow: collection line → RDS -->
+                    <line x1="460" y1="188" x2="460" y2="212" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr)"/>
+                    <text x="466" y="205"  font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="9.5" fill="#94a3b8">psycopg2 / SQLAlchemy</text>
+
+                    <!-- ════ RDS BOX ════ -->
+                    <rect x="310" y="214" width="300" height="82" rx="7" fill="white" stroke="#bfdbfe" stroke-width="1.5" filter="url(#cardShadow)"/>
+                    <!-- Blue top accent -->
+                    <rect x="310" y="214" width="300" height="7"  rx="7" fill="#336791"/>
+                    <rect x="310" y="218"  width="300" height="3"  fill="#336791"/>
+                    <!-- Cylinder icon -->
+                    <ellipse cx="344" cy="244" rx="15" ry="5.5" fill="#336791" opacity="0.15"/>
+                    <rect    x="329"  y="244" width="30"  height="17"   fill="#336791" opacity="0.10"/>
+                    <ellipse cx="344" cy="261" rx="15" ry="5.5" fill="#336791" opacity="0.18"/>
+                    <ellipse cx="344" cy="244" rx="15" ry="5.5" fill="#336791" opacity="0.45"/>
+                    <!-- Text -->
+                    <text x="372" y="244" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="13" font-weight="700" fill="#1a202c">AWS RDS PostgreSQL</text>
+                    <text x="372" y="262" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="11" fill="#718096">Shared instance · 4 databases</text>
+                    <text x="372" y="278" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="10" fill="#94a3b8">dev · test · staging · prod</text>
+                </svg>
+            </div>
+
             <!-- Application URLs -->
             <div class="card">
                 <h2><span class="icon">🌐</span> Application URLs</h2>
@@ -299,8 +430,7 @@
                 <a href="https://s3.console.aws.amazon.com/s3/buckets/bagel-store-psr-liquibase-flows?region=us-east-1"
                    class="btn btn-secondary" target="_blank">Flows Bucket</a>
             </div>
-            
-            
+
             <!-- Demo Workflow -->
             <div class="card full-width">
                 <h2><span class="icon">🎬</span> Demo Workflow</h2>

@@ -8,6 +8,7 @@ Liquibase flow files and policy checks configuration for the Bagel Store demo. T
 
 - **[pr-validation-flow.yaml](pr-validation-flow.yaml)** - Pull request validation flow
 - **[main-deployment-flow.yaml](main-deployment-flow.yaml)** - Main branch deployment flow
+- **[rollback-flow.yaml](rollback-flow.yaml)** - Database rollback flow (rollback to tagged version)
 
 ### Configuration
 
@@ -215,6 +216,16 @@ resource "aws_s3_object" "policy_checks_config" {
 - `REPORTS_PATH: "reports"`
 - `VERSION: "${VERSION:-latest}"`
 - Artifact naming: `bagel-store-changelog-${VERSION}.zip`
+
+### rollback-flow.yaml
+- `ENV: "ROLLBACK"`
+- `REPORTS_PATH: "reports"`
+- `ROLLBACK_TAG: "${ROLLBACK_TAG:-REQUIRED}"` - Must be set via `-e ROLLBACK_TAG=...`
+
+### Rollback Reports
+- `rollback-connection-report.html` - Database connection validation
+- `rollback-history-report.html` - Pre-rollback change history audit
+- `rollback-report.html` - Rollback operation results
 
 ## Exit Codes
 

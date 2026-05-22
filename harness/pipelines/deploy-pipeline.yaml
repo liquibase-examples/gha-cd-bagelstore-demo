@@ -29,6 +29,18 @@ pipeline:
       required: true
       value: <+input>
 
+    - name: ROLLBACK
+      type: String
+      description: Set to "true" to rollback instead of deploy. Run a single stage only.
+      required: true
+      value: "false"
+
+    - name: ROLLBACK_TO_VERSION
+      type: String
+      description: Version to rollback to. Defaults to last successfully deployed version.
+      required: false
+      value: <+rollbackArtifact.tag>
+
   # Deployment stages for all four environments
   stages:
     # ===== STAGE 1: Deploy to Dev (Automatic) =====

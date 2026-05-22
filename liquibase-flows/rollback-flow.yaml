@@ -1,0 +1,86 @@
+##########           LIQUIBASE FLOWFILE                ##########
+##########  learn more http://docs.liquibase.com/flow  ##########
+##
+## Rollback Flow
+## Purpose: Roll back database changes to a specific tagged version
+## Pattern: Verify connectivity, show history for audit, then rollback to tag
+##
+## Usage:
+##   Pass ROLLBACK_TAG as an environment variable to the Docker container:
+##     docker run -e ROLLBACK_TAG="v1.0.0" ... liquibase/liquibase-secure:5.0.1 \
+##       flow --flow-file=rollback-flow.yaml
+##
+## Note: No policy checks stage — rollback undoes changes, doesn't apply new ones.
+##
+
+globalVariables:
+  ENV: "ROLLBACK"
+  REPORTS_PATH: "reports"
+  ROLLBACK_TAG: "${ROLLBACK_TAG:-REQUIRED}"
+  ROLLBACK_REPORT: "rollback-report.html"
+  CONNECTION_REPORT: "rollback-connection-report.html"
+  HISTORY_REPORT: "rollback-history-report.html"
+
+stages:
+  # Stage 1: Verify connectivity and changelog validity
+  Verify:
+    actions:
+      - type: liquibase
+        command: connect
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${CONNECTION_REPORT}"
+
+      - type: liquibase
+        command: validate
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+
+  # Stage 2: Show change history for audit trail before rollback
+  PreRollbackAudit:
+    actions:
+      - type: liquibase
+        command: history
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${HISTORY_REPORT}"
+
+      - type: shell
+        command: >
+          echo '========================================' &&
+          echo '  ROLLBACK TARGET: ${ROLLBACK_TAG}' &&
+          echo '  Will roll back all changes AFTER tag: ${ROLLBACK_TAG}' &&
+          echo '========================================'
+
+  # Stage 3: Execute rollback to the target tag
+  Rollback:
+    actions:
+      - type: liquibase
+        command: rollback
+        cmdArgs:
+          tag: "${ROLLBACK_TAG}"
+        globalArgs:
+          reports-enabled: "true"
+          reports-path: "${REPORTS_PATH}"
+          reports-name: "${ROLLBACK_REPORT}"
+          reports-open: "false"
+
+endStage:
+  actions:
+    - type: shell
+      command: >
+        echo '========================================' &&
+        echo '   ROLLBACK SUMMARY' &&
+        echo '========================================' &&
+        echo 'Environment: ${ENV}' &&
+        echo 'Rolled back to tag: ${ROLLBACK_TAG}' &&
+        echo 'Reports Path: ${REPORTS_PATH}/' &&
+        echo '' &&
+        echo 'Generated Reports:' &&
+        (ls -lh '${REPORTS_PATH}/'*.html 2>/dev/null || echo '  No reports found') &&
+        echo '' &&
+        echo 'Rollback complete!' &&
+        echo '========================================'
