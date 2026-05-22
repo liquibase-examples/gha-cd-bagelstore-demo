@@ -251,6 +251,8 @@ jobs:
 
       - name: Trigger Harness webhook
         if: vars.HARNESS_WEBHOOK_URL != ''
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           # Set deployment target from GitHub variable or default to 'aws'
           DEPLOYMENT_TARGET="${{ vars.DEPLOYMENT_TARGET }}"
@@ -259,6 +261,7 @@ jobs:
           fi
 
           echo "Triggering Harness CD pipeline..."
+          COMMIT_MSG_JSON=$(echo "$COMMIT_MESSAGE" | jq -Rs .)
           curl -X POST "${{ vars.HARNESS_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
             -d "{
@@ -267,7 +270,7 @@ jobs:
               \"deployment_target\": \"${DEPLOYMENT_TARGET}\",
               \"branch\": \"${{ github.ref_name }}\",
               \"commit_sha\": \"${{ github.sha }}\",
-              \"commit_message\": $(echo '${{ github.event.head_commit.message }}' | jq -Rs .),
+              \"commit_message\": ${COMMIT_MSG_JSON},
               \"triggered_by\": \"${{ github.actor }}\",
               \"run_id\": \"${{ github.run_id }}\"
             }"
