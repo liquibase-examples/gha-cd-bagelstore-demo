@@ -296,6 +296,7 @@ template:
             outputVariables: []
           timeout: 10m
           when:
+            stageStatus: Success
             condition: <+pipeline.variables.ROLLBACK> == "true"
 
       # Step 8: Rollback database (after app, so old code runs against current schema first)
@@ -340,6 +341,7 @@ template:
             outputVariables: []
           timeout: 10m
           when:
+            stageStatus: Success
             condition: <+pipeline.variables.ROLLBACK> == "true"
 
       # Step 9: Health check after rollback
@@ -363,6 +365,7 @@ template:
             outputVariables: []
           timeout: 10m
           when:
+            stageStatus: Success
             condition: <+pipeline.variables.ROLLBACK> == "true"
 
     stageType: Deployment
