@@ -81,6 +81,24 @@ resource "aws_s3_object" "main_deployment_flow" {
   )
 }
 
+resource "aws_s3_object" "rollback_flow" {
+  count = var.deployment_mode == "aws" ? 1 : 0
+
+  bucket = aws_s3_bucket.liquibase_flows[0].id
+  key    = "rollback-flow.yaml"
+  source = "${path.module}/../liquibase-flows/rollback-flow.yaml"
+  etag   = filemd5("${path.module}/../liquibase-flows/rollback-flow.yaml")
+
+  content_type = "application/x-yaml"
+
+  tags = merge(
+    local.tags,
+    {
+      Name = "rollback-flow.yaml"
+    }
+  )
+}
+
 resource "aws_s3_object" "policy_checks_config" {
   count = var.deployment_mode == "aws" ? 1 : 0
 

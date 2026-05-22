@@ -153,7 +153,83 @@ health-check.sh <ENVIRONMENT> <VERSION> <DEPLOYMENT_TARGET> <SERVICE_URL>
 
 ---
 
-### 5. `fetch-instances.sh`
+### 5. `rollback-database.sh`
+Rolls back database changes to a specific tagged version using the Liquibase rollback flow file.
+
+**Usage:**
+```bash
+rollback-database.sh <ENVIRONMENT> <DEMO_ID> <DEPLOYMENT_TARGET> <AWS_PARAMS_JSON> <SECRETS_JSON> <ROLLBACK_TAG>
+```
+
+**Arguments:**
+- `ENVIRONMENT` - Target environment (dev/test/staging/prod)
+- `DEMO_ID` - Demo instance identifier
+- `DEPLOYMENT_TARGET` - Deployment mode: "aws" or "local"
+- `AWS_PARAMS_JSON` - JSON with AWS parameters (for AWS mode)
+- `SECRETS_JSON` - JSON with secret references
+- `ROLLBACK_TAG` - Liquibase tag to rollback to (e.g., v1.0.0)
+
+**AWS Mode:**
+- Uses S3 rollback flow file (verify → history → rollback)
+- Connects to RDS PostgreSQL
+- Uses AWS Secrets Manager for credentials
+
+**Local Mode:**
+- Uses local rollback flow file
+- Connects to Docker Compose postgres container
+- Uses hardcoded postgres/postgres credentials
+
+**Example (AWS):**
+```bash
+/opt/harness-delegate/scripts/rollback-database.sh \
+  "dev" \
+  "demo1" \
+  "aws" \
+  '{"jdbc_url":"jdbc:postgresql://...","aws_region":"us-east-1","liquibase_flows_bucket":"...","rds_endpoint":"..."}' \
+  '{"liquibase_license_key":"..."}' \
+  "v1.0.0"
+```
+
+---
+
+### 6. `rollback-application.sh`
+Rolls back application to a previous version by updating the service to use the target version's Docker image.
+
+**Usage:**
+```bash
+rollback-application.sh <ENVIRONMENT> <ROLLBACK_TO_VERSION> <GITHUB_ORG> <DEPLOYMENT_TARGET> <AWS_PARAMS_JSON> <SECRETS_JSON>
+```
+
+**Arguments:**
+- `ENVIRONMENT` - Target environment (dev/test/staging/prod)
+- `ROLLBACK_TO_VERSION` - Version to rollback to (e.g., v1.0.0)
+- `GITHUB_ORG` - GitHub organization name
+- `DEPLOYMENT_TARGET` - Deployment mode: "aws" or "local"
+- `AWS_PARAMS_JSON` - JSON with AWS parameters
+- `SECRETS_JSON` - JSON with secret references
+
+**AWS Mode:**
+- Updates App Runner service with rollback version Docker image
+- Uses IAM instance profile for AWS authentication
+
+**Local Mode:**
+- Updates `.env` file with rollback version
+- Pulls rollback image and restarts Docker Compose service
+
+**Example (AWS):**
+```bash
+/opt/harness-delegate/scripts/rollback-application.sh \
+  "dev" \
+  "v1.0.0" \
+  "liquibase-examples" \
+  "aws" \
+  '{"app_runner_service_arn":"...","aws_region":"us-east-1","demo_id":"demo1",...}' \
+  '{}'
+```
+
+---
+
+### 7. `fetch-instances.sh`
 Reports instance information to Harness for deployment tracking.
 
 **Usage:**

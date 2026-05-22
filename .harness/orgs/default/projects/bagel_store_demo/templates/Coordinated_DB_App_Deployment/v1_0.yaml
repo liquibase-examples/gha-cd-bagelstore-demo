@@ -11,19 +11,27 @@ template:
   description: |
     Reusable step group for deploying database changes and application updates.
     Supports both AWS (RDS + App Runner) and Local (Docker Compose) deployment modes.
+    Supports manual rollback via ROLLBACK pipeline variable.
 
-    Steps:
+    Forward Deploy Steps (ROLLBACK != "true"):
     1. Fetch Changelog Artifact - Downloads changelog zip from GitHub Actions artifacts
     2. Update Database - Runs Liquibase update via Docker container
     3. Deploy Application - Updates App Runner (AWS) or Docker Compose (local) via deployment script
     4. Health Check - Verifies deployment success with version check
     5. Fetch Instances - Reports instance information to Harness for tracking
 
+    Rollback Steps (ROLLBACK == "true"):
+    6. Fetch Changelog Artifact (Rollback) - Downloads changelog for rollback target version
+    7. Rollback Application - Reverts App Runner/Docker Compose to previous version (app first)
+    8. Rollback Database - Runs Liquibase rollback to target version tag (DB second)
+    9. Rollback Health Check - Verifies rollback success
+
     Architecture:
     - Uses external deployment scripts (bind mounted to delegate from harness/scripts/)
     - Scripts update automatically on git push (no UI refresh needed)
     - For AWS: Calls aws apprunner update-service directly (no Terraform)
     - For local: Updates Docker Compose with new version
+    - Rollback ordering: Application first, then database (avoids new code against old schema)
 
     Environment variables used (automatically resolved from stage context):
     - env.variables.environment: Target environment (dev/test/staging/prod)
@@ -43,12 +51,16 @@ template:
     Pipeline variables used:
     - pipeline.variables.VERSION: Git tag version to deploy
     - pipeline.variables.GITHUB_ORG: GitHub organization name
+    - pipeline.variables.ROLLBACK: "true" to rollback, "false" (default) to deploy
+    - pipeline.variables.ROLLBACK_TO_VERSION: Target version for rollback
 
     Deployment mode controlled by:
     - DEPLOYMENT_TARGET environment variable: "aws" (default) or "local"
 
   spec:
     steps:
+      # ===== FORWARD DEPLOY STEPS (skipped during rollback) =====
+
       # Step 1: Fetch changelog artifact from GitHub Actions
       - step:
           type: ShellScript
@@ -68,6 +80,9 @@ template:
             environmentVariables: []
             outputVariables: []
           timeout: 5m
+          when:
+            stageStatus: Success
+            condition: <+pipeline.variables.ROLLBACK> != "true"
 
       # Step 2: Update database with Liquibase
       - step:
@@ -111,6 +126,9 @@ template:
             environmentVariables: []
             outputVariables: []
           timeout: 10m
+          when:
+            stageStatus: Success
+            condition: <+pipeline.variables.ROLLBACK> != "true"
 
       # Step 3: Deploy application
       - step:
@@ -157,6 +175,9 @@ template:
             environmentVariables: []
             outputVariables: []
           timeout: 10m
+          when:
+            stageStatus: Success
+            condition: <+pipeline.variables.ROLLBACK> != "true"
 
       # Step 4: Health check
       - step:
@@ -178,6 +199,9 @@ template:
             environmentVariables: []
             outputVariables: []
           timeout: 10m
+          when:
+            stageStatus: Success
+            condition: <+pipeline.variables.ROLLBACK> != "true"
 
       # Step 5: Fetch Instance Script (required for CustomDeployment tracking)
       - step:
@@ -198,5 +222,147 @@ template:
             outputVariables: []
             environmentVariables: []
           timeout: 5m
+          when:
+            stageStatus: Success
+            condition: <+pipeline.variables.ROLLBACK> != "true"
+
+      # ===== ROLLBACK STEPS (skipped during normal deploy) =====
+
+      # Step 6: Fetch changelog artifact for rollback target version
+      - step:
+          type: ShellScript
+          name: Fetch Changelog Artifact (Rollback)
+          identifier: Fetch_Changelog_Artifact_Rollback
+          spec:
+            shell: Bash
+            executionTarget: {}
+            source:
+              type: Inline
+              spec:
+                script: |-
+                  /opt/harness-delegate/scripts/fetch-changelog-artifact.sh \
+                    "<+pipeline.variables.ROLLBACK_TO_VERSION>" \
+                    "<+pipeline.variables.GITHUB_ORG>" \
+                    "<+secrets.getValue('github_pat')>"
+            environmentVariables: []
+            outputVariables: []
+          timeout: 5m
+          when:
+            stageStatus: Success
+            condition: <+pipeline.variables.ROLLBACK> == "true"
+
+      # Step 7: Rollback application (app first - avoid new code against old schema)
+      - step:
+          type: ShellScript
+          name: Rollback Application
+          identifier: Rollback_Application
+          spec:
+            shell: Bash
+            executionTarget: {}
+            source:
+              type: Inline
+              spec:
+                script: |-
+                  # Build AWS parameters JSON
+                  AWS_PARAMS=$(cat <<'EOF'
+                  {
+                    "app_runner_service_arn": "<+env.variables.app_runner_service_arn>",
+                    "aws_region": "<+env.variables.aws_region>",
+                    "demo_id": "<+env.variables.demo_id>",
+                    "rds_address": "<+env.variables.rds_address>",
+                    "rds_port": "<+env.variables.rds_port>",
+                    "database_name": "<+env.variables.database_name>",
+                    "secrets_username_arn": "<+env.variables.secrets_username_arn>",
+                    "secrets_password_arn": "<+env.variables.secrets_password_arn>",
+                    "ecr_public_alias": "<+env.variables.ecr_public_alias>"
+                  }
+                  EOF
+                  )
+
+                  # Build secrets JSON
+                  SECRETS=$(cat <<'EOF'
+                  {}
+                  EOF
+                  )
+
+                  /opt/harness-delegate/scripts/rollback-application.sh \
+                    "<+env.variables.environment>" \
+                    "<+pipeline.variables.ROLLBACK_TO_VERSION>" \
+                    "<+pipeline.variables.GITHUB_ORG>" \
+                    "${DEPLOYMENT_TARGET:-aws}" \
+                    "$AWS_PARAMS" \
+                    "$SECRETS"
+            environmentVariables: []
+            outputVariables: []
+          timeout: 10m
+          when:
+            condition: <+pipeline.variables.ROLLBACK> == "true"
+
+      # Step 8: Rollback database (after app, so old code runs against current schema first)
+      - step:
+          type: ShellScript
+          name: Rollback Database
+          identifier: Rollback_Database
+          spec:
+            shell: Bash
+            executionTarget: {}
+            source:
+              type: Inline
+              spec:
+                script: |-
+                  # Build AWS parameters JSON
+                  AWS_PARAMS=$(cat <<'EOF'
+                  {
+                    "jdbc_url": "<+env.variables.jdbc_url>",
+                    "aws_region": "<+env.variables.aws_region>",
+                    "liquibase_flows_bucket": "<+env.variables.liquibase_flows_bucket>",
+                    "rds_endpoint": "<+env.variables.rds_endpoint>"
+                  }
+                  EOF
+                  )
+
+                  # Build secrets JSON
+                  SECRETS=$(cat <<'EOF'
+                  {
+                    "liquibase_license_key": "<+secrets.getValue('liquibase_license_key')>"
+                  }
+                  EOF
+                  )
+
+                  /opt/harness-delegate/scripts/rollback-database.sh \
+                    "<+env.variables.environment>" \
+                    "<+env.variables.demo_id>" \
+                    "${DEPLOYMENT_TARGET:-aws}" \
+                    "$AWS_PARAMS" \
+                    "$SECRETS" \
+                    "<+pipeline.variables.ROLLBACK_TO_VERSION>"
+            environmentVariables: []
+            outputVariables: []
+          timeout: 10m
+          when:
+            condition: <+pipeline.variables.ROLLBACK> == "true"
+
+      # Step 9: Health check after rollback
+      - step:
+          type: ShellScript
+          name: Rollback Health Check
+          identifier: Rollback_Health_Check
+          spec:
+            shell: Bash
+            executionTarget: {}
+            source:
+              type: Inline
+              spec:
+                script: |-
+                  /opt/harness-delegate/scripts/health-check.sh \
+                    "<+env.variables.environment>" \
+                    "<+pipeline.variables.ROLLBACK_TO_VERSION>" \
+                    "${DEPLOYMENT_TARGET:-aws}" \
+                    "<+env.variables.app_runner_service_url>"
+            environmentVariables: []
+            outputVariables: []
+          timeout: 10m
+          when:
+            condition: <+pipeline.variables.ROLLBACK> == "true"
 
     stageType: Deployment
