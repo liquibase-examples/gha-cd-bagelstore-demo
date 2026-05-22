@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 # Get repository root (2 levels up from scripts/demo/)
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TERRAFORM_DIR="${REPO_ROOT}/terraform"
-ROLLBACK_TAG=""  # Resolved dynamically from the database
+ROLLBACK_TAG="main-fb49879"
 LIQUIBASE_IMAGE="liquibase/liquibase-secure:5.0.1"
 
 echo -e "${BLUE}========================================${NC}"
@@ -172,22 +172,6 @@ if [[ $? -ne 0 ]] || [[ -z "${DB_PASSWORD}" ]]; then
 fi
 
 echo -e "${GREEN}✓${NC} Credentials retrieved"
-echo ""
-
-# Resolve rollback tag dynamically from the database
-echo -e "${YELLOW}→${NC} Resolving rollback tag from database..."
-ROLLBACK_TAG=$(docker run --rm \
-    --network host \
-    postgres:16 \
-    psql "postgresql://${DB_USERNAME}:${DB_PASSWORD}@${RDS_ADDRESS}:${RDS_PORT}/dev" \
-    -tAc "SELECT tag FROM databasechangelog WHERE id = 'tag-v1.0.0' LIMIT 1;" 2>/dev/null | tr -d '[:space:]')
-
-if [[ -z "${ROLLBACK_TAG}" ]]; then
-    echo -e "${RED}❌ Error: Could not determine rollback tag from databasechangelog${NC}"
-    echo "  Expected a row with id = 'tag-v1.0.0' in the dev database"
-    exit 1
-fi
-echo -e "${GREEN}✓${NC} Rollback tag: ${ROLLBACK_TAG}"
 echo ""
 
 # Rollback each database
