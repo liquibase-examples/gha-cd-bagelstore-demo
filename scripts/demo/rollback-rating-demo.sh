@@ -28,6 +28,7 @@ NC='\033[0m' # No Color
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TERRAFORM_DIR="${REPO_ROOT}/terraform"
 ROLLBACK_TAG="main-fb49879"
+BASELINE_APP_IMAGE="public.ecr.aws/l1v5b6d6/psr-bagel-store:main-b5660a6"
 LIQUIBASE_IMAGE="liquibase/liquibase-secure:5.0.1"
 
 echo -e "${BLUE}========================================${NC}"
@@ -256,7 +257,7 @@ APP_RUNNER_UPDATED=()
 APP_RUNNER_SKIPPED=()
 APP_RUNNER_FAILED=()
 
-echo -e "${YELLOW}→${NC} Rolling back App Runner services to their current images..."
+echo -e "${YELLOW}→${NC} Rolling back App Runner services to baseline image: ${BASELINE_APP_IMAGE}..."
 echo ""
 
 for ENV_NAME in "${DATABASES[@]}"; do
@@ -270,28 +271,13 @@ for ENV_NAME in "${DATABASES[@]}"; do
         continue
     fi
 
-    # Get the image the service is currently running
-    CURRENT_IMAGE=$(aws apprunner describe-service \
-        --service-arn "${SERVICE_ARN}" \
-        --region us-east-1 \
-        --query 'Service.SourceConfiguration.ImageRepository.ImageIdentifier' \
-        --output text 2>/dev/null)
-
-    if [[ -z "${CURRENT_IMAGE}" ]] || [[ "${CURRENT_IMAGE}" == "None" ]]; then
-        echo -e "${CYAN}  ${ENV_NAME}:${NC}"
-        echo -e "    ${RED}✗${NC} Could not determine current image"
-        APP_RUNNER_FAILED+=("${ENV_NAME}")
-        echo ""
-        continue
-    fi
-
     echo -e "${CYAN}  ${ENV_NAME}:${NC}"
-    echo -e "    ${YELLOW}→${NC} Redeploying current image: ${CURRENT_IMAGE}..."
+    echo -e "    ${YELLOW}→${NC} Deploying baseline image..."
 
     UPDATE_OUTPUT=$(aws apprunner update-service \
         --service-arn "${SERVICE_ARN}" \
         --region us-east-1 \
-        --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"${CURRENT_IMAGE}\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\"}}}" \
+        --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"${BASELINE_APP_IMAGE}\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\"}}}" \
         --query 'Service.Status' \
         --output text 2>&1) || UPDATE_OUTPUT="${UPDATE_OUTPUT}"
 
