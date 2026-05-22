@@ -253,77 +253,59 @@ echo ""
 echo -e "${CYAN}Part 3: Rollback App Runner Services${NC}"
 echo ""
 
-# Get baseline commit SHA (current HEAD after git reset = baseline)
-BASELINE_SHA=$(git rev-parse --short=7 HEAD)
-echo -e "${YELLOW}→${NC} Baseline commit: ${BASELINE_SHA}"
-
-# Get ECR URI and App Runner service ARNs from terraform
-ECR_URI=$(echo "${TERRAFORM_OUTPUT}" | jq -r '.ecr_public_repository_uri.value')
-BASELINE_IMAGE="${ECR_URI}:main-${BASELINE_SHA}"
-
-echo -e "${YELLOW}→${NC} Baseline image: ${BASELINE_IMAGE}"
-echo ""
-
-IMAGE_FOUND=true
-
-# Verify the baseline image exists in ECR
-echo -e "${YELLOW}→${NC} Verifying baseline image exists in ECR..."
-if aws ecr-public describe-images \
-    --repository-name "${DEMO_ID}-bagel-store" \
-    --region us-east-1 \
-    --image-ids "imageTag=main-${BASELINE_SHA}" &>/dev/null; then
-    echo -e "${GREEN}✓${NC} Baseline image found"
-else
-    echo -e "${RED}❌ Error: Baseline image not found in ECR${NC}"
-    echo "  Image: ${BASELINE_IMAGE}"
-    echo "  No App Runner rollback will be performed."
-    echo ""
-    IMAGE_FOUND=false
-fi
-
 APP_RUNNER_UPDATED=()
 APP_RUNNER_SKIPPED=()
-
-# Extract App Runner service ARNs from terraform
 APP_RUNNER_FAILED=()
 
-if [[ "${IMAGE_FOUND}" == "true" ]]; then
+echo -e "${YELLOW}→${NC} Rolling back App Runner services to their current images..."
+echo ""
 
-    echo -e "${YELLOW}→${NC} Updating App Runner services..."
-    echo ""
+for ENV_NAME in "${DATABASES[@]}"; do
+    SERVICE_ARN=$(echo "${TERRAFORM_OUTPUT}" | jq -r ".app_runner_services.value.${ENV_NAME}.service_arn")
 
-    for ENV_NAME in "${DATABASES[@]}"; do
-        SERVICE_ARN=$(echo "${TERRAFORM_OUTPUT}" | jq -r ".app_runner_services.value.${ENV_NAME}.service_arn")
-
-        if [[ "${SERVICE_ARN}" == "null" ]] || [[ -z "${SERVICE_ARN}" ]]; then
-            echo -e "${CYAN}  ${ENV_NAME}:${NC}"
-            echo -e "    ${YELLOW}⊘${NC}  No App Runner service found - skipping"
-            APP_RUNNER_SKIPPED+=("${ENV_NAME}")
-            echo ""
-            continue
-        fi
-
+    if [[ "${SERVICE_ARN}" == "null" ]] || [[ -z "${SERVICE_ARN}" ]]; then
         echo -e "${CYAN}  ${ENV_NAME}:${NC}"
-        echo -e "    ${YELLOW}→${NC} Updating to ${BASELINE_IMAGE}..."
-
-        UPDATE_OUTPUT=$(aws apprunner update-service \
-            --service-arn "${SERVICE_ARN}" \
-            --region us-east-1 \
-            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"${BASELINE_IMAGE}\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\"}}}" \
-            --query 'Service.Status' \
-            --output text 2>&1)
-
-        if [[ "${UPDATE_OUTPUT}" == "OPERATION_IN_PROGRESS" ]]; then
-            echo -e "    ${GREEN}✓${NC} Update started (OPERATION_IN_PROGRESS)"
-            APP_RUNNER_UPDATED+=("${ENV_NAME}")
-        else
-            echo -e "    ${RED}✗${NC} Update failed: ${UPDATE_OUTPUT}"
-            APP_RUNNER_FAILED+=("${ENV_NAME}")
-        fi
-
+        echo -e "    ${YELLOW}⊘${NC}  No App Runner service found - skipping"
+        APP_RUNNER_SKIPPED+=("${ENV_NAME}")
         echo ""
-    done
-fi
+        continue
+    fi
+
+    # Get the image the service is currently running
+    CURRENT_IMAGE=$(aws apprunner describe-service \
+        --service-arn "${SERVICE_ARN}" \
+        --region us-east-1 \
+        --query 'Service.SourceConfiguration.ImageRepository.ImageIdentifier' \
+        --output text 2>/dev/null)
+
+    if [[ -z "${CURRENT_IMAGE}" ]] || [[ "${CURRENT_IMAGE}" == "None" ]]; then
+        echo -e "${CYAN}  ${ENV_NAME}:${NC}"
+        echo -e "    ${RED}✗${NC} Could not determine current image"
+        APP_RUNNER_FAILED+=("${ENV_NAME}")
+        echo ""
+        continue
+    fi
+
+    echo -e "${CYAN}  ${ENV_NAME}:${NC}"
+    echo -e "    ${YELLOW}→${NC} Redeploying current image: ${CURRENT_IMAGE}..."
+
+    UPDATE_OUTPUT=$(aws apprunner update-service \
+        --service-arn "${SERVICE_ARN}" \
+        --region us-east-1 \
+        --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"${CURRENT_IMAGE}\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\"}}}" \
+        --query 'Service.Status' \
+        --output text 2>&1)
+
+    if [[ "${UPDATE_OUTPUT}" == "OPERATION_IN_PROGRESS" ]]; then
+        echo -e "    ${GREEN}✓${NC} Update started (OPERATION_IN_PROGRESS)"
+        APP_RUNNER_UPDATED+=("${ENV_NAME}")
+    else
+        echo -e "    ${RED}✗${NC} Update failed: ${UPDATE_OUTPUT}"
+        APP_RUNNER_FAILED+=("${ENV_NAME}")
+    fi
+
+    echo ""
+done
 
 echo ""
 echo -e "${BLUE}========================================${NC}"
@@ -358,16 +340,14 @@ if [[ ${#APP_RUNNER_SKIPPED[@]} -gt 0 ]]; then
     echo -e "  ${YELLOW}⊘ Skipped (${#APP_RUNNER_SKIPPED[@]}):${NC} ${APP_RUNNER_SKIPPED[*]}"
 fi
 
-if [[ "${IMAGE_FOUND}" == "false" ]]; then
-    echo -e "  ${RED}✗ Skipped: Baseline image not found in ECR${NC}"
-elif [[ ${#APP_RUNNER_FAILED[@]} -gt 0 ]]; then
+if [[ ${#APP_RUNNER_FAILED[@]} -gt 0 ]]; then
     echo -e "  ${RED}✗ Failed (${#APP_RUNNER_FAILED[@]}):${NC} ${APP_RUNNER_FAILED[*]}"
 fi
 
 echo ""
 
 HAS_FAILURES=false
-if [[ ${#FAILED[@]} -gt 0 ]] || [[ ${#APP_RUNNER_FAILED[@]} -gt 0 ]] || [[ "${IMAGE_FOUND}" == "false" ]]; then
+if [[ ${#FAILED[@]} -gt 0 ]] || [[ ${#APP_RUNNER_FAILED[@]} -gt 0 ]]; then
     HAS_FAILURES=true
 fi
 
