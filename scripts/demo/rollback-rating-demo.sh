@@ -294,13 +294,16 @@ for ENV_NAME in "${DATABASES[@]}"; do
         --region us-east-1 \
         --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"${CURRENT_IMAGE}\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\"}}}" \
         --query 'Service.Status' \
-        --output text 2>&1)
+        --output text 2>&1 || echo "ERROR: ${UPDATE_OUTPUT}")
 
     if [[ "${UPDATE_OUTPUT}" == "OPERATION_IN_PROGRESS" ]]; then
         echo -e "    ${GREEN}✓${NC} Update started (OPERATION_IN_PROGRESS)"
         APP_RUNNER_UPDATED+=("${ENV_NAME}")
     elif [[ "${UPDATE_OUTPUT}" == "RUNNING" ]]; then
         echo -e "    ${GREEN}✓${NC} Already running correct image"
+        APP_RUNNER_UPDATED+=("${ENV_NAME}")
+    elif echo "${UPDATE_OUTPUT}" | grep -q "OPERATION_IN_PROGRESS"; then
+        echo -e "    ${GREEN}✓${NC} Update already in progress"
         APP_RUNNER_UPDATED+=("${ENV_NAME}")
     else
         echo -e "    ${RED}✗${NC} Update failed: ${UPDATE_OUTPUT}"
