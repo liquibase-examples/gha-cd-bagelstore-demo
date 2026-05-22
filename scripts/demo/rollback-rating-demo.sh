@@ -294,7 +294,7 @@ for ENV_NAME in "${DATABASES[@]}"; do
         --region us-east-1 \
         --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"${CURRENT_IMAGE}\",\"ImageRepositoryType\":\"ECR_PUBLIC\",\"ImageConfiguration\":{\"Port\":\"5000\"}}}" \
         --query 'Service.Status' \
-        --output text 2>&1 || echo "ERROR: ${UPDATE_OUTPUT}")
+        --output text 2>&1) || UPDATE_OUTPUT="${UPDATE_OUTPUT}"
 
     if [[ "${UPDATE_OUTPUT}" == "OPERATION_IN_PROGRESS" ]]; then
         echo -e "    ${GREEN}✓${NC} Update started (OPERATION_IN_PROGRESS)"
