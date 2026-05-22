@@ -61,7 +61,6 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
   RDS_ENDPOINT=$(echo "$AWS_PARAMS_JSON" | jq -r '.rds_endpoint')
 
   # Extract secrets
-  # Note: AWS credentials provided by IAM instance profile (no explicit credentials needed)
   LIQUIBASE_LICENSE_KEY=$(echo "$SECRETS_JSON" | jq -r '.liquibase_license_key')
 
   echo "Using AWS RDS endpoint: ${RDS_ENDPOINT}"
@@ -71,6 +70,8 @@ if [ "$DEPLOYMENT_TARGET" = "aws" ]; then
 
   docker run --rm \
     -v "${VOLUME_NAME}:/liquibase/changelog" \
+    -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+    -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
     -e AWS_REGION="${AWS_REGION}" \
     -e AWS_DEFAULT_REGION="${AWS_REGION}" \
     -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
