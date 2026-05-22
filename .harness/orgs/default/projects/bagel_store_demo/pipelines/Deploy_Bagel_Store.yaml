@@ -22,6 +22,18 @@ pipeline:
       description: Deployment target (aws or local)
       required: true
       value: <+input>
+    - name: ROLLBACK
+      type: String
+      description: Set to "true" to rollback instead of deploy. Run a single stage only.
+      required: true
+      value: <+input>
+      default: "false"
+    - name: ROLLBACK_TO_VERSION
+      type: String
+      description: Version to rollback to (e.g., v1.0.0). Required when ROLLBACK is true.
+      required: false
+      value: <+input>
+      default: ""
   stages:
     - stage:
         name: Deploy to Dev
