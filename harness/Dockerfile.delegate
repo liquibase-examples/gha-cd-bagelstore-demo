@@ -23,20 +23,28 @@ RUN microdnf update -y && \
     && microdnf clean all
 
 # Install Docker CLI (for running Liquibase containers from scripts)
-# Download static binary since base image doesn't have docker repos
-RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz -o docker.tgz && \
+# Use aarch64 binary for Apple Silicon / ARM64 hosts
+RUN ARCH=$(uname -m) && \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-24.0.7.tgz" -o docker.tgz && \
     tar -xzf docker.tgz --strip-components=1 -C /usr/local/bin docker/docker && \
     rm docker.tgz && \
     chmod +x /usr/local/bin/docker
 
-# Install AWS CLI v2 (x86_64 architecture for EC2)
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+# Install AWS CLI v2 (architecture-aware)
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then \
+      curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"; \
+    else \
+      curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"; \
+    fi && \
     unzip -q awscliv2.zip && \
     ./aws/install && \
     rm -rf aws awscliv2.zip
 
-# Install Terraform
-RUN curl -fsSL https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_amd64.zip -o terraform.zip && \
+# Install Terraform (architecture-aware)
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then TF_ARCH="arm64"; else TF_ARCH="amd64"; fi && \
+    curl -fsSL "https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_${TF_ARCH}.zip" -o terraform.zip && \
     unzip -q terraform.zip && \
     mv terraform /usr/local/bin/ && \
     rm terraform.zip && \
