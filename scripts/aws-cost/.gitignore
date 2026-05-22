@@ -1,0 +1,3 @@
+# State files contain AWS-specific identifiers
+# Users should regenerate state on their own infrastructure
+*.json

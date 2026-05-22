@@ -1,0 +1,5 @@
+# Ignore all state files
+*.json
+
+# Keep the directory in git
+!.gitkeep
