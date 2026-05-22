@@ -1,6 +1,6 @@
 inputSet:
   name: Rollback
-  identifier: rollback
+  identifier: Rollback
   orgIdentifier: default
   projectIdentifier: bagel_store_demo
   pipeline:
