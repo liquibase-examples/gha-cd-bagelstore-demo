@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 # Get repository root (2 levels up from scripts/demo/)
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TERRAFORM_DIR="${REPO_ROOT}/terraform"
-ROLLBACK_TAG="v1.0.0"
+ROLLBACK_TAG=""  # Resolved dynamically from the database
 LIQUIBASE_IMAGE="liquibase/liquibase-secure:5.0.1"
 
 echo -e "${BLUE}========================================${NC}"
@@ -174,6 +174,22 @@ fi
 echo -e "${GREEN}✓${NC} Credentials retrieved"
 echo ""
 
+# Resolve rollback tag dynamically from the database
+echo -e "${YELLOW}→${NC} Resolving rollback tag from database..."
+ROLLBACK_TAG=$(docker run --rm \
+    --network host \
+    postgres:16 \
+    psql "postgresql://${DB_USERNAME}:${DB_PASSWORD}@${RDS_ADDRESS}:${RDS_PORT}/dev" \
+    -tAc "SELECT tag FROM databasechangelog WHERE id = 'tag-v1.0.0' LIMIT 1;" 2>/dev/null | tr -d '[:space:]')
+
+if [[ -z "${ROLLBACK_TAG}" ]]; then
+    echo -e "${RED}❌ Error: Could not determine rollback tag from databasechangelog${NC}"
+    echo "  Expected a row with id = 'tag-v1.0.0' in the dev database"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} Rollback tag: ${ROLLBACK_TAG}"
+echo ""
+
 # Rollback each database
 DATABASES=("dev" "test" "staging" "prod")
 ROLLED_BACK=()
@@ -206,10 +222,8 @@ for DB_NAME in "${DATABASES[@]}"; do
         CHANGESET_COUNT=$(docker run --rm \
             --network host \
             postgres:16 \
-            psql "${JDBC_URL}" \
-            --username="${DB_USERNAME}" \
-            --no-password \
-            -tAc "SELECT COUNT(*) FROM databasechangelog WHERE id = 'demo:008-add-product-ratings';" 2>/dev/null || echo "0")
+            psql "postgresql://${DB_USERNAME}:${DB_PASSWORD}@${RDS_ADDRESS}:${RDS_PORT}/${DB_NAME}" \
+            -tAc "SELECT COUNT(*) FROM databasechangelog WHERE id = '008-add-product-ratings';" 2>/dev/null | tr -d '[:space:]' || echo "0")
 
         if [[ "${CHANGESET_COUNT}" == "0" ]]; then
             echo -e "    ${YELLOW}⊘${NC}  Changeset not found - skipping"
