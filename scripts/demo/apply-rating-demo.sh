@@ -67,7 +67,7 @@ echo -e "${YELLOW}→${NC} Applying rating feature patch..."
 echo "  Patch: ${PATCH_FILE}"
 echo ""
 
-if git apply "${PATCH_FILE}"; then
+if git -C "${REPO_ROOT}" apply "${PATCH_FILE}"; then
     echo -e "${GREEN}✓${NC} Patch applied successfully"
 else
     echo -e "${RED}❌ Error: Failed to apply patch${NC}"
