@@ -20,4 +20,4 @@ inputSet:
         value: "true"
       - name: ROLLBACK_TO_VERSION
         type: String
-        value: <+input>
+        value: <+rollbackArtifact.tag>
