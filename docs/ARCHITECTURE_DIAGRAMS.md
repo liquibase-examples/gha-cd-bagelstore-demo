@@ -13,67 +13,78 @@ This document contains 4 different visualization approaches for presenting the a
 
 ---
 
-## 1. CI/CD Pipeline Flow (Mermaid Flowchart)
+## 1a. Continuous Integration (GitHub Actions)
 
-**Best for:** Showing the complete journey from code commit to production deployment.
+**Best for:** Showing what happens when a developer pushes code.
 
-**Use when:** You want to explain the end-to-end automation workflow.
+**Use when:** You want to explain the CI pipeline and quality gates.
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#1168bd','primaryTextColor':'#fff','primaryBorderColor':'#0d4f8b','lineColor':'#0d4f8b','secondaryColor':'#48bb78','tertiaryColor':'#f6ad55'}}}%%
 
-flowchart TB
+flowchart LR
     Start([Developer Pushes Code]) --> GHA[GitHub Actions CI]
 
-    subgraph CI["Continuous Integration"]
-        GHA --> Val[Policy Validation<br/>12 Liquibase Checks]
-        GHA --> Test[Integration Testing<br/>15 Test Cases]
-        GHA --> Build[Build & Package]
+    GHA --> Val[Policy Validation<br/>12 Liquibase Checks]
+    GHA --> Test[Integration Testing<br/>15 Test Cases]
+    GHA --> Build[Build & Package]
 
-        Val --> CheckPass{All Checks<br/>Pass?}
-        CheckPass -->|No| Fail([Build Failed])
-        CheckPass -->|Yes| Artifact[Create Changelog Artifact]
+    Val --> CheckPass{All Checks<br/>Pass?}
+    CheckPass -->|No| Fail([Build Failed])
+    CheckPass -->|Yes| Artifact[Create Changelog<br/>Artifact]
 
-        Build --> Image[Push Docker Image<br/>AWS Public ECR]
+    Build --> Image[Push Docker Image<br/>AWS Public ECR]
 
-        Artifact --> Trigger[Trigger Harness Webhook]
-    end
+    Artifact --> Trigger[Trigger Harness<br/>Webhook]
+    Image --> Trigger
 
-    Trigger --> Harness[Harness CD Pipeline]
+    style Start fill:#48bb78,stroke:#2f855a,color:#fff
+    style Fail fill:#fc8181,stroke:#c53030,color:#fff
+    style Trigger fill:#48bb78,stroke:#2f855a,color:#fff
+```
 
-    subgraph CD["Continuous Deployment - Per Environment"]
-        Harness --> Fetch[Fetch Changelog Artifact]
+**Key Message:** Code is validated with 12 policy checks and 15 integration tests before artifacts are created and Harness is triggered.
 
-        Fetch --> DB[Update Database<br/>Liquibase + AWS RDS]
-        DB --> DBSuccess{Database<br/>Updated?}
-        DBSuccess -->|No| RollbackDB([Rollback])
+---
 
-        DBSuccess -->|Yes| App[Deploy Application<br/>AWS App Runner]
-        App --> AppSuccess{Deployment<br/>Success?}
-        AppSuccess -->|No| RollbackApp([Rollback])
+## 1b. Continuous Deployment (Harness CD)
 
-        AppSuccess -->|Yes| Health[Health Check<br/>API Validation]
-        Health --> HealthOK{Healthy?}
-        HealthOK -->|No| RollbackHealth([Rollback])
+**Best for:** Showing the per-environment deployment orchestration.
 
-        HealthOK -->|Yes| Report[Report Instances<br/>to Harness]
-    end
+**Use when:** You want to explain how database and application changes are coordinated.
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#1168bd','primaryTextColor':'#fff','primaryBorderColor':'#0d4f8b','lineColor':'#0d4f8b','secondaryColor':'#48bb78','tertiaryColor':'#f6ad55'}}}%%
+
+flowchart LR
+    Trigger([Harness Webhook]) --> Fetch[Fetch Changelog<br/>Artifact]
+
+    Fetch --> DB[Update Database<br/>Liquibase + AWS RDS]
+    DB --> DBSuccess{Database<br/>Updated?}
+    DBSuccess -->|No| RollbackDB([Rollback])
+
+    DBSuccess -->|Yes| App[Deploy Application<br/>AWS App Runner]
+    App --> AppSuccess{Deployment<br/>Success?}
+    AppSuccess -->|No| RollbackApp([Rollback])
+
+    AppSuccess -->|Yes| Health[Health Check<br/>API Validation]
+    Health --> HealthOK{Healthy?}
+    HealthOK -->|No| RollbackHealth([Rollback])
+
+    HealthOK -->|Yes| Report[Report Instances<br/>to Harness]
 
     Report --> NextEnv{More<br/>Environments?}
-    NextEnv -->|Yes| Harness
-    NextEnv -->|No| Success([Deployed to Production])
+    NextEnv -->|Yes| Fetch
+    NextEnv -->|No| Success([Deployed to<br/>Production])
 
-    style CI fill:#e6f3ff
-    style CD fill:#e6ffe6
-    style Start fill:#48bb78,stroke:#2f855a,color:#fff
+    style Trigger fill:#1168bd,stroke:#0d4f8b,color:#fff
     style Success fill:#48bb78,stroke:#2f855a,color:#fff
-    style Fail fill:#fc8181,stroke:#c53030,color:#fff
     style RollbackDB fill:#fc8181,stroke:#c53030,color:#fff
     style RollbackApp fill:#fc8181,stroke:#c53030,color:#fff
     style RollbackHealth fill:#fc8181,stroke:#c53030,color:#fff
 ```
 
-**Key Message:** Database changes are validated with policy checks, then deployed before the application - ensuring schema compatibility.
+**Key Message:** Database changes are deployed and validated before the application - ensuring schema compatibility. Each environment (dev → test → staging → prod) follows this same pattern.
 
 ---
 
