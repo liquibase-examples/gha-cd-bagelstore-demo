@@ -113,9 +113,10 @@ template:
 
                     docker run --rm \
                       -v /tmp/changelog:/liquibase/changelog \
-                      -e AWS_ACCESS_KEY_ID=<+secrets.getValue('aws_access_key_id')> \
-                      -e AWS_SECRET_ACCESS_KEY=<+secrets.getValue('aws_secret_access_key')> \
+                      -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+                      -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
                       -e AWS_REGION=<+env.variables.aws_region> \
+                      -e AWS_DEFAULT_REGION=<+env.variables.aws_region> \
                       -e LIQUIBASE_LICENSE_KEY=<+secrets.getValue('liquibase_license_key')> \
                       -e LIQUIBASE_COMMAND_URL=<+env.variables.jdbc_url> \
                       -e LIQUIBASE_COMMAND_USERNAME='${awsSecretsManager:<+env.variables.demo_id>/rds/username}' \
