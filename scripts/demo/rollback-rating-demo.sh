@@ -299,6 +299,9 @@ for ENV_NAME in "${DATABASES[@]}"; do
     if [[ "${UPDATE_OUTPUT}" == "OPERATION_IN_PROGRESS" ]]; then
         echo -e "    ${GREEN}✓${NC} Update started (OPERATION_IN_PROGRESS)"
         APP_RUNNER_UPDATED+=("${ENV_NAME}")
+    elif [[ "${UPDATE_OUTPUT}" == "RUNNING" ]]; then
+        echo -e "    ${GREEN}✓${NC} Already running correct image"
+        APP_RUNNER_UPDATED+=("${ENV_NAME}")
     else
         echo -e "    ${RED}✗${NC} Update failed: ${UPDATE_OUTPUT}"
         APP_RUNNER_FAILED+=("${ENV_NAME}")
@@ -333,7 +336,7 @@ echo ""
 
 echo -e "${CYAN}App Runner rollbacks:${NC}"
 if [[ ${#APP_RUNNER_UPDATED[@]} -gt 0 ]]; then
-    echo -e "  ${GREEN}✓ Updated (${#APP_RUNNER_UPDATED[@]}):${NC} ${APP_RUNNER_UPDATED[*]} → main-${BASELINE_SHA}"
+    echo -e "  ${GREEN}✓ Updated (${#APP_RUNNER_UPDATED[@]}):${NC} ${APP_RUNNER_UPDATED[*]}"
 fi
 
 if [[ ${#APP_RUNNER_SKIPPED[@]} -gt 0 ]]; then
