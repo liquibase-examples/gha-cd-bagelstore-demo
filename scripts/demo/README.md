@@ -45,7 +45,7 @@ This demo showcases Liquibase's ability to:
 ls terraform/terraform.tfstate
 
 # Verify AWS credentials
-export AWS_PROFILE=liquibase-csteam-operator
+export AWS_PROFILE=liquibase-sandbox-owner
 aws sts get-caller-identity
 
 # Check terraform outputs
@@ -333,7 +333,7 @@ git checkout -- .
 
 **"AWS_PROFILE not set"**
 ```bash
-export AWS_PROFILE=liquibase-csteam-operator
+export AWS_PROFILE=liquibase-sandbox-owner
 aws sts get-caller-identity  # verify
 ```
 

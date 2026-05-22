@@ -93,7 +93,7 @@ fi
 # Check AWS Profile
 if [[ -z "${AWS_PROFILE:-}" ]]; then
     echo -e "${RED}❌ Error: AWS_PROFILE not set${NC}"
-    echo "  Export AWS profile: export AWS_PROFILE=liquibase-sandbox-admin"
+    echo "  Export AWS profile: export AWS_PROFILE=liquibase-sandbox-owner"
     exit 1
 fi
 

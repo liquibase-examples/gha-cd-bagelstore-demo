@@ -95,7 +95,7 @@ else
     # Check AWS Profile
     if [[ -z "${AWS_PROFILE:-}" ]]; then
         echo -e "  ${YELLOW}⚠${NC}  AWS_PROFILE not set - skipping database checks"
-        echo "  Set with: export AWS_PROFILE=liquibase-csteam-operator"
+        echo "  Set with: export AWS_PROFILE=liquibase-sandbox-owner"
         echo ""
     else
         # Get terraform outputs
