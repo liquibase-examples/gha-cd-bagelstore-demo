@@ -240,6 +240,7 @@ for DB_NAME in "${DATABASES[@]}"; do
 
     if docker run --rm \
         --network host \
+        -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
         -v "${REPO_ROOT}/db/changelog:/liquibase/changelog" \
         "${LIQUIBASE_IMAGE}" \
         --url="${JDBC_URL}" \
