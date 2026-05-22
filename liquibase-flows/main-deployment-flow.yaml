@@ -74,6 +74,11 @@ stages:
           reports-name: "${DEPLOYMENT_REPORT}"
           reports-open: "false"
 
+      - type: liquibase
+        command: tag
+        cmdArgs:
+          tag: "${VERSION}"
+
 endStage:
   actions:
     - type: shell
