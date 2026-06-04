@@ -37,32 +37,37 @@ echo -e "${BLUE}========================================${NC}"
 echo ""
 
 #
-# Part 1: Reset Git Working Tree
+# Part 1: Reset Git (revert ratings commit + discard uncommitted changes)
 #
-echo -e "${CYAN}Part 1: Reset Git Working Tree${NC}"
+echo -e "${CYAN}Part 1: Reset Git${NC}"
 echo ""
 
-echo -e "${YELLOW}→${NC} Checking git status..."
-if git diff-index --quiet HEAD -- 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} Working tree is already clean"
+# Discard any uncommitted changes first
+echo -e "${YELLOW}→${NC} Checking for uncommitted changes..."
+if ! git -C "${REPO_ROOT}" diff-index --quiet HEAD -- 2>/dev/null; then
+    echo -e "${YELLOW}→${NC} Discarding uncommitted changes..."
+    git -C "${REPO_ROOT}" checkout -- .
+    git -C "${REPO_ROOT}" clean -fd
+    echo -e "${GREEN}✓${NC} Working tree cleaned"
 else
-    echo -e "${YELLOW}⚠${NC}  Uncommitted changes detected"
-    echo ""
-    echo "The following changes will be discarded:"
-    git status --short
-    echo ""
+    echo -e "${GREEN}✓${NC} Working tree is clean"
+fi
 
-    read -p "Continue with git reset? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Aborted."
+# Check if the ratings commit needs to be reverted
+echo -e "${YELLOW}→${NC} Checking for ratings feature commit..."
+RATINGS_COMMIT=$(git -C "${REPO_ROOT}" log --oneline --grep="Add ratings feature" -1 --format="%H")
+
+if [[ -n "${RATINGS_COMMIT}" ]]; then
+    echo -e "${YELLOW}→${NC} Reverting ratings commit: $(git -C "${REPO_ROOT}" log --oneline -1 "${RATINGS_COMMIT}")"
+    if git -C "${REPO_ROOT}" revert --no-edit "${RATINGS_COMMIT}"; then
+        echo -e "${GREEN}✓${NC} Ratings commit reverted"
+    else
+        echo -e "${RED}❌ Error: Failed to revert ratings commit${NC}"
+        echo "  You may need to resolve conflicts manually"
         exit 1
     fi
-
-    echo -e "${YELLOW}→${NC} Discarding changes..."
-    git checkout -- .
-    git clean -fd
-    echo -e "${GREEN}✓${NC} Working tree reset"
+else
+    echo -e "${GREEN}✓${NC} No ratings commit found - already at baseline"
 fi
 
 echo ""
