@@ -27,7 +27,6 @@ NC='\033[0m' # No Color
 # Get repository root (2 levels up from scripts/demo/)
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TERRAFORM_DIR="${REPO_ROOT}/terraform"
-ROLLBACK_TAG="main-fb49879"
 BASELINE_APP_IMAGE="public.ecr.aws/l1v5b6d6/psr-bagel-store:main-b5660a6"
 LIQUIBASE_IMAGE="liquibase/liquibase-secure:5.0.1"
 
@@ -220,8 +219,9 @@ for DB_NAME in "${DATABASES[@]}"; do
 
     echo -e "    ${GREEN}✓${NC} Changeset found"
 
-    # Perform rollback
-    echo -e "    ${YELLOW}→${NC} Rolling back to ${ROLLBACK_TAG}..."
+    # Perform rollback (roll back 2 changesets: tag-v1.0.0 + 008-add-product-ratings)
+    # CI applies both 008 and the version tag changeset together
+    echo -e "    ${YELLOW}→${NC} Rolling back 2 changesets (008 + version tag)..."
 
     if docker run --rm \
         --network host \
@@ -232,7 +232,8 @@ for DB_NAME in "${DATABASES[@]}"; do
         --username="${DB_USERNAME}" \
         --password="${DB_PASSWORD}" \
         --changelog-file=changelog-master.yaml \
-        rollback "${ROLLBACK_TAG}" 2>&1 | grep -q "successfully"; then
+        --report-enabled=false \
+        rollback-count 2 2>&1 | grep -q "successfully"; then
 
         echo -e "    ${GREEN}✓${NC} Rollback successful"
         ROLLED_BACK+=("${DB_NAME}")
