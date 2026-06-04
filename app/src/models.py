@@ -14,6 +14,7 @@ class Product:
     name: str
     description: str
     price: float
+    rating: int = 0
 
     @staticmethod
     def from_db_row(row):
@@ -22,7 +23,8 @@ class Product:
             id=row[0],
             name=row[1],
             description=row[2],
-            price=float(row[3])
+            price=float(row[3]),
+            rating=int(row[4]) if len(row) > 4 else 0
         )
 
 
