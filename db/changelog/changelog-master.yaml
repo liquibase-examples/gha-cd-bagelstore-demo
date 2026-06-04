@@ -46,11 +46,6 @@ databaseChangeLog:
       file: changesets/007-seed-inventory.sql
       relativeToChangelogFile: true
 
-  # Feature Enhancement
-  - include:
-      file: changesets/008-add-product-ratings.sql
-      relativeToChangelogFile: true
-
   # Version Tag
   - changeSet:
       id: tag-v1.0.0
