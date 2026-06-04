@@ -28,7 +28,6 @@ NC='\033[0m' # No Color
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TERRAFORM_DIR="${REPO_ROOT}/terraform"
 BASELINE_APP_IMAGE="public.ecr.aws/l1v5b6d6/psr-bagel-store:main-b5660a6"
-LIQUIBASE_IMAGE="liquibase/liquibase-secure:5.0.1"
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Rollback Product Rating Feature${NC}"
@@ -193,57 +192,41 @@ for DB_NAME in "${DATABASES[@]}"; do
 
     JDBC_URL="jdbc:postgresql://${RDS_ADDRESS}:${RDS_PORT}/${DB_NAME}"
 
-    # Check if changeset exists
+    PSQL_URL="postgresql://${DB_USERNAME}:${DB_PASSWORD}@${RDS_ADDRESS}:${RDS_PORT}/${DB_NAME}"
+
+    # Check if changeset 008 exists in DATABASECHANGELOG
     echo -e "    ${YELLOW}→${NC} Checking for changeset 008..."
-
-    CHANGESET_EXISTS=$(docker run --rm \
+    CHANGESET_COUNT=$(docker run --rm \
         --network host \
-        liquibase/liquibase-secure:5.0.1 \
-        --url="${JDBC_URL}" \
-        --username="${DB_USERNAME}" \
-        --password="${DB_PASSWORD}" \
-        --changelog-file=/dev/null \
-        status --verbose 2>/dev/null | grep -c "008-add-product-ratings" || true)
+        postgres:16 \
+        psql "${PSQL_URL}" \
+        -tAc "SELECT COUNT(*) FROM databasechangelog WHERE id = '008-add-product-ratings';" 2>/dev/null | tr -d '[:space:]' || echo "0")
 
-    # Alternative check using SQL query
-    if [[ "${CHANGESET_EXISTS}" -eq 0 ]]; then
-        # Try direct database query
-        CHANGESET_COUNT=$(docker run --rm \
-            --network host \
-            postgres:16 \
-            psql "postgresql://${DB_USERNAME}:${DB_PASSWORD}@${RDS_ADDRESS}:${RDS_PORT}/${DB_NAME}" \
-            -tAc "SELECT COUNT(*) FROM databasechangelog WHERE id = '008-add-product-ratings';" 2>/dev/null | tr -d '[:space:]' || echo "0")
-
-        if [[ "${CHANGESET_COUNT}" == "0" ]]; then
-            echo -e "    ${YELLOW}⊘${NC}  Changeset not found - skipping"
-            SKIPPED+=("${DB_NAME}")
-            echo ""
-            continue
-        fi
+    if [[ "${CHANGESET_COUNT}" == "0" ]]; then
+        echo -e "    ${YELLOW}⊘${NC}  Changeset not found - skipping"
+        SKIPPED+=("${DB_NAME}")
+        echo ""
+        continue
     fi
 
     echo -e "    ${GREEN}✓${NC} Changeset found"
 
-    # Perform rollback (roll back 2 changesets: tag-v1.0.0 + 008-add-product-ratings)
-    # CI applies both 008 and the version tag changeset together
-    echo -e "    ${YELLOW}→${NC} Rolling back 2 changesets (008 + version tag)..."
+    # Roll back via direct SQL (reliable regardless of changelog file order)
+    echo -e "    ${YELLOW}→${NC} Dropping rating column and cleaning DATABASECHANGELOG..."
 
-    if docker run --rm \
+    ROLLBACK_OUTPUT=$(docker run --rm \
         --network host \
-        -e LIQUIBASE_LICENSE_KEY="${LIQUIBASE_LICENSE_KEY}" \
-        -v "${REPO_ROOT}/db/changelog:/liquibase/changelog" \
-        "${LIQUIBASE_IMAGE}" \
-        --url="${JDBC_URL}" \
-        --username="${DB_USERNAME}" \
-        --password="${DB_PASSWORD}" \
-        --changelog-file=changelog-master.yaml \
-        --report-enabled=false \
-        rollback-count 2 2>&1 | grep -q "successfully"; then
+        postgres:16 \
+        psql "${PSQL_URL}" \
+        -c "ALTER TABLE products DROP COLUMN IF EXISTS rating;
+            DELETE FROM databasechangelog WHERE id = '008-add-product-ratings';
+            DELETE FROM databasechangelog WHERE id = 'tag-v1.0.0';" 2>&1)
 
+    if echo "${ROLLBACK_OUTPUT}" | grep -q "ALTER TABLE"; then
         echo -e "    ${GREEN}✓${NC} Rollback successful"
         ROLLED_BACK+=("${DB_NAME}")
     else
-        echo -e "    ${RED}✗${NC} Rollback failed"
+        echo -e "    ${RED}✗${NC} Rollback failed: ${ROLLBACK_OUTPUT}"
         FAILED+=("${DB_NAME}")
     fi
 
