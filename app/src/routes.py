@@ -26,7 +26,7 @@ if not DEMO_USERNAME or not DEMO_PASSWORD:
 def index():
     """Homepage - product catalog"""
     products = execute_query(
-        'SELECT id, name, description, price FROM products ORDER BY name'
+        'SELECT id, name, description, price, rating FROM products ORDER BY name'
     )
 
     products_list = []
@@ -71,7 +71,7 @@ def cart():
 
     for item in cart_items:
         product_row = execute_one(
-            'SELECT id, name, description, price FROM products WHERE id = %s',
+            'SELECT id, name, description, price, rating FROM products WHERE id = %s',
             (item['product_id'],)
         )
         if product_row:
@@ -130,7 +130,7 @@ def checkout():
 
     for item in cart_items:
         product_row = execute_one(
-            'SELECT id, name, description, price FROM products WHERE id = %s',
+            'SELECT id, name, description, price, rating FROM products WHERE id = %s',
             (item['product_id'],)
         )
         if product_row:
