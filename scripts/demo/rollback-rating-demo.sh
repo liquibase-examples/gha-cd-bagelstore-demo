@@ -52,21 +52,25 @@ else
     echo -e "${GREEN}✓${NC} Working tree is clean"
 fi
 
-# Check if the ratings commit needs to be reverted
-echo -e "${YELLOW}→${NC} Checking for ratings feature commit..."
-RATINGS_COMMIT=$(git -C "${REPO_ROOT}" log --oneline --grep="^Add ratings feature" -1 --format="%H")
-
-if [[ -n "${RATINGS_COMMIT}" ]]; then
-    echo -e "${YELLOW}→${NC} Reverting ratings commit: $(git -C "${REPO_ROOT}" log --oneline -1 "${RATINGS_COMMIT}")"
-    if git -C "${REPO_ROOT}" revert --no-edit "${RATINGS_COMMIT}"; then
-        echo -e "${GREEN}✓${NC} Ratings commit reverted"
+# Check if the ratings code is present in the source (not just commit history)
+echo -e "${YELLOW}→${NC} Checking for ratings feature in source..."
+if grep -q "rating" "${REPO_ROOT}/app/src/routes.py" 2>/dev/null; then
+    RATINGS_COMMIT=$(git -C "${REPO_ROOT}" log --oneline --grep="^Add ratings feature" -1 --format="%H")
+    if [[ -n "${RATINGS_COMMIT}" ]]; then
+        echo -e "${YELLOW}→${NC} Reverting ratings commit: $(git -C "${REPO_ROOT}" log --oneline -1 "${RATINGS_COMMIT}")"
+        if git -C "${REPO_ROOT}" revert --no-edit "${RATINGS_COMMIT}"; then
+            echo -e "${GREEN}✓${NC} Ratings commit reverted"
+        else
+            echo -e "${RED}❌ Error: Failed to revert ratings commit${NC}"
+            echo "  You may need to resolve conflicts manually"
+            exit 1
+        fi
     else
-        echo -e "${RED}❌ Error: Failed to revert ratings commit${NC}"
-        echo "  You may need to resolve conflicts manually"
-        exit 1
+        echo -e "${YELLOW}⚠${NC}  Ratings code present but no matching commit found"
+        echo "  You may need to manually remove ratings code"
     fi
 else
-    echo -e "${GREEN}✓${NC} No ratings commit found - already at baseline"
+    echo -e "${GREEN}✓${NC} Ratings feature not in source - already at baseline"
 fi
 
 echo ""
