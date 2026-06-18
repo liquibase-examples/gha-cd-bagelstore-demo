@@ -54,7 +54,7 @@ fi
 
 # Check if the ratings commit needs to be reverted
 echo -e "${YELLOW}→${NC} Checking for ratings feature commit..."
-RATINGS_COMMIT=$(git -C "${REPO_ROOT}" log --oneline --grep="Add ratings feature" -1 --format="%H")
+RATINGS_COMMIT=$(git -C "${REPO_ROOT}" log --oneline --grep="^Add ratings feature" -1 --format="%H")
 
 if [[ -n "${RATINGS_COMMIT}" ]]; then
     echo -e "${YELLOW}→${NC} Reverting ratings commit: $(git -C "${REPO_ROOT}" log --oneline -1 "${RATINGS_COMMIT}")"
