@@ -228,6 +228,8 @@ jobs:
   trigger-harness-deployment:
     name: Trigger Harness CD Pipeline
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [build-database-artifact, build-app-image]
     if: success()
 
